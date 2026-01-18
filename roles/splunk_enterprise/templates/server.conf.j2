@@ -1,0 +1,25 @@
+[general]
+serverName = {{ ansible_hostname }}
+site = default
+
+[license]
+master_uri = self
+
+[indexer_discovery:default]
+pass4SymmKey = $7$changeme
+
+[sslConfig]
+enableSplunkSSL = true
+
+[diskUsage]
+minFreeSpace = 5000
+
+[httpServer]
+max_content_length_mb = 100
+
+[splunkd]
+sslVersions = tls1_2, tls1_3
+sslVersionsForClient = tls1_2, tls1_3
+
+[ui]
+is_visible = true

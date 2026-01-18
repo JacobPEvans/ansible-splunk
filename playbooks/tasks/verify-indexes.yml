@@ -1,0 +1,30 @@
+---
+- name: Verify index directories exist
+  ansible.builtin.stat:
+    path: "{{ item.data_disk_path }}"
+  register: index_dirs
+  loop: "{{ splunk_indexes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: false
+
+- name: Verify index directories are writable
+  ansible.builtin.file:
+    path: "{{ item.data_disk_path }}"
+    owner: splunk
+    group: splunk
+    mode: '0755'
+    state: directory
+  loop: "{{ splunk_indexes }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Check disk space on data disk
+  ansible.builtin.assert:
+    that:
+      - >
+        ansible_mounts | selectattr('mount', 'equalto',
+        splunk_data_disk_mount_path) | map(attribute='size_available')
+        | first > 10737418240
+    fail_msg: "Insufficient disk space. Need at least 10GB available"
+  changed_when: false

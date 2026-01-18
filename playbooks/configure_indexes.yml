@@ -1,0 +1,21 @@
+---
+- name: Configure Splunk indexes with persistent storage
+  hosts: splunk
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Ensure data disk is mounted
+      ansible.builtin.assert:
+        that:
+          - ansible_mounts | selectattr('mount', 'equalto',
+              splunk_data_disk_mount_path) | list | length > 0
+        fail_msg: "Data disk not mounted at {{ splunk_data_disk_mount_path }}"
+
+    - name: Create index configuration
+      ansible.builtin.include_role:
+        name: splunk_enterprise
+        tasks_from: indexes
+
+    - name: Verify index configuration
+      ansible.builtin.include_tasks: tasks/verify-indexes.yml

@@ -1,0 +1,10 @@
+---
+- name: Deploy Splunk Enterprise
+  hosts: splunk
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Configure and deploy Splunk Enterprise
+      ansible.builtin.include_role:
+        name: splunk_enterprise

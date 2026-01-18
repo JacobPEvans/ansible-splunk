@@ -1,0 +1,38 @@
+---
+# Splunk Enterprise configuration group variables
+
+# Service configuration
+splunk_admin_user: admin
+splunk_service_state: started
+splunk_service_enabled: true
+
+# Data disk configuration
+splunk_data_disk_device: /dev/sdb1
+splunk_data_disk_mount_path: /opt/splunk/var/lib/splunk
+
+# Index configuration defaults
+splunk_indexes:
+  - name: main
+    data_disk_path: /opt/splunk/var/lib/splunk/main
+    max_data_size: auto_high_volume
+    frozen_time_secs: 7776000
+  - name: _internal
+    data_disk_path: /opt/splunk/var/lib/splunk/_internal
+    max_data_size: auto
+    frozen_time_secs: 5184000
+  - name: _audit
+    data_disk_path: /opt/splunk/var/lib/splunk/_audit
+    max_data_size: auto
+    frozen_time_secs: 7776000
+
+# HEC (HTTP Event Collector) configuration
+splunk_hec_port: 8088
+splunk_hec_enable_ssl: false
+splunk_hec_default_sourcetype: _json
+splunk_hec_default_index: main
+splunk_hec_token_name: cribl_hec_token
+
+# Syslog input configuration
+splunk_syslog_port: 1514
+splunk_syslog_default_index: main
+splunk_syslog_default_sourcetype: syslog

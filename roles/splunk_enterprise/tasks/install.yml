@@ -1,0 +1,78 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install Splunk Enterprise dependencies
+  ansible.builtin.apt:
+    name:
+      - libglib2.0-0
+      - libffi8ubuntu1
+      - libssl3
+      - openssl
+      - python3
+    state: present
+
+- name: Check if Splunk is installed
+  ansible.builtin.stat:
+    path: "{{ splunk_install_path }}/bin/splunk"
+  register: splunk_binary
+
+- name: Download Splunk Enterprise package
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd /tmp
+    wget -q https://download.splunk.com/products/splunk/releases/9.1.1/linux_2.6_x86_64/splunk-9.1.1-64e843d16059-Linux-x86_64.tgz \
+      -O splunk-9.1.1-Linux-x86_64.tgz
+    echo "Downloaded Splunk package"
+  args:
+    executable: /bin/bash
+  when: not splunk_binary.stat.exists
+  register: download_result
+  changed_when: download_result.rc == 0
+
+- name: Extract Splunk package
+  ansible.builtin.unarchive:
+    src: /tmp/splunk-9.1.1-Linux-x86_64.tgz
+    dest: /opt
+    remote_src: true
+    owner: root
+    group: root
+  when: not splunk_binary.stat.exists
+  notify: restart splunk
+
+- name: Create Splunk system user
+  ansible.builtin.user:
+    name: splunk
+    home: "{{ splunk_install_path }}"
+    shell: /bin/bash
+    createhome: false
+    state: present
+
+- name: Set Splunk directory ownership
+  ansible.builtin.file:
+    path: "{{ splunk_install_path }}"
+    owner: splunk
+    group: splunk
+    mode: '0755'
+    recurse: true
+
+- name: Initialize Splunk (generate default configuration)
+  ansible.builtin.command:
+    cmd: >
+      {{ splunk_install_path }}/bin/splunk start --accept-license
+      --seed-passwd {{ splunk_admin_password }} --answer-yes
+  become_user: splunk
+  register: init_result
+  changed_when: "'Splunk Enterprise has been installed' in init_result.stdout"
+  failed_when:
+    - init_result.rc != 0
+    - "'already' not in init_result.stderr"
+  no_log: true
+
+- name: Stop Splunk after initialization
+  ansible.builtin.systemd:
+    name: splunk
+    state: stopped
+  when: init_result.changed

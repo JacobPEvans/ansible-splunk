@@ -1,0 +1,10 @@
+---
+collections:
+  - name: ansible.builtin
+  - name: ansible.posix
+  - name: community.general
+    version: ">=5.0.0"
+
+# For production: pin to specific versions
+# - name: community.general
+#   version: "==5.8.0"

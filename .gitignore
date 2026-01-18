@@ -1,0 +1,17 @@
+*.retry
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.tmp/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.fact_cache/
+/tmp/ansible_facts/

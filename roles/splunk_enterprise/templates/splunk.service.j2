@@ -1,0 +1,19 @@
+[Unit]
+Description=Splunk Enterprise
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=splunk
+Group=splunk
+Restart=on-failure
+RestartSec=5
+WorkingDirectory={{ splunk_install_path }}
+ExecStart={{ splunk_install_path }}/bin/splunk start --no-prompt --answer-yes
+ExecStop={{ splunk_install_path }}/bin/splunk stop
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
