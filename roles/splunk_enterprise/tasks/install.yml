@@ -66,6 +66,7 @@
   become: true
   become_user: splunk
   register: splunk_enterprise_init_result
+  when: not splunk_enterprise_binary.stat.exists
   changed_when: "'Splunk Enterprise has been installed' in splunk_enterprise_init_result.stdout"
   failed_when:
     - splunk_enterprise_init_result.rc != 0
