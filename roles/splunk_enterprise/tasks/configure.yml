@@ -15,24 +15,24 @@
 - name: Enable Splunk service on boot
   ansible.builtin.systemd:
     name: splunk
-    enabled: "{{ splunk_service_enabled }}"
-    state: "{{ splunk_service_state }}"
+    enabled: "{{ splunk_enterprise_service_enabled }}"
+    state: "{{ splunk_enterprise_service_state }}"
 
 - name: Verify Splunk service is running
   ansible.builtin.systemd:
     name: splunk
-  register: splunk_service_status
+  register: splunk_enterprise_service_status
   changed_when: false
   failed_when:
-    - splunk_service_status.status.ActiveState != "active"
+    - splunk_enterprise_service_status.status.ActiveState != "active"
 
 - name: Wait for Splunk to become responsive
   ansible.builtin.uri:
     url: "http://localhost:8000/"
     status_code: 200
     validate_certs: false
-  register: splunk_health
-  until: splunk_health.status == 200
+  register: splunk_enterprise_health
+  until: splunk_enterprise_health.status == 200
   retries: 30
   delay: 2
   changed_when: false

@@ -22,7 +22,9 @@
 
     - name: Record service status
       ansible.builtin.set_fact:
-        validation_results: "{{ validation_results + [{'check': 'Splunk service running', 'passed': (ansible_facts.services.get('Splunkd.service', {}).get('state') | default('')) in ['running', 'started']}] }}"
+        validation_results: |
+          {% set svc = ansible_facts.services.get('Splunkd.service', {}).get('state') | default('') %}
+          {{ validation_results + [{'check': 'Splunk service running', 'passed': svc in ['running', 'started']}] }}
 
     - name: Check Splunk boot-start enabled
       ansible.builtin.command:
@@ -33,7 +35,8 @@
 
     - name: Record boot-start status
       ansible.builtin.set_fact:
-        validation_results: "{{ validation_results + [{'check': 'Boot-start enabled', 'passed': boot_start.stdout is defined and 'enabled' in boot_start.stdout}] }}"
+        validation_results: |
+          {{ validation_results + [{'check': 'Boot-start enabled', 'passed': boot_start.stdout is defined and 'enabled' in boot_start.stdout}] }}
 
     - name: Check data disk is mounted
       ansible.builtin.command:

@@ -36,3 +36,15 @@
         path: /opt/splunk/var/lib/splunk
         state: directory
         mode: "0755"
+
+    - name: Create mock Splunk binary for testing
+      ansible.builtin.file:
+        path: /opt/splunk/bin/splunk
+        state: touch
+        mode: "0755"
+      notify: set up mock splunk environment
+
+  handlers:
+    - name: set up mock splunk environment
+      ansible.builtin.debug:
+        msg: "Mock Splunk binary created for testing"

@@ -5,20 +5,20 @@
 
 - name: Check if data disk is already formatted
   ansible.builtin.stat:
-    path: "{{ splunk_data_disk_device }}"
+    path: "{{ splunk_enterprise_data_disk_device }}"
   register: disk_check
 
 - name: Check if data disk is already mounted
   ansible.builtin.shell: |
     set -euo pipefail
-    mount | grep -q "{{ splunk_data_disk_mount_path }}"
+    mount | grep -q "{{ splunk_enterprise_data_disk_mount_path }}"
   register: mount_check
   changed_when: false
   failed_when: false
 
 - name: Create data disk mount directory
   ansible.builtin.file:
-    path: "{{ splunk_data_disk_mount_path }}"
+    path: "{{ splunk_enterprise_data_disk_mount_path }}"
     owner: root
     group: root
     mode: '0755'
@@ -27,22 +27,23 @@
 - name: Format data disk if not already formatted
   ansible.builtin.shell: |
     set -euo pipefail
-    mkfs.ext4 -F "{{ splunk_data_disk_device }}"
+    mkfs.ext4 -F "{{ splunk_enterprise_data_disk_device }}"
   when:
     - mount_check.rc != 0
     - disk_check.stat.exists
+  changed_when: true
 
 - name: Mount data disk
-  ansible.builtin.mount:
-    path: "{{ splunk_data_disk_mount_path }}"
-    src: "{{ splunk_data_disk_device }}"
-    fstype: "{{ splunk_data_disk_fstype }}"
+  ansible.posix.mount:
+    path: "{{ splunk_enterprise_data_disk_mount_path }}"
+    src: "{{ splunk_enterprise_data_disk_device }}"
+    fstype: "{{ splunk_enterprise_data_disk_fstype }}"
     opts: defaults,noatime
     state: mounted
 
 - name: Set mount directory permissions
   ansible.builtin.file:
-    path: "{{ splunk_data_disk_mount_path }}"
+    path: "{{ splunk_enterprise_data_disk_mount_path }}"
     owner: splunk
     group: splunk
     mode: '0755'
