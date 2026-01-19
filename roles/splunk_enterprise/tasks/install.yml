@@ -76,5 +76,5 @@
   ansible.builtin.systemd:
     name: splunk
     state: stopped
-  when: splunk_enterprise_init_result.changed
+  when: not splunk_enterprise_binary.stat.exists
   changed_when: false
