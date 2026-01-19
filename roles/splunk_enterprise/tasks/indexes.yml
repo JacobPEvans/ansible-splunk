@@ -1,4 +1,8 @@
 ---
+- name: Skip index configuration if disabled
+  ansible.builtin.meta: end_play
+  when: splunk_skip_post_install_config | default(false)
+
 - name: Ensure index directories exist on data disk
   ansible.builtin.file:
     path: "{{ item[0].data_disk_path }}/{{ item[1] }}"
@@ -6,14 +10,14 @@
     group: splunk
     mode: '0755'
     state: directory
-  loop: "{{ splunk_indexes | product(['db', 'colddb', 'thaweddb']) | list }}"
+  loop: "{{ splunk_enterprise_indexes | product(['db', 'colddb', 'thaweddb']) | list }}"
   loop_control:
     label: "{{ item[0].name }}/{{ item[1] }}"
 
 - name: Create indexes.conf configuration
   ansible.builtin.template:
     src: indexes.conf.j2
-    dest: "{{ splunk_install_path }}/etc/system/local/indexes.conf"
+    dest: "{{ splunk_enterprise_install_path }}/etc/system/local/indexes.conf"
     owner: splunk
     group: splunk
     mode: '0644'
@@ -25,14 +29,14 @@
 - name: Verify indexes were created
   ansible.builtin.uri:
     url: "http://localhost:8000/servicesNS/admin/system/data/indexes"
-    user: "{{ splunk_admin_user }}"
+    user: "{{ splunk_enterprise_admin_user }}"
     password: "{{ splunk_admin_password }}"
     method: GET
     validate_certs: false
     status_code: 200
-  register: index_check
+  register: splunk_enterprise_index_check
   changed_when: false
-  failed_when: index_check.status != 200
+  failed_when: splunk_enterprise_index_check.status != 200
   no_log: true
   retries: 3
   delay: 5

@@ -1,5 +1,9 @@
 # Ansible Splunk Enterprise
 
+[![Lint](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/lint.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/lint.yml)
+[![Molecule](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/molecule.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/molecule.yml)
+[![Validate](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/validate.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/validate.yml)
+
 Comprehensive Ansible automation for Splunk Enterprise deployment and
 configuration on Proxmox VMs.
 
@@ -23,8 +27,8 @@ deploy Splunk Enterprise across Proxmox virtual machines. It automates:
 - **terraform-proxmox**: VMs must be provisioned via
   [terraform-proxmox](https://github.com/user/terraform-proxmox) with 25GB
   boot disk and 200GB data disk
-- **Doppler**: Secrets stored in Doppler vault with SPLUNK_ADMIN_PASSWORD
-  and SPLUNK_HEC_TOKEN
+- **Doppler**: Secrets stored in Doppler vault with `SPLUNK_ADMIN_PASSWORD`
+  and `SPLUNK_HEC_TOKEN`
 
 ### Ansible Collections
 
@@ -37,47 +41,122 @@ community.general:   General utilities
 Install dependencies:
 
 ```bash
-cd ansible
 uv run ansible-galaxy collection install -r requirements.yml
 ```
 
 ## Quick Start
 
-### 1. Set Doppler Authentication
+### Option A: Dynamic Inventory (Recommended)
+
+Use Terraform outputs for automatic inventory management:
+
+1. **Sync Terraform inventory:**
+
+   ```bash
+   ./scripts/sync-terraform-inventory.sh
+   ```
+
+2. **Deploy with Doppler secrets:**
+
+   ```bash
+   doppler run -- uv run ansible-playbook playbooks/site.yml
+   ```
+
+3. **Configure indexes:**
+
+   ```bash
+   doppler run -- uv run ansible-playbook playbooks/configure_indexes.yml
+   ```
+
+4. **Validate deployment:**
+
+   ```bash
+   doppler run -- uv run ansible-playbook playbooks/validate.yml
+   ```
+
+### Option B: Static Inventory (Fallback)
+
+For manual inventory configuration:
+
+1. **Set environment variables:**
+
+   ```bash
+   export SPLUNK_VM_HOST="splunk.example.com"
+   ```
+
+2. **Deploy with Doppler secrets:**
+
+   ```bash
+   doppler run -- uv run ansible-playbook playbooks/deploy.yml
+   doppler run -- uv run ansible-playbook playbooks/configure_indexes.yml
+   ```
+
+## Doppler Secrets Setup
+
+This project uses Doppler for secrets management. The following secrets must
+be configured in your Doppler project:
+
+| Secret Name              | Description                      |
+|--------------------------|----------------------------------|
+| `SPLUNK_ADMIN_PASSWORD`  | Splunk admin account password    |
+| `SPLUNK_HEC_TOKEN`       | HTTP Event Collector token UUID  |
+
+### Setting Up Secrets
 
 ```bash
-export DOPPLER_TOKEN="your-doppler-token"
+# Set Splunk admin password
+doppler secrets set SPLUNK_ADMIN_PASSWORD "your-secure-password"
+
+# Set HEC token (generate a UUID)
+doppler secrets set SPLUNK_HEC_TOKEN "$(uuidgen)"
 ```
 
-### 2. Configure Target Host
+### Running Playbooks
+
+Always run playbooks with `doppler run --` to inject secrets:
 
 ```bash
-export SPLUNK_VM_HOST="splunk.example.com"
+doppler run -- uv run ansible-playbook playbooks/deploy.yml
 ```
 
-### 3. Update Inventory
+## Testing
 
-Edit `inventory/hosts.yml` to set the target VM hostname:
-
-```yaml
-splunk:
-  hosts:
-    splunk-01:
-      ansible_host: "{{ lookup('env', 'SPLUNK_VM_HOST') }}"
-      ansible_user: root
-```
-
-### 4. Deploy Splunk Enterprise
+### Syntax Validation
 
 ```bash
-cd ansible
-uv run ansible-playbook playbooks/deploy.yml
+uv run ansible-playbook playbooks/deploy.yml --syntax-check
+uv run ansible-playbook playbooks/validate.yml --syntax-check
 ```
 
-### 5. Configure Default Indexes
+### Linting
 
 ```bash
-uv run ansible-playbook playbooks/configure_indexes.yml
+uv run yamllint .
+uv run ansible-lint playbooks/ roles/
+```
+
+### Molecule Tests
+
+Run the full test suite:
+
+```bash
+uv run molecule test
+```
+
+Run individual stages:
+
+```bash
+uv run molecule converge  # Create and configure test container
+uv run molecule verify    # Run verification tests
+uv run molecule destroy   # Clean up
+```
+
+### Deployment Validation
+
+After deploying to a real VM, validate the deployment:
+
+```bash
+doppler run -- uv run ansible-playbook playbooks/validate.yml
 ```
 
 ## Disk Layout
@@ -141,7 +220,7 @@ Splunk Enterprise is configured with these standard indexes:
 HTTP Event Collector is configured on:
 
 - **Port**: 8088
-- **Token**: Retrieved from Doppler (SPLUNK_HEC_TOKEN)
+- **Token**: Retrieved from Doppler (`SPLUNK_HEC_TOKEN`)
 - **SSL**: Disabled (internal network, Cribl Edge handles encryption)
 - **Default index**: main
 - **Sourcetype**: _json (recommended for Cribl Edge)
@@ -166,7 +245,8 @@ server = splunk-host:1514
 
 ### playbooks/site.yml
 
-Main site playbook that orchestrates all deployment plays.
+Main site playbook that orchestrates all deployment plays. Automatically loads
+dynamic inventory from Terraform outputs.
 
 ### playbooks/deploy.yml
 
@@ -186,6 +266,16 @@ Index configuration playbook:
 - Configure retention policies
 - Set cold storage paths
 - Validate index configuration
+
+### playbooks/validate.yml
+
+Validation playbook to verify deployment:
+
+- Check Splunk service is running
+- Verify boot-start is enabled
+- Confirm data disk is mounted
+- Test HEC and syslog ports are listening
+- Check web interface accessibility
 
 ## Role Structure
 
@@ -235,16 +325,25 @@ splunk_syslog_default_index: main
 Check systemd status:
 
 ```bash
-systemctl status splunk
-journalctl -u splunk -n 50
+systemctl status Splunkd
+journalctl -u Splunkd -n 50
+```
+
+### Missing Environment Variables
+
+If you see "SPLUNK_ADMIN_PASSWORD and SPLUNK_HEC_TOKEN environment variables
+must be set", ensure you're running with Doppler:
+
+```bash
+doppler run -- uv run ansible-playbook playbooks/deploy.yml
 ```
 
 ### HEC Token Not Working
 
-Verify token from Doppler:
+Verify the token is set in Doppler:
 
 ```bash
-echo $DOPPLER_TOKEN
+doppler secrets get SPLUNK_HEC_TOKEN
 ```
 
 Reload Splunk after configuration changes:
@@ -269,6 +368,29 @@ mkfs.ext4 /dev/sdb1
 mkdir -p /opt/splunk/var/lib/splunk
 mount /dev/sdb1 /opt/splunk/var/lib/splunk
 ```
+
+### Terraform Inventory Not Found
+
+If dynamic inventory fails, ensure you've synced from Terraform:
+
+```bash
+./scripts/sync-terraform-inventory.sh
+```
+
+Check the inventory file exists:
+
+```bash
+cat inventory/terraform_inventory.json
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing
+guidelines, and contribution workflow.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## License
 

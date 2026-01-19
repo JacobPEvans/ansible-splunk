@@ -1,8 +1,12 @@
 ---
+- name: Skip input configuration if disabled
+  ansible.builtin.meta: end_play
+  when: splunk_skip_post_install_config | default(false)
+
 - name: Create inputs.conf configuration
   ansible.builtin.template:
     src: inputs.conf.j2
-    dest: "{{ splunk_install_path }}/etc/system/local/inputs.conf"
+    dest: "{{ splunk_enterprise_install_path }}/etc/system/local/inputs.conf"
     owner: splunk
     group: splunk
     mode: '0644'
@@ -19,14 +23,14 @@
 - name: Verify HEC input is enabled
   ansible.builtin.uri:
     url: "http://localhost:8000/servicesNS/admin/data/inputs/http"
-    user: "{{ splunk_admin_user }}"
+    user: "{{ splunk_enterprise_admin_user }}"
     password: "{{ splunk_admin_password }}"
     method: GET
     validate_certs: false
     status_code: 200
-  register: hec_check
+  register: splunk_enterprise_hec_check
   changed_when: false
-  failed_when: hec_check.status != 200
+  failed_when: splunk_enterprise_hec_check.status != 200
   no_log: true
   retries: 3
   delay: 5
@@ -34,14 +38,14 @@
 - name: Verify syslog input is enabled
   ansible.builtin.uri:
     url: "http://localhost:8000/servicesNS/admin/data/inputs/syslog"
-    user: "{{ splunk_admin_user }}"
+    user: "{{ splunk_enterprise_admin_user }}"
     password: "{{ splunk_admin_password }}"
     method: GET
     validate_certs: false
     status_code: 200
-  register: syslog_check
+  register: splunk_enterprise_syslog_check
   changed_when: false
-  failed_when: syslog_check.status != 200
+  failed_when: splunk_enterprise_syslog_check.status != 200
   no_log: true
   retries: 3
   delay: 5

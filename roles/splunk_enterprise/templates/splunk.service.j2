@@ -9,9 +9,9 @@ User=splunk
 Group=splunk
 Restart=on-failure
 RestartSec=5
-WorkingDirectory={{ splunk_install_path }}
-ExecStart={{ splunk_install_path }}/bin/splunk start --no-prompt --answer-yes
-ExecStop={{ splunk_install_path }}/bin/splunk stop
+WorkingDirectory={{ splunk_enterprise_install_path }}
+ExecStart={{ splunk_enterprise_install_path }}/bin/splunk start --no-prompt --answer-yes
+ExecStop={{ splunk_enterprise_install_path }}/bin/splunk stop
 StandardOutput=journal
 StandardError=journal
 

@@ -1,0 +1,109 @@
+---
+# Validation playbook to verify Splunk Enterprise deployment
+# Run this after deploy.yml and configure_indexes.yml to verify success
+#
+# Usage:
+#   doppler run -- uv run ansible-playbook playbooks/validate.yml
+
+- name: Load Terraform inventory
+  ansible.builtin.import_playbook: ../inventory/load_terraform.yml
+
+- name: Validate Splunk Enterprise deployment
+  hosts: splunk
+  become: true
+  gather_facts: true
+
+  vars:
+    validation_results: []
+
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Record service status
+      ansible.builtin.set_fact:
+        validation_results: |
+          {% set svc = ansible_facts.services.get('Splunkd.service', {}).get('state') | default('') %}
+          {{ validation_results + [{'check': 'Splunk service running', 'passed': svc in ['running', 'started']}] }}
+
+    - name: Check Splunk boot-start enabled
+      ansible.builtin.command:
+        cmd: /opt/splunk/bin/splunk display boot-start
+      register: boot_start
+      changed_when: false
+      failed_when: false
+
+    - name: Record boot-start status
+      ansible.builtin.set_fact:
+        validation_results: |
+          {{ validation_results + [{'check': 'Boot-start enabled', 'passed': boot_start.stdout is defined and 'enabled' in boot_start.stdout}] }}
+
+    - name: Check data disk is mounted
+      ansible.builtin.command:
+        cmd: mountpoint -q /opt/splunk/var/lib/splunk
+      register: data_disk
+      changed_when: false
+      failed_when: false
+
+    - name: Record data disk status
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results + [{'check': 'Data disk mounted', 'passed': data_disk.rc == 0}] }}"
+
+    - name: Check HEC port is listening
+      ansible.builtin.wait_for:
+        port: 8088
+        timeout: 5
+      register: hec_port
+      failed_when: false
+
+    - name: Record HEC port status
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results + [{'check': 'HEC port 8088 listening', 'passed': hec_port.failed is false}] }}"
+
+    - name: Check syslog port is listening
+      ansible.builtin.wait_for:
+        port: 1514
+        timeout: 5
+      register: syslog_port
+      failed_when: false
+
+    - name: Record syslog port status
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results + [{'check': 'Syslog port 1514 listening', 'passed': syslog_port.failed is false}] }}"
+
+    - name: Check Splunk web interface
+      ansible.builtin.wait_for:
+        port: 8000
+        timeout: 5
+      register: web_port
+      failed_when: false
+
+    - name: Record web interface status
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results + [{'check': 'Web interface port 8000 listening', 'passed': web_port.failed is false}] }}"
+
+    - name: Get disk usage
+      ansible.builtin.command:
+        cmd: df -h /opt/splunk/var/lib/splunk
+      register: disk_usage
+      changed_when: false
+      failed_when: false
+
+    - name: Display validation summary
+      ansible.builtin.debug:
+        msg: |
+          ==========================================
+          SPLUNK ENTERPRISE VALIDATION RESULTS
+          ==========================================
+          {% for result in validation_results %}
+          [{{ 'PASS' if result.passed else 'FAIL' }}] {{ result.check }}
+          {% endfor %}
+          ==========================================
+
+          Disk Usage (data volume):
+          {{ disk_usage.stdout | default('Unable to retrieve disk info') }}
+
+    - name: Fail if any validation failed
+      ansible.builtin.fail:
+        msg: "One or more validation checks failed. Review the results above."
+      when: validation_results | selectattr('passed', 'equalto', false) | list | length > 0

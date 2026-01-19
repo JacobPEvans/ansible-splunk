@@ -16,8 +16,8 @@
 
 - name: Check if Splunk is installed
   ansible.builtin.stat:
-    path: "{{ splunk_install_path }}/bin/splunk"
-  register: splunk_binary
+    path: "{{ splunk_enterprise_install_path }}/bin/splunk"
+  register: splunk_enterprise_binary
 
 - name: Download Splunk Enterprise package
   ansible.builtin.shell: |
@@ -28,9 +28,9 @@
     echo "Downloaded Splunk package"
   args:
     executable: /bin/bash
-  when: not splunk_binary.stat.exists
-  register: download_result
-  changed_when: download_result.rc == 0
+  when: not splunk_enterprise_binary.stat.exists
+  register: splunk_enterprise_download_result
+  changed_when: splunk_enterprise_download_result.rc == 0
 
 - name: Extract Splunk package
   ansible.builtin.unarchive:
@@ -39,20 +39,20 @@
     remote_src: true
     owner: root
     group: root
-  when: not splunk_binary.stat.exists
+  when: not splunk_enterprise_binary.stat.exists
   notify: restart splunk
 
 - name: Create Splunk system user
   ansible.builtin.user:
     name: splunk
-    home: "{{ splunk_install_path }}"
+    home: "{{ splunk_enterprise_install_path }}"
     shell: /bin/bash
     createhome: false
     state: present
 
 - name: Set Splunk directory ownership
   ansible.builtin.file:
-    path: "{{ splunk_install_path }}"
+    path: "{{ splunk_enterprise_install_path }}"
     owner: splunk
     group: splunk
     mode: '0755'
@@ -61,18 +61,21 @@
 - name: Initialize Splunk (generate default configuration)
   ansible.builtin.command:
     cmd: >
-      {{ splunk_install_path }}/bin/splunk start --accept-license
+      {{ splunk_enterprise_install_path }}/bin/splunk start --accept-license
       --seed-passwd {{ splunk_admin_password }} --answer-yes
+  become: true
   become_user: splunk
-  register: init_result
-  changed_when: "'Splunk Enterprise has been installed' in init_result.stdout"
+  register: splunk_enterprise_init_result
+  when: not splunk_enterprise_binary.stat.exists
+  changed_when: "'Splunk Enterprise has been installed' in splunk_enterprise_init_result.stdout"
   failed_when:
-    - init_result.rc != 0
-    - "'already' not in init_result.stderr"
+    - splunk_enterprise_init_result.rc != 0
+    - "'already' not in splunk_enterprise_init_result.stderr"
   no_log: true
 
 - name: Stop Splunk after initialization
   ansible.builtin.systemd:
     name: splunk
     state: stopped
-  when: init_result.changed
+  when: not splunk_enterprise_binary.stat.exists
+  changed_when: false

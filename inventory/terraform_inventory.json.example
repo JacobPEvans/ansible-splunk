@@ -1,0 +1,12 @@
+{
+  "ansible_inventory": {
+    "splunk_vm": {
+      "splunk": {
+        "hostname": "splunk-01",
+        "ip": "192.168.1.100",
+        "vmid": 200,
+        "ansible_connection": "ssh"
+      }
+    }
+  }
+}

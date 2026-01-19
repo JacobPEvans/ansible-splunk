@@ -2,22 +2,22 @@
 # Splunk Enterprise role defaults
 
 # Service configuration
-splunk_admin_user: admin
-splunk_service_state: started
-splunk_service_enabled: true
+splunk_enterprise_admin_user: admin
+splunk_enterprise_service_state: started
+splunk_enterprise_service_enabled: true
 
 # Installation paths
-splunk_install_path: /opt/splunk
-splunk_home: /opt/splunk
-splunk_var_path: /opt/splunk/var
+splunk_enterprise_install_path: /opt/splunk
+splunk_enterprise_home: /opt/splunk
+splunk_enterprise_var_path: /opt/splunk/var
 
 # Data disk configuration
-splunk_data_disk_device: /dev/sdb1
-splunk_data_disk_mount_path: /opt/splunk/var/lib/splunk
-splunk_data_disk_fstype: ext4
+splunk_enterprise_data_disk_device: /dev/sdb1
+splunk_enterprise_data_disk_mount_path: /opt/splunk/var/lib/splunk
+splunk_enterprise_data_disk_fstype: ext4
 
 # Index configuration defaults
-splunk_indexes:
+splunk_enterprise_indexes:
   - name: main
     data_disk_path: /opt/splunk/var/lib/splunk/main
     max_data_size: auto_high_volume
@@ -32,16 +32,16 @@ splunk_indexes:
     frozen_time_secs: 7776000
 
 # HEC (HTTP Event Collector) configuration
-splunk_hec_port: 8088
-splunk_hec_enable_ssl: false
-splunk_hec_default_sourcetype: _json
-splunk_hec_default_index: main
-splunk_hec_token_name: cribl_hec_token
+splunk_enterprise_hec_port: 8088
+splunk_enterprise_hec_enable_ssl: false
+splunk_enterprise_hec_default_sourcetype: _json
+splunk_enterprise_hec_default_index: main
+splunk_enterprise_hec_token_name: cribl_hec_token
 
 # Syslog input configuration
-splunk_syslog_port: 1514
-splunk_syslog_default_index: main
-splunk_syslog_default_sourcetype: syslog
+splunk_enterprise_syslog_port: 1514
+splunk_enterprise_syslog_default_index: main
+splunk_enterprise_syslog_default_sourcetype: syslog
 
 # System timezone
-splunk_timezone: UTC
+splunk_enterprise_timezone: UTC
