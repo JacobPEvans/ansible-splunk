@@ -43,16 +43,10 @@ provisioner:
 verifier:
   name: ansible
 
-lint: |
-  set -e
-  yamllint .
-  ansible-lint playbooks/ roles/
-
 scenario:
   name: default
   test_sequence:
     - dependency
-    - lint
     - cleanup
     - destroy
     - syntax
