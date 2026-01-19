@@ -59,11 +59,16 @@ Use Terraform outputs for automatic inventory management:
 2. **Deploy with Doppler secrets:**
 
    ```bash
-   doppler run -- uv run ansible-playbook playbooks/deploy.yml
+   doppler run -- uv run ansible-playbook playbooks/site.yml
+   ```
+
+3. **Configure indexes:**
+
+   ```bash
    doppler run -- uv run ansible-playbook playbooks/configure_indexes.yml
    ```
 
-3. **Validate deployment:**
+4. **Validate deployment:**
 
    ```bash
    doppler run -- uv run ansible-playbook playbooks/validate.yml

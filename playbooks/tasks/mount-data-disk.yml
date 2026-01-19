@@ -1,4 +1,8 @@
 ---
+- name: Skip data disk operations if disabled
+  ansible.builtin.meta: end_play
+  when: splunk_skip_data_disk | default(false)
+
 - name: Check if data disk is already formatted
   ansible.builtin.stat:
     path: "{{ splunk_data_disk_device }}"

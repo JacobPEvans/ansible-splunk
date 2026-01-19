@@ -55,7 +55,7 @@ if cd "${TERRAFORM_DIR}" && terragrunt output -json ansible_inventory > "${INVEN
   echo -e "\n${YELLOW}Infrastructure Summary:${NC}"
 
   # Use Python to parse and display the JSON in a readable format
-  python3 << 'PYTHON_EOF' "${INVENTORY_FILE}"
+  python3 "${INVENTORY_FILE}" << 'PYTHON_EOF'
 import json
 import sys
 

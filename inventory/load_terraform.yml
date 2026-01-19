@@ -14,10 +14,33 @@
   gather_facts: false
 
   tasks:
+    - name: Check if Terraform inventory file exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../inventory/terraform_inventory.json"
+      register: terraform_inventory_file
+
     - name: Load Terraform inventory JSON
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/../inventory/terraform_inventory.json"
         name: terraform_data
+      when: terraform_inventory_file.stat.exists
+
+    - name: Fail if Terraform inventory is missing in production
+      ansible.builtin.fail:
+        msg: |
+          terraform_inventory.json not found at {{ playbook_dir }}/../inventory/terraform_inventory.json
+
+          To generate it, run:
+            ./scripts/sync-terraform-inventory.sh
+
+          Or manually:
+            cd ~/git/terraform-proxmox/main && \
+            terragrunt output -json ansible_inventory > \
+            ~/git/ansible-splunk/inventory/terraform_inventory.json
+
+          For static inventory fallback, ensure SPLUNK_VM_HOST environment variable is set:
+            export SPLUNK_VM_HOST="splunk.example.com"
+      when: not terraform_inventory_file.stat.exists and not (lookup('env', 'SPLUNK_VM_HOST') | default(''))
 
     - name: Add Splunk VM to inventory (SSH connection)
       ansible.builtin.add_host:
@@ -31,4 +54,4 @@
         ansible_python_interpreter: /usr/bin/python3
         hostname: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.hostname }}"
         vmid: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.vmid }}"
-      when: terraform_data.ansible_inventory.splunk_vm.splunk is defined
+      when: terraform_inventory_file.stat.exists and terraform_data.ansible_inventory.splunk_vm.splunk is defined
