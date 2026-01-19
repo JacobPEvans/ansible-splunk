@@ -1,0 +1,49 @@
+---
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system ansible
+
+      - name: Install Ansible collections
+        run: |
+          ansible-galaxy collection install -r requirements.yml
+
+      - name: Syntax check deploy.yml
+        run: |
+          ansible-playbook playbooks/deploy.yml --syntax-check
+
+      - name: Syntax check configure_indexes.yml
+        run: |
+          ansible-playbook playbooks/configure_indexes.yml --syntax-check
+
+      - name: Syntax check validate.yml
+        run: |
+          ansible-playbook playbooks/validate.yml --syntax-check
+
+      - name: Syntax check site.yml
+        run: |
+          ansible-playbook playbooks/site.yml --syntax-check

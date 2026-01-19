@@ -1,0 +1,62 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: ${MOLECULE_PROJECT_DIRECTORY}/requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  - name: splunk-test
+    image: debian:12
+    privileged: true
+    command: /lib/systemd/systemd
+    tmpfs:
+      - /run
+      - /tmp
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    groups:
+      - splunk
+    docker_networks:
+      - name: splunk_network
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+  inventory:
+    group_vars:
+      all:
+        # Test values for molecule - override in production
+        splunk_admin_password: "molecule-test-password"
+        splunk_hec_token: "molecule-test-hec-token"
+  env:
+    SPLUNK_ADMIN_PASSWORD: "molecule-test-password"
+    SPLUNK_HEC_TOKEN: "molecule-test-hec-token"
+
+verifier:
+  name: ansible
+
+lint: |
+  set -e
+  yamllint .
+  ansible-lint playbooks/ roles/
+
+scenario:
+  name: default
+  test_sequence:
+    - dependency
+    - lint
+    - cleanup
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - cleanup
+    - destroy

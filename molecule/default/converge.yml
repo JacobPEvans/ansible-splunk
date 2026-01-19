@@ -1,0 +1,25 @@
+---
+# Molecule converge playbook
+# This runs the splunk_enterprise role against the test container
+
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    splunk_component: enterprise
+    splunk_version: "9.1.1"
+    # Skip data disk operations in container (no /dev/sdb)
+    splunk_skip_data_disk: true
+
+  pre_tasks:
+    - name: Install Python for Ansible (Debian)
+      ansible.builtin.raw: apt-get update && apt-get install -y python3
+      changed_when: false
+      when: ansible_os_family == 'Debian'
+
+  tasks:
+    - name: Include splunk_enterprise role
+      ansible.builtin.include_role:
+        name: splunk_enterprise

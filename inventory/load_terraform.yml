@@ -1,0 +1,34 @@
+---
+# Pre-playbook that loads Terraform infrastructure data dynamically
+# This playbook runs first to populate the Ansible inventory from Terraform outputs,
+# eliminating hardcoded VM IPs from Ansible configuration.
+#
+# It expects terraform_inventory.json to be present (generated via:
+#   ./scripts/sync-terraform-inventory.sh
+# or manually:
+#   cd ~/git/terraform-proxmox/main && terragrunt output -json ansible_inventory > \
+#     ~/git/ansible-splunk/inventory/terraform_inventory.json
+
+- name: Load Terraform Infrastructure Inventory
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Load Terraform inventory JSON
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../inventory/terraform_inventory.json"
+        name: terraform_data
+
+    - name: Add Splunk VM to inventory (SSH connection)
+      ansible.builtin.add_host:
+        name: splunk
+        groups:
+          - splunk
+          - all
+        ansible_host: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.ip }}"
+        ansible_connection: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.ansible_connection | default('ssh') }}"
+        ansible_user: root
+        ansible_python_interpreter: /usr/bin/python3
+        hostname: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.hostname }}"
+        vmid: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.vmid }}"
+      when: terraform_data.ansible_inventory.splunk_vm.splunk is defined

@@ -1,0 +1,38 @@
+---
+# Molecule preparation playbook
+# Sets up the test container before running the converge playbook
+
+- name: Prepare
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Wait for container to be ready
+      ansible.builtin.wait_for_connection:
+        timeout: 30
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Update apt cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_os_family == 'Debian'
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - gnupg
+          - procps
+          - systemd
+        state: present
+      when: ansible_os_family == 'Debian'
+
+    - name: Create mock data disk directory
+      ansible.builtin.file:
+        path: /opt/splunk/var/lib/splunk
+        state: directory
+        mode: "0755"

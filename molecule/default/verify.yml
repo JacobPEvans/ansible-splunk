@@ -1,0 +1,77 @@
+---
+# Molecule verification playbook
+# Validates that the Splunk role executed correctly
+
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Check Splunk installation directory exists
+      ansible.builtin.stat:
+        path: /opt/splunk
+      register: splunk_dir
+
+    - name: Assert Splunk is installed
+      ansible.builtin.assert:
+        that:
+          - splunk_dir.stat.exists
+          - splunk_dir.stat.isdir
+        fail_msg: "Splunk installation directory not found at /opt/splunk"
+
+    - name: Check Splunk binary exists
+      ansible.builtin.stat:
+        path: /opt/splunk/bin/splunk
+      register: splunk_binary
+
+    - name: Assert Splunk binary exists
+      ansible.builtin.assert:
+        that:
+          - splunk_binary.stat.exists
+          - splunk_binary.stat.executable
+        fail_msg: "Splunk binary not found or not executable"
+
+    - name: Check server.conf exists
+      ansible.builtin.stat:
+        path: /opt/splunk/etc/system/local/server.conf
+      register: server_conf
+
+    - name: Assert server.conf configured
+      ansible.builtin.assert:
+        that:
+          - server_conf.stat.exists
+        fail_msg: "server.conf not found - Splunk not configured"
+
+    - name: Check inputs.conf exists
+      ansible.builtin.stat:
+        path: /opt/splunk/etc/system/local/inputs.conf
+      register: inputs_conf
+
+    - name: Assert inputs.conf configured
+      ansible.builtin.assert:
+        that:
+          - inputs_conf.stat.exists
+        fail_msg: "inputs.conf not found - inputs not configured"
+
+    - name: Check indexes.conf exists
+      ansible.builtin.stat:
+        path: /opt/splunk/etc/system/local/indexes.conf
+      register: indexes_conf
+
+    - name: Assert indexes.conf configured
+      ansible.builtin.assert:
+        that:
+          - indexes_conf.stat.exists
+        fail_msg: "indexes.conf not found - indexes not configured"
+
+    - name: Check web.conf exists
+      ansible.builtin.stat:
+        path: /opt/splunk/etc/system/local/web.conf
+      register: web_conf
+
+    - name: Assert web.conf configured
+      ansible.builtin.assert:
+        that:
+          - web_conf.stat.exists
+        fail_msg: "web.conf not found - web interface not configured"

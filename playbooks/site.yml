@@ -1,4 +1,11 @@
 ---
+# Main site playbook for Splunk Enterprise deployment
+# This playbook orchestrates the complete deployment workflow
+
+# Load dynamic inventory from Terraform outputs (if available)
+- name: Load Terraform inventory
+  ansible.builtin.import_playbook: ../inventory/load_terraform.yml
+
 - name: Deploy Splunk Enterprise
   hosts: splunk
   become: true
