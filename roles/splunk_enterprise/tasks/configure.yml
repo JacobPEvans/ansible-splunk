@@ -1,4 +1,8 @@
 ---
+- name: Skip post-install configuration if disabled
+  ansible.builtin.meta: end_play
+  when: splunk_skip_post_install_config | default(false)
+
 - name: Create Splunk systemd service
   ansible.builtin.template:
     src: splunk.service.j2

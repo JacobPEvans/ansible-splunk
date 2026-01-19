@@ -12,6 +12,8 @@
     splunk_version: "9.1.1"
     # Skip data disk operations in container (no /dev/sdb)
     splunk_skip_data_disk: true
+    # Skip post-install configuration in test environment (mock binary)
+    splunk_skip_post_install_config: true
 
   pre_tasks:
     - name: Install Python for Ansible (Debian)

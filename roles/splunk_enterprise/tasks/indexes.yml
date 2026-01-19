@@ -1,4 +1,8 @@
 ---
+- name: Skip index configuration if disabled
+  ansible.builtin.meta: end_play
+  when: splunk_skip_post_install_config | default(false)
+
 - name: Ensure index directories exist on data disk
   ansible.builtin.file:
     path: "{{ item[0].data_disk_path }}/{{ item[1] }}"

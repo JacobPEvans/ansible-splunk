@@ -1,4 +1,8 @@
 ---
+- name: Skip input configuration if disabled
+  ansible.builtin.meta: end_play
+  when: splunk_skip_post_install_config | default(false)
+
 - name: Create inputs.conf configuration
   ansible.builtin.template:
     src: inputs.conf.j2
