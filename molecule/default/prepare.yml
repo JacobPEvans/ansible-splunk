@@ -31,20 +31,21 @@
         state: present
       when: ansible_os_family == 'Debian'
 
-    - name: Create mock data disk directory
+    - name: Create mock Splunk directory structure
       ansible.builtin.file:
-        path: /opt/splunk/var/lib/splunk
+        path: "{{ item }}"
         state: directory
         mode: "0755"
+      loop:
+        - /opt/splunk
+        - /opt/splunk/bin
+        - /opt/splunk/etc
+        - /opt/splunk/etc/system
+        - /opt/splunk/etc/system/local
+        - /opt/splunk/var/lib/splunk
 
     - name: Create mock Splunk binary for testing
       ansible.builtin.file:
         path: /opt/splunk/bin/splunk
         state: touch
         mode: "0755"
-      notify: set up mock splunk environment
-
-  handlers:
-    - name: set up mock splunk environment
-      ansible.builtin.debug:
-        msg: "Mock Splunk binary created for testing"
