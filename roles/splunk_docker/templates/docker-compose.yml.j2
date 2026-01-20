@@ -9,7 +9,7 @@ services:
     container_name: {{ splunk_docker_container_name }}
     environment:
       SPLUNK_START_ARGS: "--accept-license"
-      SPLUNK_GENERAL_TERMS: "yes"
+      SPLUNK_GENERAL_TERMS: "--accept-sgt-current-at-splunk-com"
       SPLUNK_PASSWORD: "{{ splunk_docker_password }}"
       SPLUNK_HEC_TOKEN: "{{ splunk_docker_hec_token }}"
     ports:
@@ -19,7 +19,6 @@ services:
     volumes:
       - {{ splunk_docker_var_dir }}:/opt/splunk/var
       - {{ splunk_docker_etc_dir }}:/opt/splunk/etc
-      - {{ splunk_docker_config_dir }}/indexes.conf:/opt/splunk/etc/system/local/indexes.conf:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "/opt/splunk/bin/splunk status >/dev/null 2>&1"]
