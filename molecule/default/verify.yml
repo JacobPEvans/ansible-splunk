@@ -1,6 +1,6 @@
 ---
 # Molecule verification playbook
-# Validates that the Splunk role executed correctly
+# Validates that the splunk_docker role executed correctly
 
 - name: Verify
   hosts: all
@@ -8,83 +8,86 @@
   gather_facts: true
 
   vars:
-    # Skip configuration checks in test environment
-    splunk_skip_post_install_config: true
+    splunk_docker_config_dir: /opt/splunk-config
+    splunk_docker_etc_dir: /opt/splunk/etc
 
   tasks:
-    - name: Check Splunk installation directory exists
+    - name: Check Splunk config directory exists
       ansible.builtin.stat:
-        path: /opt/splunk
-      register: splunk_dir
+        path: "{{ splunk_docker_config_dir }}"
+      register: config_dir
 
-    - name: Assert Splunk is installed
+    - name: Assert config directory exists
       ansible.builtin.assert:
         that:
-          - splunk_dir.stat.exists
-          - splunk_dir.stat.isdir
-        fail_msg: "Splunk installation directory not found at /opt/splunk"
+          - config_dir.stat.exists
+          - config_dir.stat.isdir
+        fail_msg: "Splunk config directory not found at {{ splunk_docker_config_dir }}"
 
-    - name: Check Splunk binary exists
+    - name: Check docker-compose.yml exists
       ansible.builtin.stat:
-        path: /opt/splunk/bin/splunk
-      register: splunk_binary
+        path: "{{ splunk_docker_config_dir }}/docker-compose.yml"
+      register: compose_file
 
-    - name: Assert Splunk binary exists
+    - name: Assert docker-compose.yml exists
       ansible.builtin.assert:
         that:
-          - splunk_binary.stat.exists
-        fail_msg: "Splunk binary not found"
-      # Skip executable check in test environment with mock binary
-      when: not splunk_skip_post_install_config
+          - compose_file.stat.exists
+        fail_msg: "docker-compose.yml not found - role did not deploy"
 
-    - name: Check server.conf exists
+    - name: Check Splunk etc directory exists
       ansible.builtin.stat:
-        path: /opt/splunk/etc/system/local/server.conf
-      register: server_conf
-      when: not splunk_skip_post_install_config
+        path: "{{ splunk_docker_etc_dir }}"
+      register: etc_dir
 
-    - name: Assert server.conf configured
+    - name: Assert Splunk etc directory exists
       ansible.builtin.assert:
         that:
-          - server_conf.stat.exists
-        fail_msg: "server.conf not found - Splunk not configured"
-      when: not splunk_skip_post_install_config
-
-    - name: Check inputs.conf exists
-      ansible.builtin.stat:
-        path: /opt/splunk/etc/system/local/inputs.conf
-      register: inputs_conf
-      when: not splunk_skip_post_install_config
-
-    - name: Assert inputs.conf configured
-      ansible.builtin.assert:
-        that:
-          - inputs_conf.stat.exists
-        fail_msg: "inputs.conf not found - inputs not configured"
-      when: not splunk_skip_post_install_config
+          - etc_dir.stat.exists
+          - etc_dir.stat.isdir
+        fail_msg: "Splunk etc directory not found at {{ splunk_docker_etc_dir }}"
 
     - name: Check indexes.conf exists
       ansible.builtin.stat:
-        path: /opt/splunk/etc/system/local/indexes.conf
+        path: "{{ splunk_docker_etc_dir }}/system/local/indexes.conf"
       register: indexes_conf
-      when: not splunk_skip_post_install_config
 
     - name: Assert indexes.conf configured
       ansible.builtin.assert:
         that:
           - indexes_conf.stat.exists
         fail_msg: "indexes.conf not found - indexes not configured"
-      when: not splunk_skip_post_install_config
 
     - name: Check web.conf exists
       ansible.builtin.stat:
-        path: /opt/splunk/etc/system/local/web.conf
+        path: "{{ splunk_docker_etc_dir }}/system/local/web.conf"
       register: web_conf
-      when: not splunk_skip_post_install_config
 
     - name: Assert web.conf configured
       ansible.builtin.assert:
         that:
           - web_conf.stat.exists
         fail_msg: "web.conf not found - web interface not configured"
-      when: not splunk_skip_post_install_config
+
+    - name: Check firewall script exists
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_config_dir }}/firewall.sh"
+      register: firewall_script
+
+    - name: Assert firewall script configured
+      ansible.builtin.assert:
+        that:
+          - firewall_script.stat.exists
+        fail_msg: "firewall.sh not found - firewall not configured"
+
+    - name: Check Splunk apps directory exists
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_etc_dir }}/apps"
+      register: apps_dir
+
+    - name: Assert Splunk apps directory exists
+      ansible.builtin.assert:
+        that:
+          - apps_dir.stat.exists
+          - apps_dir.stat.isdir
+        fail_msg: "Splunk apps directory not found"

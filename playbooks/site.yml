@@ -1,17 +1,34 @@
 ---
-# Main site playbook for Splunk Enterprise deployment
+# Main site playbook for Splunk deployment
 # This playbook orchestrates the complete deployment workflow
 
 # Load dynamic inventory from Terraform outputs (if available)
 - name: Load Terraform inventory
   ansible.builtin.import_playbook: ../inventory/load_terraform.yml
 
-- name: Deploy Splunk Enterprise
+- name: Deploy Splunk
   hosts: splunk
   become: true
   gather_facts: true
 
   tasks:
-    - name: Configure and deploy Splunk Enterprise
+    - name: Validate required environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SPLUNK_ADMIN_PASSWORD') | length > 0
+          - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+        fail_msg: >-
+          SPLUNK_ADMIN_PASSWORD and SPLUNK_HEC_TOKEN environment variables must be set
+          (use: doppler run -- ansible-playbook ...)
+      run_once: true
+      delegate_to: localhost
+
+    - name: Set Splunk credentials from environment
+      ansible.builtin.set_fact:
+        splunk_docker_password: "{{ lookup('env', 'SPLUNK_ADMIN_PASSWORD') }}"
+        splunk_docker_hec_token: "{{ lookup('env', 'SPLUNK_HEC_TOKEN') }}"
+      no_log: true
+
+    - name: Deploy Splunk Docker
       ansible.builtin.include_role:
-        name: splunk_enterprise
+        name: splunk_docker

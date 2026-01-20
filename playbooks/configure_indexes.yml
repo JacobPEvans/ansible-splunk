@@ -1,21 +1,31 @@
 ---
-- name: Configure Splunk indexes with persistent storage
+# Configure Splunk indexes
+# Note: Indexes are configured via the splunk_docker role's indexes.conf template.
+# This playbook exists for backwards compatibility and re-running configuration.
+
+- name: Configure Splunk indexes
   hosts: splunk
   become: true
   gather_facts: true
 
   tasks:
-    - name: Ensure data disk is mounted
+    - name: Validate required environment variables
       ansible.builtin.assert:
         that:
-          - ansible_mounts | selectattr('mount', 'equalto',
-              splunk_data_disk_mount_path) | list | length > 0
-        fail_msg: "Data disk not mounted at {{ splunk_data_disk_mount_path }}"
+          - lookup('env', 'SPLUNK_ADMIN_PASSWORD') | length > 0
+          - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+        fail_msg: >-
+          SPLUNK_ADMIN_PASSWORD and SPLUNK_HEC_TOKEN environment variables must be set
+          (use: doppler run -- ansible-playbook ...)
+      run_once: true
+      delegate_to: localhost
 
-    - name: Create index configuration
+    - name: Set Splunk credentials from environment
+      ansible.builtin.set_fact:
+        splunk_docker_password: "{{ lookup('env', 'SPLUNK_ADMIN_PASSWORD') }}"
+        splunk_docker_hec_token: "{{ lookup('env', 'SPLUNK_HEC_TOKEN') }}"
+      no_log: true
+
+    - name: Deploy Splunk Docker (includes index configuration)
       ansible.builtin.include_role:
-        name: splunk_enterprise
-        tasks_from: indexes
-
-    - name: Verify index configuration
-      ansible.builtin.include_tasks: tasks/verify-indexes.yml
+        name: splunk_docker

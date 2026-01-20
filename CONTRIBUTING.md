@@ -149,21 +149,18 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
 
 To add a new index to the default configuration:
 
-1. Edit `roles/splunk_enterprise/defaults/main.yml`
-2. Add the index to the `splunk_indexes` list
-3. Update `templates/indexes.conf.j2` if custom settings needed
-4. Test with molecule
-5. Update documentation if significant
+1. Edit `roles/splunk_docker/defaults/main.yml`
+2. Add the index to the `splunk_docker_indexes` list
+3. Test with molecule
+4. Update documentation if significant
 
-## Adding New Inputs
+## Adding Technology Add-ons
 
-To add a new input type:
+To add a new TA:
 
-1. Create a new task file in `roles/splunk_enterprise/tasks/`
-2. Add the input template to `roles/splunk_enterprise/templates/`
-3. Include the task in the appropriate playbook
-4. Add molecule verification tests
-5. Update documentation
+1. Place the `.tar` or `.tgz` file in `roles/splunk_docker/files/`
+2. Add the entry to `splunk_docker_addons` in `defaults/main.yml`
+3. Re-run the playbook
 
 ## Questions?
 

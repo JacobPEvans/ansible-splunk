@@ -1,6 +1,6 @@
 ---
-# Validation playbook to verify Splunk Enterprise deployment
-# Run this after deploy.yml and configure_indexes.yml to verify success
+# Validation playbook to verify Splunk Docker deployment
+# Run this after deploy.yml to verify success
 #
 # Usage:
 #   doppler run -- uv run ansible-playbook playbooks/validate.yml
@@ -8,83 +8,100 @@
 - name: Load Terraform inventory
   ansible.builtin.import_playbook: ../inventory/load_terraform.yml
 
-- name: Validate Splunk Enterprise deployment
+- name: Validate Splunk Docker deployment
   hosts: splunk
   become: true
   gather_facts: true
 
   vars:
     validation_results: []
+    splunk_docker_web_port: 8000
+    splunk_docker_hec_port: 8088
+    splunk_docker_config_dir: /opt/splunk-config
+    splunk_docker_etc_dir: /opt/splunk/etc
 
   tasks:
-    - name: Gather service facts
+    - name: Check Docker service is running
       ansible.builtin.service_facts:
 
-    - name: Record service status
+    - name: Record Docker service status
       ansible.builtin.set_fact:
         validation_results: |
-          {% set svc = ansible_facts.services.get('Splunkd.service', {}).get('state') | default('') %}
-          {{ validation_results + [{'check': 'Splunk service running', 'passed': svc in ['running', 'started']}] }}
+          {% set svc = ansible_facts.services.get('docker.service', {}).get('state') | default('') %}
+          {{ validation_results + [{'check': 'Docker service running', 'passed': svc in ['running', 'started']}] }}
 
-    - name: Check Splunk boot-start enabled
-      ansible.builtin.command:
-        cmd: /opt/splunk/bin/splunk display boot-start
-      register: boot_start
-      changed_when: false
+    - name: Check Splunk container is running
+      community.docker.docker_container_info:
+        name: splunk
+      register: splunk_container
       failed_when: false
 
-    - name: Record boot-start status
+    - name: Record container status
       ansible.builtin.set_fact:
         validation_results: |
-          {{ validation_results + [{'check': 'Boot-start enabled', 'passed': boot_start.stdout is defined and 'enabled' in boot_start.stdout}] }}
+          {{ validation_results + [{'check': 'Splunk container running', 'passed': splunk_container.container.State.Running | default(false)}] }}
 
-    - name: Check data disk is mounted
-      ansible.builtin.command:
-        cmd: mountpoint -q /opt/splunk/var/lib/splunk
-      register: data_disk
-      changed_when: false
-      failed_when: false
+    - name: Check docker-compose.yml exists
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_config_dir }}/docker-compose.yml"
+      register: compose_file
 
-    - name: Record data disk status
+    - name: Record docker-compose.yml status
       ansible.builtin.set_fact:
-        validation_results: "{{ validation_results + [{'check': 'Data disk mounted', 'passed': data_disk.rc == 0}] }}"
+        validation_results: "{{ validation_results + [{'check': 'docker-compose.yml exists', 'passed': compose_file.stat.exists}] }}"
 
     - name: Check HEC port is listening
       ansible.builtin.wait_for:
-        port: 8088
+        port: "{{ splunk_docker_hec_port }}"
         timeout: 5
       register: hec_port
       failed_when: false
 
     - name: Record HEC port status
       ansible.builtin.set_fact:
-        validation_results: "{{ validation_results + [{'check': 'HEC port 8088 listening', 'passed': hec_port.failed is false}] }}"
-
-    - name: Check syslog port is listening
-      ansible.builtin.wait_for:
-        port: 1514
-        timeout: 5
-      register: syslog_port
-      failed_when: false
-
-    - name: Record syslog port status
-      ansible.builtin.set_fact:
-        validation_results: "{{ validation_results + [{'check': 'Syslog port 1514 listening', 'passed': syslog_port.failed is false}] }}"
+        validation_results: "{{ validation_results + [{'check': 'HEC port ' ~ splunk_docker_hec_port ~ ' listening', 'passed': hec_port.failed is false}] }}"
 
     - name: Check Splunk web interface
       ansible.builtin.wait_for:
-        port: 8000
+        port: "{{ splunk_docker_web_port }}"
         timeout: 5
       register: web_port
       failed_when: false
 
     - name: Record web interface status
       ansible.builtin.set_fact:
-        validation_results: "{{ validation_results + [{'check': 'Web interface port 8000 listening', 'passed': web_port.failed is false}] }}"
+        validation_results: "{{ validation_results + [{'check': 'Web interface port ' ~ splunk_docker_web_port ~ ' listening', 'passed': web_port.failed is false}] }}"
 
-    - name: Get disk usage
+    - name: Check web.conf exists
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_etc_dir }}/system/local/web.conf"
+      register: web_conf
+
+    - name: Record web.conf status
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results + [{'check': 'web.conf configured', 'passed': web_conf.stat.exists}] }}"
+
+    - name: Check indexes.conf exists
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_etc_dir }}/system/local/indexes.conf"
+      register: indexes_conf
+
+    - name: Record indexes.conf status
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results + [{'check': 'indexes.conf configured', 'passed': indexes_conf.stat.exists}] }}"
+
+    - name: Check firewall.sh exists
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_config_dir }}/firewall.sh"
+      register: firewall_script
+
+    - name: Record firewall status
+      ansible.builtin.set_fact:
+        validation_results: "{{ validation_results + [{'check': 'Firewall configured', 'passed': firewall_script.stat.exists}] }}"
+
+    - name: Get container disk usage
       ansible.builtin.command:
-        cmd: df -h /opt/splunk/var/lib/splunk
+        cmd: df -h /opt/splunk
       register: disk_usage
       changed_when: false
       failed_when: false
@@ -93,14 +110,14 @@
       ansible.builtin.debug:
         msg: |
           ==========================================
-          SPLUNK ENTERPRISE VALIDATION RESULTS
+          SPLUNK DOCKER VALIDATION RESULTS
           ==========================================
           {% for result in validation_results %}
           [{{ 'PASS' if result.passed else 'FAIL' }}] {{ result.check }}
           {% endfor %}
           ==========================================
 
-          Disk Usage (data volume):
+          Disk Usage (Splunk volume):
           {{ disk_usage.stdout | default('Unable to retrieve disk info') }}
 
     - name: Fail if any validation failed

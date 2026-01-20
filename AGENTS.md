@@ -4,10 +4,7 @@ Ansible automation for Splunk Enterprise deployment on Proxmox VMs.
 
 ## Purpose
 
-Deploy and configure Splunk Enterprise using either:
-
-- **Docker-based**: `splunk_docker` role (containerized, recommended)
-- **Direct install**: `splunk_enterprise` role (bare metal)
+Deploy and configure Splunk using the `splunk_docker` role.
 
 This repository is the **single source of truth** for Splunk configuration.
 Splunk-related code was consolidated here from `ansible-proxmox-apps`.
@@ -26,20 +23,19 @@ Splunk-related code was consolidated here from `ansible-proxmox-apps`.
 
 ## Key Files
 
-| Path | Purpose |
-| ---- | ------- |
-| `roles/splunk_docker/` | Docker-based Splunk deployment |
-| `roles/splunk_enterprise/` | Direct Splunk installation |
-| `playbooks/deploy_docker.yml` | Main Docker deployment playbook |
-| `inventory/load_terraform.yml` | Dynamic inventory loader |
-| `inventory/terraform.yml` | Terraform inventory plugin config |
+| Path                           | Purpose                     |
+| ------------------------------ | --------------------------- |
+| `roles/splunk_docker/`         | Splunk deployment role      |
+| `playbooks/deploy.yml`         | Main deployment playbook    |
+| `inventory/load_terraform.yml` | Dynamic inventory loader    |
+| `inventory/terraform.yml`      | Terraform inventory config  |
 
 ## Agent Tasks
 
 ### Deployment
 
 1. Sync Terraform inventory: `./scripts/sync-terraform-inventory.sh`
-2. Deploy Splunk: `doppler run -- uv run ansible-playbook playbooks/deploy_docker.yml`
+2. Deploy Splunk: `doppler run -- uv run ansible-playbook playbooks/deploy.yml`
 
 ### Troubleshooting
 
@@ -58,7 +54,7 @@ Splunk-related code was consolidated here from `ansible-proxmox-apps`.
 All secrets are retrieved from Doppler at runtime:
 
 ```bash
-doppler run -- uv run ansible-playbook playbooks/deploy_docker.yml
+doppler run -- uv run ansible-playbook playbooks/deploy.yml
 ```
 
 Never store secrets in git. Required Doppler secrets:

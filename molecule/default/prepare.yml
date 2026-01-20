@@ -1,6 +1,6 @@
 ---
 # Molecule preparation playbook
-# Sets up the test container before running the converge playbook
+# Sets up the test container before running the splunk_docker role
 
 - name: Prepare
   hosts: all
@@ -21,31 +21,14 @@
         cache_valid_time: 3600
       when: ansible_os_family == 'Debian'
 
-    - name: Install base packages
+    - name: Install base packages for Docker role
       ansible.builtin.apt:
         name:
           - curl
           - gnupg
+          - ca-certificates
           - procps
           - systemd
+          - iptables
         state: present
       when: ansible_os_family == 'Debian'
-
-    - name: Create mock Splunk directory structure
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        mode: "0755"
-      loop:
-        - /opt/splunk
-        - /opt/splunk/bin
-        - /opt/splunk/etc
-        - /opt/splunk/etc/system
-        - /opt/splunk/etc/system/local
-        - /opt/splunk/var/lib/splunk
-
-    - name: Create mock Splunk binary for testing
-      ansible.builtin.file:
-        path: /opt/splunk/bin/splunk
-        state: touch
-        mode: "0755"

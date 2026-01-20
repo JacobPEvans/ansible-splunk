@@ -1,12 +1,11 @@
 ---
-- name: Deploy Splunk Enterprise core
+# Deploy Splunk via Docker
+# Installs Docker, deploys Splunk container with all configuration
+
+- name: Deploy Splunk Docker
   hosts: splunk
   become: true
   gather_facts: true
-
-  vars:
-    splunk_component: enterprise
-    splunk_version: "9.1.1"
 
   tasks:
     - name: Validate required environment variables
@@ -14,34 +13,18 @@
         that:
           - lookup('env', 'SPLUNK_ADMIN_PASSWORD') | length > 0
           - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
-        fail_msg: "SPLUNK_ADMIN_PASSWORD and SPLUNK_HEC_TOKEN environment variables must be set (use: doppler run -- ansible-playbook ...)"
+        fail_msg: >-
+          SPLUNK_ADMIN_PASSWORD and SPLUNK_HEC_TOKEN environment variables must be set
+          (use: doppler run -- ansible-playbook ...)
       run_once: true
       delegate_to: localhost
 
-    - name: Retrieve admin password from environment
+    - name: Set Splunk credentials from environment
       ansible.builtin.set_fact:
-        splunk_admin_password: "{{ lookup('env', 'SPLUNK_ADMIN_PASSWORD') }}"
+        splunk_docker_password: "{{ lookup('env', 'SPLUNK_ADMIN_PASSWORD') }}"
+        splunk_docker_hec_token: "{{ lookup('env', 'SPLUNK_HEC_TOKEN') }}"
       no_log: true
 
-    - name: Retrieve HEC token from environment
-      ansible.builtin.set_fact:
-        splunk_hec_token: "{{ lookup('env', 'SPLUNK_HEC_TOKEN') }}"
-      no_log: true
-
-    - name: Format and mount data disk
-      ansible.builtin.include_tasks: tasks/mount-data-disk.yml
-
-    - name: Install Splunk Enterprise
+    - name: Deploy Splunk Docker
       ansible.builtin.include_role:
-        name: splunk_enterprise
-        tasks_from: install
-
-    - name: Configure Splunk service
-      ansible.builtin.include_role:
-        name: splunk_enterprise
-        tasks_from: configure
-
-    - name: Configure HEC and syslog inputs
-      ansible.builtin.include_role:
-        name: splunk_enterprise
-        tasks_from: inputs
+        name: splunk_docker
