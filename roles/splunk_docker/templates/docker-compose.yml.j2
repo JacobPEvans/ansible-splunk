@@ -7,14 +7,14 @@ services:
     image: {{ splunk_docker_image }}
     hostname: {{ splunk_docker_hostname }}
     container_name: {{ splunk_docker_container_name }}
-    user: root
     environment:
       SPLUNK_START_ARGS: "--accept-license"
-      SPLUNK_GENERAL_TERMS: "--accept-sgt-current-at-splunk-com"
+      SPLUNK_GENERAL_TERMS: "yes"
       SPLUNK_PASSWORD: "{{ splunk_docker_password }}"
       SPLUNK_HEC_TOKEN: "{{ splunk_docker_hec_token }}"
     ports:
       - "{{ splunk_docker_web_port }}:8000"
+      - "127.0.0.1:8089:8089"
       - "{{ splunk_docker_hec_port }}:8088"
     volumes:
       - {{ splunk_docker_var_dir }}:/opt/splunk/var
@@ -22,7 +22,7 @@ services:
       - {{ splunk_docker_config_dir }}/indexes.conf:/opt/splunk/etc/system/local/indexes.conf:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-k", "https://localhost:8089/services/server/health"]
+      test: ["CMD-SHELL", "/opt/splunk/bin/splunk status >/dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 5

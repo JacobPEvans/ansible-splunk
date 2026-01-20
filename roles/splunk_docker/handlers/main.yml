@@ -4,10 +4,10 @@
     project_src: "{{ splunk_docker_config_dir }}"
     state: present
     recreate: always
-  listen: restart splunk container
+  listen: Restart Splunk container
 
 - name: Apply firewall rules
   ansible.builtin.command:
-    cmd: /opt/splunk-config/firewall.sh
+    cmd: "{{ splunk_docker_config_dir }}/firewall.sh"
   changed_when: true
-  listen: apply firewall rules
+  listen: Apply firewall rules

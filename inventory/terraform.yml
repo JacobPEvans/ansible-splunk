@@ -34,5 +34,5 @@ groups:
 compose:
   ansible_host: ip
   ansible_connection: ansible_connection
-  ansible_user: "'root'"
-  ansible_python_interpreter: "'/usr/bin/python3'"
+  ansible_user: "debian"
+  ansible_python_interpreter: "/usr/bin/python3"

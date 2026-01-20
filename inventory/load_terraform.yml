@@ -51,8 +51,13 @@
           - all
         ansible_host: "{{ terraform_data.splunk_vm.splunk.ip }}"
         ansible_connection: "{{ terraform_data.splunk_vm.splunk.ansible_connection | default('ssh') }}"
+        # NOTE:
+        #   The 'debian' user must have passwordless sudo on the target host.
+        #   Downstream playbooks (e.g. deploy_docker.yml) use 'become: true'
+        #   and rely on this user being able to escalate privileges via sudo
+        #   without requiring an interactive password.
         ansible_user: debian
-        ansible_ssh_private_key_file: ~/.ssh/id_rsa_vm
+        ansible_ssh_private_key_file: "{{ splunk_vm_ssh_private_key | default('~/.ssh/id_rsa_vm') }}"
         ansible_python_interpreter: /usr/bin/python3
         hostname: "{{ terraform_data.splunk_vm.splunk.hostname }}"
         vmid: "{{ terraform_data.splunk_vm.splunk.vmid }}"

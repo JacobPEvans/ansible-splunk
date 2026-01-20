@@ -21,17 +21,12 @@
     dest: /etc/apt/keyrings/docker.asc
     mode: '0644'
 
-- name: Get Debian codename
-  ansible.builtin.command: lsb_release -cs
-  register: splunk_docker_debian_codename
-  changed_when: false
-
 - name: Add Docker repository
   ansible.builtin.apt_repository:
     repo: >-
       deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
       https://download.docker.com/linux/debian
-      {{ splunk_docker_debian_codename.stdout }} stable
+      {{ ansible_distribution_release }} stable
     state: present
     filename: docker
 
@@ -41,7 +36,6 @@
       - docker-ce
       - docker-ce-cli
       - containerd.io
-      - docker-buildx-plugin
       - docker-compose-plugin
     state: present
     update_cache: true
@@ -73,7 +67,7 @@
     group: "{{ splunk_docker_group }}"
     mode: '0600'
   no_log: true
-  notify: restart splunk container
+  notify: Restart Splunk container
 
 - name: Deploy indexes.conf
   ansible.builtin.template:
@@ -82,7 +76,7 @@
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     mode: '0644'
-  notify: restart splunk container
+  notify: Restart Splunk container
 
 - name: Pull Splunk Docker image
   community.docker.docker_image:
@@ -98,23 +92,23 @@
 
 - name: Wait for Splunk to be ready
   ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ splunk_docker_web_port }}/services/server/health/splunkd/details"
+    url: "https://127.0.0.1:8089/services/server/health/splunkd/details"
     validate_certs: false
     status_code: 200
   register: splunk_docker_health
   until: splunk_docker_health.status == 200
-  retries: 30
+  retries: 12
   delay: 10
 
 - name: Deploy firewall rules
   ansible.builtin.template:
     src: firewall.sh.j2
-    dest: /opt/splunk-config/firewall.sh
+    dest: "{{ splunk_docker_config_dir }}/firewall.sh"
     owner: root
     group: root
     mode: '0755'
   when: splunk_docker_firewall_enabled
-  notify: apply firewall rules
+  notify: Apply firewall rules
 
 # Install Technology Add-ons (TAs)
 - name: Create Splunk apps directory
@@ -134,7 +128,7 @@
   loop: "{{ splunk_docker_addons }}"
   loop_control:
     label: "{{ item.name }}"
-  notify: restart splunk container
+  notify: Restart Splunk container
 
 # CRITICAL: Ensure proper ownership after extracting TAs
 # Splunk container runs as uid 41812, apps must be owned by this user
@@ -144,4 +138,4 @@
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     recurse: true
-  notify: restart splunk container
+  notify: Restart Splunk container
