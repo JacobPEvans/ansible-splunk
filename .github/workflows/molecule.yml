@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv pip install --system 'docker>=7.0.0' 'urllib3<2.0' 'requests<2.32'
-          uv pip install --system molecule 'molecule-plugins[docker]>=23.0.0' ansible ansible-lint yamllint
+          uv pip install --system molecule 'molecule-plugins[docker]>=23.0.0' 'ansible-core<2.18' ansible-lint yamllint
 
       - name: Install Ansible collections
         run: |

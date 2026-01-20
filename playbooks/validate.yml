@@ -58,8 +58,11 @@
       failed_when: false
 
     - name: Record HEC port status
+      vars:
+        hec_check: "HEC port {{ splunk_docker_hec_port }} listening"
       ansible.builtin.set_fact:
-        validation_results: "{{ validation_results + [{'check': 'HEC port ' ~ splunk_docker_hec_port ~ ' listening', 'passed': hec_port.failed is false}] }}"
+        validation_results: >-
+          {{ validation_results + [{'check': hec_check, 'passed': hec_port.failed is false}] }}
 
     - name: Check Splunk web interface
       ansible.builtin.wait_for:
@@ -69,8 +72,11 @@
       failed_when: false
 
     - name: Record web interface status
+      vars:
+        web_check: "Web port {{ splunk_docker_web_port }} listening"
       ansible.builtin.set_fact:
-        validation_results: "{{ validation_results + [{'check': 'Web interface port ' ~ splunk_docker_web_port ~ ' listening', 'passed': web_port.failed is false}] }}"
+        validation_results: >-
+          {{ validation_results + [{'check': web_check, 'passed': web_port.failed is false}] }}
 
     - name: Check web.conf exists
       ansible.builtin.stat:
