@@ -12,6 +12,7 @@
 - name: Load Terraform Infrastructure Inventory
   hosts: localhost
   gather_facts: false
+  become: false
 
   tasks:
     - name: Check if Terraform inventory file exists
@@ -48,10 +49,11 @@
         groups:
           - splunk
           - all
-        ansible_host: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.ip }}"
-        ansible_connection: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.ansible_connection | default('ssh') }}"
-        ansible_user: root
+        ansible_host: "{{ terraform_data.splunk_vm.splunk.ip }}"
+        ansible_connection: "{{ terraform_data.splunk_vm.splunk.ansible_connection | default('ssh') }}"
+        ansible_user: debian
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa_vm
         ansible_python_interpreter: /usr/bin/python3
-        hostname: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.hostname }}"
-        vmid: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.vmid }}"
-      when: terraform_inventory_file.stat.exists and terraform_data.ansible_inventory.splunk_vm.splunk is defined
+        hostname: "{{ terraform_data.splunk_vm.splunk.hostname }}"
+        vmid: "{{ terraform_data.splunk_vm.splunk.vmid }}"
+      when: terraform_inventory_file.stat.exists and terraform_data.splunk_vm.splunk is defined
