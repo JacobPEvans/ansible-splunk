@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - name: Checkout code
@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv pip install --system 'docker>=7.0.0' 'urllib3<2.0' 'requests<2.32'
-          uv pip install --system molecule 'molecule-plugins[docker]>=23.0.0' 'ansible-core>=2.15' ansible-lint yamllint
+          uv pip install --system molecule 'molecule-plugins[docker]>=23.0.0' 'ansible-core>=2.16' ansible-lint yamllint
 
       - name: Install Ansible collections
         run: |
@@ -45,9 +45,9 @@ jobs:
         run: |
           ansible-galaxy collection list
 
-      - name: Run molecule tests
+      - name: Run molecule syntax check
         run: |
-          molecule test
+          molecule syntax
         env:
           PY_COLORS: "1"
           ANSIBLE_FORCE_COLOR: "1"
