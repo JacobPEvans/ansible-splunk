@@ -1,0 +1,38 @@
+---
+# Terraform dynamic inventory plugin configuration
+# This reads Terraform state from S3 backend to dynamically populate inventory
+#
+# Prerequisites:
+# 1. Install cloud.terraform collection: ansible-galaxy collection install cloud.terraform
+# 2. Configure AWS credentials (via aws-vault or environment)
+# 3. Doppler secrets loaded for Terraform state access
+#
+# Usage:
+#   doppler run -- aws-vault exec terraform -- ansible-playbook -i inventory/terraform.yml playbooks/deploy.yml
+#
+# Alternative: Use load_terraform.yml pre-playbook with JSON inventory file (see scripts/sync-terraform-inventory.sh)
+
+plugin: cloud.terraform.terraform_provider
+project_path: "{{ lookup('env', 'TERRAFORM_PROJECT_PATH', default='~/git/terraform-proxmox/main') }}"
+
+# S3 backend configuration (read from Terraform backend config)
+backend_type: s3
+backend_config:
+  bucket: "{{ lookup('env', 'TF_STATE_BUCKET') }}"
+  key: "terraform.tfstate"
+  region: "{{ lookup('env', 'AWS_REGION', default='us-east-1') }}"
+
+# Map Terraform outputs to Ansible groups
+# The ansible_inventory output from terraform-proxmox provides structured data
+hostnames:
+  splunk_vm: "hostname"
+
+groups:
+  splunk:
+    - splunk_vm
+
+compose:
+  ansible_host: ip
+  ansible_connection: ansible_connection
+  ansible_user: "'root'"
+  ansible_python_interpreter: "'/usr/bin/python3'"
