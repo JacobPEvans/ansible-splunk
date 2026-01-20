@@ -7,4 +7,4 @@ collections:
   - name: community.docker
     version: "==3.4.8"
   - name: cloud.terraform
-    version: "==2.2.1"
+    version: "==2.1.0"
