@@ -15,3 +15,12 @@ build/
 .DS_Store
 .fact_cache/
 /tmp/ansible_facts/
+
+# Large Splunk add-on files (must be placed manually)
+# See roles/splunk_docker/files/README.md for instructions
+roles/splunk_docker/files/*.tar
+roles/splunk_docker/files/*.tgz
+roles/splunk_docker/files/*.spl
+
+# Terraform inventory (generated at runtime)
+inventory/terraform_inventory.json

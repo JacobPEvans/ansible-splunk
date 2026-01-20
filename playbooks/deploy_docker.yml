@@ -1,0 +1,35 @@
+---
+# Deploy Splunk Enterprise via Docker container
+# This playbook uses the splunk_docker role for containerized deployment
+#
+# Prerequisites:
+# - Doppler secrets loaded (SPLUNK_PASSWORD, SPLUNK_HEC_TOKEN)
+# - Terraform inventory synced (./scripts/sync-terraform-inventory.sh)
+#
+# Usage:
+#   doppler run -- uv run ansible-playbook playbooks/deploy_docker.yml
+
+# Load dynamic inventory from Terraform outputs
+- name: Load Terraform inventory
+  ansible.builtin.import_playbook: ../inventory/load_terraform.yml
+
+- name: Deploy Splunk Enterprise (Docker)
+  hosts: splunk
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Validate required environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SPLUNK_PASSWORD') | length > 0
+          - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+        fail_msg: |
+          SPLUNK_PASSWORD and SPLUNK_HEC_TOKEN must be set.
+          Run with: doppler run -- uv run ansible-playbook playbooks/deploy_docker.yml
+      run_once: true
+      delegate_to: localhost
+
+    - name: Deploy Splunk Docker container
+      ansible.builtin.include_role:
+        name: splunk_docker
