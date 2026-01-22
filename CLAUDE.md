@@ -63,3 +63,37 @@ uv run ansible-playbook playbooks/site.yml
 - Admin password stored in Doppler, set during deployment
 - Systemd service for boot-start auto-enablement
 - Index configuration is idempotent (supports rerun)
+
+## Firewall Configuration (2026-01-22)
+
+**Guest firewall is DISABLED** (`splunk_docker_firewall_enabled: false`)
+
+Network security is managed by Proxmox firewall (`terraform-proxmox/modules/firewall/`).
+
+### Why Not Guest Firewall?
+
+Guest iptables rules conflict with Docker's networking:
+
+1. Docker uses DNAT to forward ports (8000, 8088) to container (172.18.0.x)
+2. DNATed traffic goes to iptables FORWARD chain, not INPUT
+3. The old `firewall.sh` set FORWARD policy to DROP without Docker rules
+4. Result: SSH worked but all Docker ports failed
+
+### Current State
+
+- **Guest iptables**: No Ansible-managed rules
+  (`splunk_docker_firewall_enabled: false`)
+- **Proxmox firewall**: Manages all inbound/outbound security
+- **Docker**: Manages its own FORWARD rules for container networking
+
+### To Re-enable Guest Firewall (NOT RECOMMENDED)
+
+If guest firewall is needed, the template must include Docker-aware rules:
+
+```bash
+# Allow FORWARD for Docker networks.
+# NOTE: The 172.18.0.0/16 subnet is an example. You may need to find the correct
+# subnet for your Docker network using `docker network inspect <network_name>`.
+iptables -I FORWARD -d 172.18.0.0/16 -j ACCEPT
+iptables -I FORWARD -s 172.18.0.0/16 -j ACCEPT
+```
