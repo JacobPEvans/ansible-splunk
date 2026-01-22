@@ -28,7 +28,7 @@ See `defaults/main.yml` for all variables. Key variables:
 | `splunk_docker_web_port` | `8000` | Web UI port |
 | `splunk_docker_hec_port` | `8088` | HEC port |
 | `splunk_docker_user` | `41812` | Splunk container user UID |
-| `splunk_docker_firewall_enabled` | `true` | Enable firewall rules |
+| `splunk_docker_firewall_enabled` | `false` | Enable firewall rules |
 
 ## File Ownership
 

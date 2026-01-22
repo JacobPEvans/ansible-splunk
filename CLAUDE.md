@@ -81,7 +81,8 @@ Guest iptables rules conflict with Docker's networking:
 
 ### Current State
 
-- **Guest iptables**: ACCEPT all policies, no custom rules
+- **Guest iptables**: No Ansible-managed rules
+  (`splunk_docker_firewall_enabled: false`)
 - **Proxmox firewall**: Manages all inbound/outbound security
 - **Docker**: Manages its own FORWARD rules for container networking
 
@@ -90,7 +91,9 @@ Guest iptables rules conflict with Docker's networking:
 If guest firewall is needed, the template must include Docker-aware rules:
 
 ```bash
-# Allow FORWARD for Docker networks
+# Allow FORWARD for Docker networks.
+# NOTE: The 172.18.0.0/16 subnet is an example. You may need to find the correct
+# subnet for your Docker network using `docker network inspect <network_name>`.
 iptables -I FORWARD -d 172.18.0.0/16 -j ACCEPT
 iptables -I FORWARD -s 172.18.0.0/16 -j ACCEPT
 ```
