@@ -39,19 +39,19 @@ splunk_docker_index_default_frozen_time_secs: 31536000
 
 # Indexes to create
 splunk_docker_indexes:
-  - name: unifi
-    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
-    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
-  - name: os
-    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
-    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: firewall
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  - name: netflow
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: network
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
-  - name: netflow
+  - name: os
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  - name: unifi
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
 
