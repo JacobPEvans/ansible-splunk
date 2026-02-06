@@ -9,7 +9,7 @@ persistent data storage and production-grade configuration.
 
 - **terraform-proxmox**: VM provisioning with 25GB boot disk, 200GB data disk
   on /dev/sdb. Splunk installation path: /opt/splunk
-- **Doppler**: Secrets vault for SPLUNK_ADMIN_PASSWORD, SPLUNK_HEC_TOKEN
+- **Doppler**: Secrets vault for SPLUNK_PASSWORD, SPLUNK_HEC_TOKEN
 
 ### Disk Requirements
 

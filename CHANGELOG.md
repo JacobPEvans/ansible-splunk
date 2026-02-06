@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **BREAKING**: Fixed Doppler secret retrieval - now correctly uses
-  `SPLUNK_ADMIN_PASSWORD` and `SPLUNK_HEC_TOKEN` environment variables instead
+  `SPLUNK_PASSWORD` and `SPLUNK_HEC_TOKEN` environment variables instead
   of incorrectly using `DOPPLER_TOKEN` value as credentials
 - Improved error message for missing environment variables with usage hint
 

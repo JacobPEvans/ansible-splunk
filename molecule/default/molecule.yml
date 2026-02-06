@@ -37,7 +37,7 @@ provisioner:
         splunk_admin_password: "molecule-test-password"
         splunk_hec_token: "molecule-test-hec-token"
   env:
-    SPLUNK_ADMIN_PASSWORD: "molecule-test-password"
+    SPLUNK_PASSWORD: "molecule-test-password"
     SPLUNK_HEC_TOKEN: "molecule-test-hec-token"
 
 verifier:

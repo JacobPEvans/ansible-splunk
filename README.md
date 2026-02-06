@@ -27,7 +27,7 @@ deploy Splunk Enterprise across Proxmox virtual machines. It automates:
 - **terraform-proxmox**: VMs must be provisioned via
   [terraform-proxmox](https://github.com/user/terraform-proxmox) with 25GB
   boot disk and 200GB data disk
-- **Doppler**: Secrets stored in Doppler vault with `SPLUNK_ADMIN_PASSWORD`
+- **Doppler**: Secrets stored in Doppler vault with `SPLUNK_PASSWORD`
   and `SPLUNK_HEC_TOKEN`
 
 ### Ansible Collections
@@ -98,14 +98,14 @@ be configured in your Doppler project:
 
 | Secret Name              | Description                      |
 |--------------------------|----------------------------------|
-| `SPLUNK_ADMIN_PASSWORD`  | Splunk admin account password    |
+| `SPLUNK_PASSWORD`        | Splunk admin account password    |
 | `SPLUNK_HEC_TOKEN`       | HTTP Event Collector token UUID  |
 
 ### Setting Up Secrets
 
 ```bash
 # Set Splunk admin password
-doppler secrets set SPLUNK_ADMIN_PASSWORD "your-secure-password"
+doppler secrets set SPLUNK_PASSWORD "your-secure-password"
 
 # Set HEC token (generate a UUID)
 doppler secrets set SPLUNK_HEC_TOKEN "$(uuidgen)"
@@ -331,7 +331,7 @@ journalctl -u Splunkd -n 50
 
 ### Missing Environment Variables
 
-If you see "SPLUNK_ADMIN_PASSWORD and SPLUNK_HEC_TOKEN environment variables
+If you see "SPLUNK_PASSWORD and SPLUNK_HEC_TOKEN environment variables
 must be set", ensure you're running with Doppler:
 
 ```bash
