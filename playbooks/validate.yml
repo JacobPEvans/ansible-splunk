@@ -78,6 +78,29 @@
         validation_results: >-
           {{ validation_results + [{'check': web_check, 'passed': web_port.failed is false}] }}
 
+
+    - name: Test HEC endpoint with POST
+      ansible.builtin.uri:
+        url: "http://localhost:{{ splunk_docker_hec_port }}/services/collector/event"
+        method: POST
+        headers:
+          Authorization: "Splunk {{ lookup('env', 'SPLUNK_HEC_TOKEN') }}"
+        body_format: json
+        body:
+          event: "ansible-validation-test"
+          sourcetype: "_json"
+          index: "main"
+        status_code: 200
+      register: hec_test
+      failed_when: false
+      when: lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+
+    - name: Record HEC POST test status
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'HEC POST test', 'passed': (hec_test.status | default(0)) == 200}] }}
+      when: lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+
     - name: Check web.conf exists
       ansible.builtin.stat:
         path: "{{ splunk_docker_etc_dir }}/system/local/web.conf"

@@ -20,6 +20,9 @@ splunk_docker_hec_token: ""
 splunk_docker_web_port: 8000
 splunk_docker_hec_port: 8088
 
+# HEC SSL - disabled because Cribl Edge sends to http://splunk:8088
+splunk_docker_hec_enable_ssl: false
+
 # Splunk Web SSL (enableSplunkWebSSL)
 splunk_docker_web_ssl: true
 
