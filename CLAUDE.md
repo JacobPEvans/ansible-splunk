@@ -21,8 +21,9 @@ Cribl Edge (ansible-proxmox-apps) -> Splunk HEC :8088
                                     network, os, netflow
 ```
 
-HEC runs on **HTTP** (not HTTPS). SSL is disabled because
-Cribl Edge sends to `http://splunk:8088`.
+HEC runs on **HTTP** (not HTTPS). This role does not manage HEC SSL
+settings; we rely on the Splunk Docker image's default HTTP behavior.
+Cribl Edge is configured to send to `http://splunk:8088`.
 
 ## Custom Indexes
 

@@ -95,10 +95,11 @@ For manual inventory configuration:
 This project uses Doppler for secrets management. The following secrets must
 be configured in your Doppler project:
 
-| Secret Name           | Description                     |
-|-----------------------|---------------------------------|
-| `SPLUNK_PASSWORD`     | Splunk admin account password   |
-| `SPLUNK_HEC_TOKEN`    | HTTP Event Collector token UUID |
+| Secret Name            | Description                            |
+|------------------------|----------------------------------------|
+| `SPLUNK_PASSWORD`      | Splunk admin account password          |
+| `SPLUNK_HEC_TOKEN`     | HTTP Event Collector token UUID        |
+| `PROXMOX_SSH_KEY_PATH` | SSH private key path for VM access     |
 
 ### Setting Up Secrets
 

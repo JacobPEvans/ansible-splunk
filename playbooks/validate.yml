@@ -94,6 +94,7 @@
       register: hec_test
       failed_when: false
       when: lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+      no_log: true
 
     - name: Record HEC POST test status
       ansible.builtin.set_fact:
