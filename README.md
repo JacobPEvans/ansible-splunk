@@ -15,7 +15,6 @@ deploy Splunk Enterprise across Proxmox virtual machines. It automates:
 - Splunk Enterprise installation and initialization
 - Index configuration with persistent data storage
 - HTTP Event Collector (HEC) configuration for log ingestion
-- Syslog input configuration (backup ingestion path)
 - Admin account setup with Doppler secrets
 - Systemd boot-start service enablement
 - Cold storage configuration on dedicated data disk
@@ -96,10 +95,10 @@ For manual inventory configuration:
 This project uses Doppler for secrets management. The following secrets must
 be configured in your Doppler project:
 
-| Secret Name              | Description                      |
-|--------------------------|----------------------------------|
-| `SPLUNK_PASSWORD`  | Splunk admin account password    |
-| `SPLUNK_HEC_TOKEN`       | HTTP Event Collector token UUID  |
+| Secret Name           | Description                     |
+|-----------------------|---------------------------------|
+| `SPLUNK_PASSWORD`     | Splunk admin account password   |
+| `SPLUNK_HEC_TOKEN`    | HTTP Event Collector token UUID |
 
 ### Setting Up Secrets
 
@@ -225,22 +224,6 @@ HTTP Event Collector is configured on:
 - **Default index**: main
 - **Sourcetype**: _json (recommended for Cribl Edge)
 
-## Syslog Input Configuration
-
-Backup syslog input configured on:
-
-- **Port**: 1514
-- **Protocol**: UDP
-- **Default index**: main
-- **Sourcetype**: syslog
-
-Use this input if Cribl Edge connection fails. Configure log forwarders:
-
-```text
-[tcpout:default]
-server = splunk-host:1514
-```
-
 ## Playbook Directory
 
 ### playbooks/site.yml
@@ -256,7 +239,7 @@ Core deployment playbook:
 - Configure boot-start via systemd
 - Mount data disk at /opt/splunk/var/lib/splunk
 - Set admin password from Doppler
-- Enable HEC and syslog inputs
+- Enable HEC inputs
 
 ### playbooks/configure_indexes.yml
 
@@ -274,7 +257,7 @@ Validation playbook to verify deployment:
 - Check Splunk service is running
 - Verify boot-start is enabled
 - Confirm data disk is mounted
-- Test HEC and syslog ports are listening
+- Test HEC port is listening
 - Check web interface accessibility
 
 ## Role Structure
@@ -286,7 +269,7 @@ Main Splunk Enterprise role with modular tasks:
 - **tasks/install.yml**: Package installation and initialization
 - **tasks/configure.yml**: Service and boot configuration
 - **tasks/indexes.yml**: Index creation and configuration
-- **tasks/inputs.yml**: HEC and syslog input setup
+- **tasks/inputs.yml**: HEC input setup
 - **templates/**: Jinja2 configuration templates
 - **handlers/**: Service restart handlers
 
