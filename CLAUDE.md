@@ -1,99 +1,83 @@
 # Ansible Splunk Enterprise
 
-Ansible automation for Splunk Enterprise deployment on Proxmox VMs with
-persistent data storage and production-grade configuration.
+Deploy and configure Splunk Enterprise (Docker) on Proxmox VM.
 
-## Dependencies
+## This Repo Owns
 
-### Infrastructure
+- Splunk Enterprise container deployment
+- HEC (HTTP Event Collector) configuration
+- Custom index creation and retention
+- Technology Add-ons (TAs)
 
-- **terraform-proxmox**: VM provisioning with 25GB boot disk, 200GB data disk
-  on /dev/sdb. Splunk installation path: /opt/splunk
-- **Doppler**: Secrets vault for SPLUNK_PASSWORD, SPLUNK_HEC_TOKEN
+## Pipeline Role
 
-### Disk Requirements
-
-**Boot Disk** (25GB /dev/sda):
+This repo is the **destination** for the syslog pipeline:
 
 ```text
-/dev/sda → Linux boot partition
-├── / (25GB) → Root filesystem for OS + Splunk binaries
+Cribl Edge (ansible-proxmox-apps) -> Splunk HEC :8088
+                                      |
+                                  Splunk indexes:
+                                    unifi, firewall,
+                                    network, os, netflow
 ```
 
-**Data Disk** (200GB /dev/sdb):
+HEC runs on **HTTP** (not HTTPS). SSL is disabled because
+Cribl Edge sends to `http://splunk:8088`.
 
-```text
-/dev/sdb → Linux filesystem
-├── /opt/splunk/var/lib/splunk (200GB) → Hot/cold/thawed indexes
-```
+## Custom Indexes
 
-## Default Indexes
+| Index | Purpose | Size | Retention |
+| --- | --- | --- | --- |
+| unifi | UniFi syslog | 100GB | 365 days |
+| firewall | Palo Alto/Cisco | 100GB | 365 days |
+| network | Network devices | 100GB | 365 days |
+| os | Linux/Windows | 100GB | 365 days |
+| netflow | NetFlow/IPFIX | 100GB | 365 days |
 
-Splunk is configured with these standard indexes:
+## Inventory
 
-| Index | Purpose | Retention |
-| --- | --- | --- |
-| main | General purpose logs | 90 days |
-| _internal | Splunk operations | 60 days |
-| _audit | Authorization audits | 90 days |
+Loaded from `terraform_inventory.json` via
+`inventory/load_terraform.yml`. Falls back to
+`SPLUNK_VM_HOST` env var if JSON is missing.
 
-## Deployment Commands
+### Required Environment Variables
+
+| Variable | Purpose |
+| --- | --- |
+| `SPLUNK_PASSWORD` | Splunk admin password |
+| `SPLUNK_HEC_TOKEN` | HTTP Event Collector token |
+| `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
+
+All secrets managed via Doppler (`doppler run --`).
+
+## Commands
 
 ```bash
-# Deploy Splunk Enterprise
-cd ansible
-uv run ansible-playbook playbooks/deploy.yml
+# Full deployment
+doppler run -- pipx run ansible-playbook \
+  playbooks/site.yml
 
-# Configure default indexes
-uv run ansible-playbook playbooks/configure_indexes.yml
+# Validate deployment
+doppler run -- pipx run ansible-playbook \
+  playbooks/validate.yml
 
-# Full site deployment
-uv run ansible-playbook playbooks/site.yml
+# Lint
+pipx run ansible-lint
 ```
 
-## Required Environment Variables
+## Firewall
 
-- `DOPPLER_TOKEN`: Doppler service token for secrets
-- `SPLUNK_VM_HOST`: Target VM hostname (inventory override)
+Guest firewall is **disabled**
+(`splunk_docker_firewall_enabled: false`).
+Proxmox firewall manages all network security
+(see `terraform-proxmox/modules/firewall/`).
+Docker's DNAT conflicts with guest iptables FORWARD
+chain rules.
 
-## Architecture Notes
+## Related Repositories
 
-- Data disk mounted at /opt/splunk/var/lib/splunk via role
-- HEC token stored in Doppler, retrieved via lookup
-- Admin password stored in Doppler, set during deployment
-- Systemd service for boot-start auto-enablement
-- Index configuration is idempotent (supports rerun)
-
-## Firewall Configuration (2026-01-22)
-
-**Guest firewall is DISABLED** (`splunk_docker_firewall_enabled: false`)
-
-Network security is managed by Proxmox firewall (`terraform-proxmox/modules/firewall/`).
-
-### Why Not Guest Firewall?
-
-Guest iptables rules conflict with Docker's networking:
-
-1. Docker uses DNAT to forward ports (8000, 8088) to container (172.18.0.x)
-2. DNATed traffic goes to iptables FORWARD chain, not INPUT
-3. The old `firewall.sh` set FORWARD policy to DROP without Docker rules
-4. Result: SSH worked but all Docker ports failed
-
-### Current State
-
-- **Guest iptables**: No Ansible-managed rules
-  (`splunk_docker_firewall_enabled: false`)
-- **Proxmox firewall**: Manages all inbound/outbound security
-- **Docker**: Manages its own FORWARD rules for container networking
-
-### To Re-enable Guest Firewall (NOT RECOMMENDED)
-
-If guest firewall is needed, the template must include Docker-aware rules:
-
-```bash
-# Allow FORWARD for Docker networks.
-# NOTE: The 172.18.0.0/16 subnet is an example. You may need to find the correct
-# subnet for your Docker network using `docker network inspect <network_name>`.
-iptables -I FORWARD -d 172.18.0.0/16 -j ACCEPT
-iptables -I FORWARD -s 172.18.0.0/16 -j ACCEPT
-```
+| Repo | Relationship |
+| --- | --- |
+| terraform-proxmox | Upstream: provisions Splunk VM |
+| ansible-proxmox-apps | Peer: owns Cribl (sends to HEC) |
+| ansible-proxmox | Peer: Proxmox host config |
