@@ -365,4 +365,5 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## License
 
-This playbook set is licensed under the Apache License 2.0.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE)
+file for details.
