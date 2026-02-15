@@ -23,6 +23,12 @@ splunk_docker_hec_port: 8088
 # Splunk Web SSL (enableSplunkWebSSL)
 splunk_docker_web_ssl: true
 
+# NOTE: HEC SSL is managed by the Splunk Docker image itself.
+# This deployment intentionally uses HTTP for HEC (port 8088) because:
+# - Internal network only (Cribl Edge -> Splunk communication)
+# - SSL adds overhead with no security benefit in this trusted segment
+# The Splunk Docker image defaults to HTTP unless explicitly configured for SSL.
+
 # Splunk data directories
 splunk_docker_data_dir: /opt/splunk
 splunk_docker_var_dir: "{{ splunk_docker_data_dir }}/var"

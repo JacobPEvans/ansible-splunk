@@ -15,7 +15,6 @@ deploy Splunk Enterprise across Proxmox virtual machines. It automates:
 - Splunk Enterprise installation and initialization
 - Index configuration with persistent data storage
 - HTTP Event Collector (HEC) configuration for log ingestion
-- Syslog input configuration (backup ingestion path)
 - Admin account setup with Doppler secrets
 - Systemd boot-start service enablement
 - Cold storage configuration on dedicated data disk
@@ -27,7 +26,7 @@ deploy Splunk Enterprise across Proxmox virtual machines. It automates:
 - **terraform-proxmox**: VMs must be provisioned via
   [terraform-proxmox](https://github.com/user/terraform-proxmox) with 25GB
   boot disk and 200GB data disk
-- **Doppler**: Secrets stored in Doppler vault with `SPLUNK_ADMIN_PASSWORD`
+- **Doppler**: Secrets stored in Doppler vault with `SPLUNK_PASSWORD`
   and `SPLUNK_HEC_TOKEN`
 
 ### Ansible Collections
@@ -96,16 +95,17 @@ For manual inventory configuration:
 This project uses Doppler for secrets management. The following secrets must
 be configured in your Doppler project:
 
-| Secret Name              | Description                      |
-|--------------------------|----------------------------------|
-| `SPLUNK_ADMIN_PASSWORD`  | Splunk admin account password    |
-| `SPLUNK_HEC_TOKEN`       | HTTP Event Collector token UUID  |
+| Secret Name            | Description                            |
+|------------------------|----------------------------------------|
+| `SPLUNK_PASSWORD`      | Splunk admin account password          |
+| `SPLUNK_HEC_TOKEN`     | HTTP Event Collector token UUID        |
+| `PROXMOX_SSH_KEY_PATH` | SSH private key path for VM access     |
 
 ### Setting Up Secrets
 
 ```bash
 # Set Splunk admin password
-doppler secrets set SPLUNK_ADMIN_PASSWORD "your-secure-password"
+doppler secrets set SPLUNK_PASSWORD "your-secure-password"
 
 # Set HEC token (generate a UUID)
 doppler secrets set SPLUNK_HEC_TOKEN "$(uuidgen)"
@@ -225,22 +225,6 @@ HTTP Event Collector is configured on:
 - **Default index**: main
 - **Sourcetype**: _json (recommended for Cribl Edge)
 
-## Syslog Input Configuration
-
-Backup syslog input configured on:
-
-- **Port**: 1514
-- **Protocol**: UDP
-- **Default index**: main
-- **Sourcetype**: syslog
-
-Use this input if Cribl Edge connection fails. Configure log forwarders:
-
-```text
-[tcpout:default]
-server = splunk-host:1514
-```
-
 ## Playbook Directory
 
 ### playbooks/site.yml
@@ -256,7 +240,7 @@ Core deployment playbook:
 - Configure boot-start via systemd
 - Mount data disk at /opt/splunk/var/lib/splunk
 - Set admin password from Doppler
-- Enable HEC and syslog inputs
+- Enable HEC inputs
 
 ### playbooks/configure_indexes.yml
 
@@ -274,7 +258,7 @@ Validation playbook to verify deployment:
 - Check Splunk service is running
 - Verify boot-start is enabled
 - Confirm data disk is mounted
-- Test HEC and syslog ports are listening
+- Test HEC port is listening
 - Check web interface accessibility
 
 ## Role Structure
@@ -286,7 +270,7 @@ Main Splunk Enterprise role with modular tasks:
 - **tasks/install.yml**: Package installation and initialization
 - **tasks/configure.yml**: Service and boot configuration
 - **tasks/indexes.yml**: Index creation and configuration
-- **tasks/inputs.yml**: HEC and syslog input setup
+- **tasks/inputs.yml**: HEC input setup
 - **templates/**: Jinja2 configuration templates
 - **handlers/**: Service restart handlers
 
@@ -300,22 +284,9 @@ splunk_admin_user: admin
 splunk_service_state: started
 splunk_service_enabled: true
 
-# Index configuration
-splunk_indexes:
-  - name: main
-    data_disk_path: /opt/splunk/var/lib/splunk/main
-    max_data_size: auto_high_volume
-    frozen_time_secs: 7776000
-
-# HEC configuration
-splunk_hec_port: 8088
-splunk_hec_enable_ssl: false
-splunk_hec_default_sourcetype: _json
-splunk_hec_default_index: main
-
-# Syslog configuration
-splunk_syslog_port: 1514
-splunk_syslog_default_index: main
+# Data disk configuration
+splunk_data_disk_device: /dev/sdb1
+splunk_data_disk_mount_path: /opt/splunk/var/lib/splunk
 ```
 
 ## Troubleshooting
@@ -331,7 +302,7 @@ journalctl -u Splunkd -n 50
 
 ### Missing Environment Variables
 
-If you see "SPLUNK_ADMIN_PASSWORD and SPLUNK_HEC_TOKEN environment variables
+If you see "SPLUNK_PASSWORD and SPLUNK_HEC_TOKEN environment variables
 must be set", ensure you're running with Doppler:
 
 ```bash
