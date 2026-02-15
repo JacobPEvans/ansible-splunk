@@ -15,7 +15,8 @@ services:
       SPLUNK_START_ARGS: "--accept-license"
       SPLUNK_GENERAL_TERMS: "--accept-sgt-current-at-splunk-com"
       SPLUNK_PASSWORD: "{{ splunk_docker_password }}"
-      SPLUNK_HEC_TOKEN: "{{ splunk_docker_hec_token }}"
+      # SPLUNK_HEC_TOKEN removed - configure HEC via REST API or inputs.conf
+      # to avoid internal container Ansible 401 failures
       # Let container entrypoint chown mounted volumes to splunk user at startup
       SPLUNK_HOME_OWNERSHIP_ENFORCEMENT: "true"
     ports:

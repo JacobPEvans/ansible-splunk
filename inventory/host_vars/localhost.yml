@@ -1,0 +1,5 @@
+---
+# Localhost-specific settings - override group_vars/all.yml
+# This prevents sudo attempts on localhost during inventory loading
+ansible_become: false
+ansible_become_method: sudo
