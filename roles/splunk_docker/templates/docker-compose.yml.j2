@@ -31,7 +31,11 @@ services:
     # Healthcheck uses curl to avoid permission issues with splunk CLI
     # The CLI runs as 'ansible' user but needs to read files owned by 'splunk'
     healthcheck:
+{% if splunk_docker_web_ssl %}
+      test: ["CMD-SHELL", "curl -sfk https://localhost:8000/en-US/account/login >/dev/null || exit 1"]
+{% else %}
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/en-US/account/login >/dev/null || exit 1"]
+{% endif %}
       interval: 30s
       timeout: 10s
       retries: 5

@@ -23,6 +23,12 @@ splunk_docker_hec_port: 8088
 # Splunk Web SSL (enableSplunkWebSSL)
 splunk_docker_web_ssl: true
 
+# Internet access control
+# Disabled by default for air-gapped/network-isolated VMs.
+# When false, disables Splunkbase app browsing, update checks, and telemetry
+# which otherwise cause ~80-second DNS timeout delays on every page load.
+splunk_docker_allow_internet_access: false
+
 # NOTE: HEC SSL is managed by the Splunk Docker image itself.
 # This deployment intentionally uses HTTP for HEC (port 8088) because:
 # - Internal network only (Cribl Edge -> Splunk communication)

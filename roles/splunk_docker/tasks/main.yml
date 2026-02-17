@@ -98,10 +98,19 @@
     mode: '0644'
   notify: Restart Splunk container
 
-- name: Deploy web.conf for SSL configuration
+- name: Deploy web.conf for SSL and update checker configuration
   ansible.builtin.template:
     src: web.conf.j2
     dest: "{{ splunk_docker_etc_dir }}/system/local/web.conf"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0644'
+  notify: Restart Splunk container
+
+- name: Deploy server.conf for internet access control
+  ansible.builtin.template:
+    src: server.conf.j2
+    dest: "{{ splunk_docker_etc_dir }}/system/local/server.conf"
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     mode: '0644'
@@ -127,7 +136,7 @@
 
 - name: Wait for Splunk to be ready
   ansible.builtin.uri:
-    url: "https://127.0.0.1:{{ splunk_docker_web_port }}/en-US/account/login"
+    url: "{{ 'https' if splunk_docker_web_ssl else 'http' }}://127.0.0.1:{{ splunk_docker_web_port }}/en-US/account/login"
     validate_certs: false
     status_code: 200
   register: splunk_docker_health

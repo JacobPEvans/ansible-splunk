@@ -5,3 +5,6 @@
 {% if splunk_docker_web_ssl %}
 enableSplunkWebSSL = true
 {% endif %}
+{% if not splunk_docker_allow_internet_access %}
+updateCheckerBaseURL = 0
+{% endif %}
