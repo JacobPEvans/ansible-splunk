@@ -54,7 +54,7 @@
 
     - name: Assert IP is a valid address format
       ansible.builtin.assert:
-        that: terraform_data.splunk_vm.splunk.ip | ansible.utils.ipaddr | bool
+        that: terraform_data.splunk_vm.splunk.ip | ansible.utils.ipaddr('bool')
         fail_msg: "splunk_vm.splunk.ip is not a valid IP: {{ terraform_data.splunk_vm.splunk.ip }}"
 
     - name: Print resolved splunk host info
