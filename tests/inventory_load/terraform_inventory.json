@@ -1,11 +1,11 @@
 {
   "splunk_vm": {
     "splunk": {
-      "hostname": "splunk-01",
+      "hostname": "splunk-test-01",
       "ip": "192.168.0.200",
       "vmid": 200,
       "ansible_connection": "ssh",
-      "node": "example-node"
+      "node": "test-node"
     }
   },
   "containers": {},
