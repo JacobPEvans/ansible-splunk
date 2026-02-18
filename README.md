@@ -159,6 +159,18 @@ After deploying to a real VM, validate the deployment:
 doppler run -- uv run ansible-playbook playbooks/validate.yml
 ```
 
+### Inventory Tests
+
+Verify the Terraform inventory structure and sync script:
+
+```bash
+# Fixture-based tests (CI-safe, no live infrastructure needed):
+./scripts/test-inventory.sh
+
+# With live inventory validation:
+./scripts/test-inventory.sh --live
+```
+
 ## Disk Layout
 
 ### Boot Disk (25GB at /dev/sda)

@@ -55,7 +55,7 @@ if cd "${TERRAFORM_DIR}" && terragrunt output -json ansible_inventory > "${INVEN
   echo -e "\n${YELLOW}Infrastructure Summary:${NC}"
 
   # Use Python to parse and display the JSON in a readable format
-  python3 "${INVENTORY_FILE}" << 'PYTHON_EOF'
+  python3 - "${INVENTORY_FILE}" << 'PYTHON_EOF'
 import json
 import sys
 
@@ -63,7 +63,7 @@ try:
     with open(sys.argv[1]) as f:
         inventory = json.load(f)
 
-        splunk = inventory.get('ansible_inventory', {}).get('splunk_vm', {})
+        splunk = inventory.get('splunk_vm', {})
         splunk_vm_details = splunk.get('splunk')
         if isinstance(splunk_vm_details, dict):
             print(f"  Splunk VM:")
