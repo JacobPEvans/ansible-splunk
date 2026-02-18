@@ -12,7 +12,7 @@
   vars:
     terraform_inventory_file_path: >-
       {{ lookup('env', 'TERRAFORM_INVENTORY_PATH')
-         | default('tests/inventory_load/terraform_inventory.json', true) }}
+         | default(playbook_dir ~ '/terraform_inventory.json', true) }}
 
   tasks:
     - name: Stat the test terraform inventory
