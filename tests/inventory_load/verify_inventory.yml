@@ -1,0 +1,65 @@
+---
+# Verify that load_terraform.yml correctly resolves splunk host from
+# terraform_inventory.json without needing SPLUNK_VM_HOST env var.
+#
+# Run from repo root:
+#   TERRAFORM_INVENTORY_PATH=tests/inventory_load/terraform_inventory.json \
+#     ansible-playbook tests/inventory_load/verify_inventory.yml \
+#     -i inventory/hosts.yml -c local
+- name: Verify terraform inventory loads correctly
+  hosts: localhost
+  gather_facts: false
+  vars:
+    terraform_inventory_file_path: >-
+      {{ lookup('env', 'TERRAFORM_INVENTORY_PATH')
+         | default(playbook_dir ~ '/terraform_inventory.json', true) }}
+
+  tasks:
+    - name: Stat the test terraform inventory
+      ansible.builtin.stat:
+        path: "{{ terraform_inventory_file_path }}"
+      register: stat_result
+
+    - name: Assert test inventory file exists
+      ansible.builtin.assert:
+        that: stat_result.stat.exists
+        fail_msg: "Test fixture not found: {{ terraform_inventory_file_path }}"
+
+    - name: Load test terraform inventory
+      ansible.builtin.include_vars:
+        file: "{{ terraform_inventory_file_path }}"
+        name: terraform_data
+
+    - name: Assert splunk_vm is at root level (not under ansible_inventory)
+      ansible.builtin.assert:
+        that:
+          - terraform_data.splunk_vm is defined
+          - terraform_data.splunk_vm.splunk is defined
+        fail_msg: >-
+          splunk_vm not found at root level of terraform_inventory.json.
+          Keys found: {{ terraform_data.keys() | list }}.
+          If 'ansible_inventory' is in the keys, the JSON structure is wrong
+          (nested one level too deep).
+
+    - name: Assert required splunk host fields are present
+      ansible.builtin.assert:
+        that:
+          - terraform_data.splunk_vm.splunk.ip is defined
+          - terraform_data.splunk_vm.splunk.hostname is defined
+          - terraform_data.splunk_vm.splunk.vmid is defined
+          - terraform_data.splunk_vm.splunk.ansible_connection is defined
+        fail_msg: >-
+          Missing required fields in splunk_vm.splunk.
+          Got: {{ terraform_data.splunk_vm.splunk.keys() | list }}
+
+    - name: Assert IP is a valid address format
+      ansible.builtin.assert:
+        that: terraform_data.splunk_vm.splunk.ip | ansible.utils.ipaddr('bool')
+        fail_msg: "splunk_vm.splunk.ip is not a valid IP: {{ terraform_data.splunk_vm.splunk.ip }}"
+
+    - name: Print resolved splunk host info
+      ansible.builtin.debug:
+        msg:
+          - "splunk hostname: {{ terraform_data.splunk_vm.splunk.hostname }}"
+          - "splunk ip: {{ terraform_data.splunk_vm.splunk.ip }}"
+          - "splunk vmid: {{ terraform_data.splunk_vm.splunk.vmid }}"

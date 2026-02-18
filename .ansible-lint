@@ -5,4 +5,4 @@ skip_list:
   - jinja[spacing]
 
 kinds:
-  - playbook: "inventory/load_terraform.yml"
+  - playbook: "**/inventory/load_terraform.yml"

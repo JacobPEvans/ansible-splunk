@@ -49,8 +49,8 @@
         groups:
           - splunk
           - all
-        ansible_host: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.ip }}"
-        ansible_connection: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.ansible_connection | default('ssh') }}"
+        ansible_host: "{{ terraform_data.splunk_vm.splunk.ip }}"
+        ansible_connection: "{{ terraform_data.splunk_vm.splunk.ansible_connection | default('ssh') }}"
         # NOTE:
         #   The 'debian' user must have passwordless sudo on the target host.
         #   Downstream playbooks (e.g. deploy_docker.yml) use 'become: true'
@@ -59,6 +59,6 @@
         ansible_user: debian
         ansible_ssh_private_key_file: "{{ lookup('env', 'PROXMOX_SSH_KEY_PATH') | mandatory }}"
         ansible_python_interpreter: /usr/bin/python3
-        hostname: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.hostname }}"
-        vmid: "{{ terraform_data.ansible_inventory.splunk_vm.splunk.vmid }}"
-      when: terraform_inventory_file.stat.exists and terraform_data.ansible_inventory.splunk_vm.splunk is defined
+        hostname: "{{ terraform_data.splunk_vm.splunk.hostname }}"
+        vmid: "{{ terraform_data.splunk_vm.splunk.vmid }}"
+      when: terraform_inventory_file.stat.exists and terraform_data.splunk_vm.splunk is defined
