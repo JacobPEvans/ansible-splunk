@@ -4,4 +4,10 @@
 [applicationsManagement]
 {% if not splunk_docker_allow_internet_access %}
 allowInternetAccess = false
+# Override Splunkbase URLs to prevent DNS timeout delays on air-gapped VMs.
+# Without these overrides, LocalAppsAdminHandler retries DNS resolution for
+# ~80 seconds on every /services/apps/local API call, blocking the UI.
+splunkbaseAppsDumpUrl =
+archivedSplunkbaseAppsDumpUrl =
+updateHost =
 {% endif %}
