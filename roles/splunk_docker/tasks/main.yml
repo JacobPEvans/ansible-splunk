@@ -58,6 +58,10 @@
     state: started
     enabled: true
 
+- name: Install Java runtime for DB Connect
+  ansible.builtin.include_tasks: java.yml
+  when: splunk_docker_java_enabled
+
 - name: Create Splunk data directories
   ansible.builtin.file:
     path: "{{ item }}"

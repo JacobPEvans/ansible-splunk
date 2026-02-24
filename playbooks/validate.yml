@@ -129,6 +129,20 @@
       ansible.builtin.set_fact:
         validation_results: "{{ validation_results + [{'check': 'Firewall configured', 'passed': firewall_script.stat.exists}] }}"
 
+    - name: Check Java is accessible in Splunk container
+      community.docker.docker_container_exec:
+        container: splunk
+        command: "{{ splunk_docker_java_home }}/bin/java -version"
+      register: java_check
+      failed_when: false
+      vars:
+        splunk_docker_java_home: "/usr/lib/jvm/temurin-21-jre-amd64"
+
+    - name: Record Java availability status
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'Java accessible in container', 'passed': (java_check.rc | default(1)) == 0}] }}
+
     - name: Get container disk usage
       ansible.builtin.command:
         cmd: df -h /opt/splunk

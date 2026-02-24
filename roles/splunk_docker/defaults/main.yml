@@ -85,10 +85,17 @@ splunk_docker_firewall_enabled: false
 splunk_docker_user: "41812"
 splunk_docker_group: "41812"
 
+# Java Runtime for Splunk DB Connect
+splunk_docker_java_enabled: true
+splunk_docker_java_version: "21"
+splunk_docker_java_package: "temurin-{{ splunk_docker_java_version }}-jre"
+splunk_docker_java_home: "/usr/lib/jvm/temurin-{{ splunk_docker_java_version }}-jre-amd64"
+
 # Technology Add-ons (TAs) to install
 # TAs must be placed in roles/splunk_docker/files/ as .tar, .tgz, or .spl files
 splunk_docker_unifi_ta_version: 1.0.2+00b9ecb
 splunk_docker_duck_yeah_version: 234
+splunk_docker_dbconnect_version: "421"
 splunk_docker_addons:
   - name: TA-unifi-cloud
     filename: "TA-unifi-cloud-{{ splunk_docker_unifi_ta_version }}.tar"
@@ -96,3 +103,6 @@ splunk_docker_addons:
   - name: Duck Yeah
     filename: "duck-yeah_{{ splunk_docker_duck_yeah_version }}.tgz"
     description: Duck Yeah - Splunk app for packaging and app management
+  - name: Splunk DB Connect
+    filename: "splunk-db-connect_{{ splunk_docker_dbconnect_version }}.tar"
+    description: Splunk DB Connect - database connectivity for Splunk
