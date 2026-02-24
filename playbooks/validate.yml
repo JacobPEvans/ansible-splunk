@@ -19,6 +19,9 @@
     splunk_docker_hec_port: 8088
     splunk_docker_config_dir: /opt/splunk-config
     splunk_docker_etc_dir: /opt/splunk/etc
+    splunk_docker_java_enabled: true
+    splunk_docker_java_version: "21"
+    splunk_docker_java_home: "/usr/lib/jvm/temurin-{{ splunk_docker_java_version }}-jre-amd64"
 
   tasks:
     - name: Check Docker service is running
@@ -135,13 +138,13 @@
         command: "{{ splunk_docker_java_home }}/bin/java -version"
       register: java_check
       failed_when: false
-      vars:
-        splunk_docker_java_home: "/usr/lib/jvm/temurin-21-jre-amd64"
+      when: splunk_docker_java_enabled
 
     - name: Record Java availability status
       ansible.builtin.set_fact:
         validation_results: >-
           {{ validation_results + [{'check': 'Java accessible in container', 'passed': (java_check.rc | default(1)) == 0}] }}
+      when: splunk_docker_java_enabled
 
     - name: Get container disk usage
       ansible.builtin.command:

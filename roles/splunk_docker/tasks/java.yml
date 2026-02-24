@@ -9,43 +9,41 @@
   changed_when: false
   failed_when: false
 
-- name: Install Temurin JRE prerequisites
-  ansible.builtin.apt:
-    name:
-      - ca-certificates
-      - curl
-      - gnupg
-    state: present
-    cache_valid_time: 3600
+- name: Install Temurin JRE
   when: splunk_docker_java_check.rc != 0
+  block:
+    - name: Install Temurin JRE prerequisites
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        cache_valid_time: 3600
 
-- name: Create Adoptium keyring directory
-  ansible.builtin.file:
-    path: /etc/apt/keyrings
-    state: directory
-    mode: '0755'
-  when: splunk_docker_java_check.rc != 0
+    - name: Create Adoptium keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
 
-- name: Download Adoptium GPG key
-  ansible.builtin.get_url:
-    url: https://packages.adoptium.net/artifactory/api/gpg/key/public
-    dest: /etc/apt/keyrings/adoptium.asc
-    mode: '0644'
-  when: splunk_docker_java_check.rc != 0
+    - name: Download Adoptium GPG key
+      ansible.builtin.get_url:
+        url: https://packages.adoptium.net/artifactory/api/gpg/key/public
+        dest: /etc/apt/keyrings/adoptium.asc
+        mode: '0644'
 
-- name: Add Adoptium APT repository
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [arch=amd64 signed-by=/etc/apt/keyrings/adoptium.asc]
-      https://packages.adoptium.net/artifactory/deb
-      {{ ansible_distribution_release }} main
-    state: present
-    filename: adoptium
-  when: splunk_docker_java_check.rc != 0
+    - name: Add Adoptium APT repository
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [arch=amd64 signed-by=/etc/apt/keyrings/adoptium.asc]
+          https://packages.adoptium.net/artifactory/deb
+          {{ ansible_distribution_release }} main
+        state: present
+        filename: adoptium
+        update_cache: true
 
-- name: Install Temurin JRE package
-  ansible.builtin.apt:
-    name: "{{ splunk_docker_java_package }}"
-    state: present
-    cache_valid_time: 3600
-  when: splunk_docker_java_check.rc != 0
+    - name: Install Temurin JRE package
+      ansible.builtin.apt:
+        name: "{{ splunk_docker_java_package }}"
+        state: present
