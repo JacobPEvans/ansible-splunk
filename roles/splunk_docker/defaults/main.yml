@@ -86,15 +86,21 @@ splunk_docker_user: "41812"
 splunk_docker_group: "41812"
 
 # Java Runtime for Splunk DB Connect
-splunk_docker_java_enabled: true
+# Disabled by default; enable in inventory for hosts that need DB Connect.
+splunk_docker_java_enabled: false
 splunk_docker_java_version: "21"
+# Pin to major version; for full pin use e.g. temurin-21-jre=21.0.7+6-1
 splunk_docker_java_package: "temurin-{{ splunk_docker_java_version }}-jre"
-splunk_docker_java_home: "/usr/lib/jvm/temurin-{{ splunk_docker_java_version }}-jre-amd64"
+splunk_docker_java_arch: "amd64"
+splunk_docker_java_home: "/usr/lib/jvm/temurin-{{ splunk_docker_java_version }}-jre-{{ splunk_docker_java_arch }}"
+# Container-internal path where the JRE is bind-mounted (decoupled from host path)
+splunk_docker_java_container_home: "/opt/java"
 
 # Technology Add-ons (TAs) to install
 # TAs must be placed in roles/splunk_docker/files/ as .tar, .tgz, or .spl files
 splunk_docker_unifi_ta_version: 1.0.2+00b9ecb
 splunk_docker_duck_yeah_version: 234
+# Splunkbase strips dots from version strings in filenames: 4.2.1 -> 421
 splunk_docker_dbconnect_version: "421"
 splunk_docker_addons:
   - name: TA-unifi-cloud

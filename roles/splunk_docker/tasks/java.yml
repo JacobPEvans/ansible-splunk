@@ -9,41 +9,54 @@
   changed_when: false
   failed_when: false
 
-- name: Install Temurin JRE
+# Repository setup tasks always run — they are idempotent and cheap.
+# Only the package install is conditional on JRE being absent.
+
+- name: Install Temurin JRE prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    cache_valid_time: 3600
+
+- name: Create Adoptium keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download Adoptium GPG key
+  ansible.builtin.get_url:
+    url: https://packages.adoptium.net/artifactory/api/gpg/key/public
+    dest: /etc/apt/keyrings/adoptium.asc
+    mode: '0644'
+    checksum: "sha256:a46d5d3ab75c3c86dddf1bfd2957a067a24b1c6b2d2ed2bc69294bf970c5160b"
+
+- name: Add Adoptium APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ splunk_docker_java_arch }} signed-by=/etc/apt/keyrings/adoptium.asc]
+      https://packages.adoptium.net/artifactory/deb
+      {{ ansible_distribution_release }} main
+    state: present
+    filename: adoptium
+    update_cache: true
+
+- name: Install Temurin JRE package
   when: splunk_docker_java_check.rc != 0
   block:
-    - name: Install Temurin JRE prerequisites
-      ansible.builtin.apt:
-        name:
-          - ca-certificates
-          - curl
-          - gnupg
-        state: present
-        cache_valid_time: 3600
-
-    - name: Create Adoptium keyring directory
-      ansible.builtin.file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: '0755'
-
-    - name: Download Adoptium GPG key
-      ansible.builtin.get_url:
-        url: https://packages.adoptium.net/artifactory/api/gpg/key/public
-        dest: /etc/apt/keyrings/adoptium.asc
-        mode: '0644'
-
-    - name: Add Adoptium APT repository
-      ansible.builtin.apt_repository:
-        repo: >-
-          deb [arch=amd64 signed-by=/etc/apt/keyrings/adoptium.asc]
-          https://packages.adoptium.net/artifactory/deb
-          {{ ansible_distribution_release }} main
-        state: present
-        filename: adoptium
-        update_cache: true
-
     - name: Install Temurin JRE package
       ansible.builtin.apt:
         name: "{{ splunk_docker_java_package }}"
         state: present
+        cache_valid_time: 3600
+  rescue:
+    - name: Fail with network guidance
+      ansible.builtin.fail:
+        msg: >-
+          Failed to install {{ splunk_docker_java_package }}.
+          Ensure the host can reach packages.adoptium.net.
+          For air-gapped environments, pre-install the package
+          or configure a local APT mirror.

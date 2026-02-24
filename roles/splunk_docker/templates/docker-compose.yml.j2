@@ -20,8 +20,8 @@ services:
       # for better separation of concerns and to avoid exposing tokens in container env.
       # Let container entrypoint chown mounted volumes to splunk user at startup
       SPLUNK_HOME_OWNERSHIP_ENFORCEMENT: "true"
-{% if splunk_docker_java_enabled | default(false) %}
-      JAVA_HOME: "{{ splunk_docker_java_home }}"
+{% if splunk_docker_java_enabled %}
+      JAVA_HOME: "{{ splunk_docker_java_container_home }}"
 {% endif %}
     ports:
       - "{{ splunk_docker_web_port }}:8000"
@@ -30,8 +30,8 @@ services:
     volumes:
       - {{ splunk_docker_var_dir }}:/opt/splunk/var
       - {{ splunk_docker_etc_dir }}:/opt/splunk/etc
-{% if splunk_docker_java_enabled | default(false) %}
-      - {{ splunk_docker_java_home }}:{{ splunk_docker_java_home }}:ro
+{% if splunk_docker_java_enabled %}
+      - {{ splunk_docker_java_home }}:{{ splunk_docker_java_container_home }}:ro
 {% endif %}
     restart: unless-stopped
     # Healthcheck uses curl to avoid permission issues with splunk CLI
