@@ -39,7 +39,7 @@
     repo: >-
       deb [arch={{ splunk_docker_java_arch }} signed-by=/etc/apt/keyrings/adoptium.asc]
       https://packages.adoptium.net/artifactory/deb
-      {{ ansible_distribution_release }} main
+      {{ ansible_facts['distribution_release'] }} main
     state: present
     filename: adoptium
     update_cache: true
