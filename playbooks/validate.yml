@@ -13,12 +13,11 @@
   become: true
   gather_facts: true
 
+  vars_files:
+    - ../roles/splunk_docker/defaults/main.yml
+
   vars:
     validation_results: []
-    splunk_docker_web_port: 8000
-    splunk_docker_hec_port: 8088
-    splunk_docker_config_dir: /opt/splunk-config
-    splunk_docker_etc_dir: /opt/splunk/etc
 
   tasks:
     - name: Check Docker service is running
@@ -124,10 +123,26 @@
       ansible.builtin.stat:
         path: "{{ splunk_docker_config_dir }}/firewall.sh"
       register: firewall_script
+      when: splunk_docker_firewall_enabled | default(false)
 
     - name: Record firewall status
       ansible.builtin.set_fact:
         validation_results: "{{ validation_results + [{'check': 'Firewall configured', 'passed': firewall_script.stat.exists}] }}"
+      when: splunk_docker_firewall_enabled | default(false)
+
+    - name: Check Java is accessible in Splunk container
+      community.docker.docker_container_exec:
+        container: splunk
+        command: "{{ splunk_docker_java_container_home }}/bin/java -version"
+      register: java_check
+      failed_when: false
+      when: splunk_docker_java_enabled
+
+    - name: Record Java availability status
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'Java accessible in container', 'passed': (java_check.rc | default(1)) == 0}] }}
+      when: splunk_docker_java_enabled
 
     - name: Get container disk usage
       ansible.builtin.command:

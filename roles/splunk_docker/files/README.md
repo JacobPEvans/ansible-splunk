@@ -13,6 +13,7 @@ playbook:
 | ---- | ----------- | ------ |
 | `TA-unifi-cloud-{version}.tar` | UniFi Cloud Add-on | Internal build |
 | `duck-yeah_{version}.tgz` | Duck Yeah Splunk app | Splunkbase |
+| `splunk-db-connect_{version}.tar` | Splunk DB Connect app | Splunkbase |
 
 ## File Versions
 
@@ -20,6 +21,7 @@ Current expected versions (from `defaults/main.yml`):
 
 - `TA-unifi-cloud-1.0.2+00b9ecb.tar`
 - `duck-yeah_234.tgz`
+- `splunk-db-connect_421.tar`
 
 ## Obtaining Files
 
@@ -30,6 +32,10 @@ This is an internal add-on. Contact the infrastructure team for the file.
 ### Duck Yeah
 
 Download from Splunkbase or internal artifact repository.
+
+### Splunk DB Connect
+
+Download from Splunkbase: <https://splunkbase.splunk.com/app/2686>
 
 ## Verification
 
