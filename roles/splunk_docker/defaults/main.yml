@@ -20,9 +20,9 @@ splunk_docker_hec_token: ""
 splunk_docker_hec_token_name: splunk_hec_token
 splunk_docker_hec_token_description: "Ansible-managed HEC token for data ingestion"
 splunk_docker_hec_default_index: main
-# Note: despite the pluralized name, this must be a comma-separated string, not a YAML list.
-# Example for multiple indexes: "main,other_index,third_index"
-splunk_docker_hec_indexes: "main,ai,claude,firewall,netflow,network,os,unifi"
+# Dynamically built from splunk_docker_indexes so HEC allowed indexes stay in sync
+# with defined indexes. Always includes 'main' plus all custom index names.
+splunk_docker_hec_indexes: "{{ (['main'] + splunk_docker_indexes | map(attribute='name') | list) | join(',') }}"
 
 # Splunk ports
 splunk_docker_web_port: 8000
