@@ -32,3 +32,14 @@
     - name: Deploy Splunk Docker
       ansible.builtin.include_role:
         name: splunk_docker
+
+  post_tasks:
+    - name: Wait for Splunk to be ready after any restarts
+      ansible.builtin.uri:
+        url: "{{ 'https' if splunk_docker_web_ssl else 'http' }}://127.0.0.1:{{ splunk_docker_web_port }}/en-US/account/login"
+        validate_certs: false
+        status_code: 200
+      register: splunk_post_health
+      until: splunk_post_health.status == 200
+      retries: 24
+      delay: 10
