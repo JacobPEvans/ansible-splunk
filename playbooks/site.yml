@@ -32,3 +32,7 @@
     - name: Deploy Splunk Docker
       ansible.builtin.include_role:
         name: splunk_docker
+
+  post_tasks:
+    - name: Wait for Splunk to be ready after any restarts
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../roles/splunk_docker/tasks/wait_for_splunk.yml"
