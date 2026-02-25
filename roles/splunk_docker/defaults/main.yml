@@ -16,6 +16,12 @@ splunk_docker_container_name: splunk
 splunk_docker_password: ""
 splunk_docker_hec_token: ""
 
+# HEC token configuration
+splunk_docker_hec_token_name: splunk_hec_token
+splunk_docker_hec_token_description: "Ansible-managed HEC token for data ingestion"
+splunk_docker_hec_default_index: main
+splunk_docker_hec_indexes: main
+
 # Splunk ports
 splunk_docker_web_port: 8000
 splunk_docker_hec_port: 8088

@@ -102,6 +102,16 @@
     mode: '0644'
   notify: Restart Splunk container
 
+- name: Deploy inputs.conf for HEC configuration
+  ansible.builtin.template:
+    src: inputs.conf.j2
+    dest: "{{ splunk_docker_etc_dir }}/system/local/inputs.conf"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0600'
+  no_log: true
+  notify: Restart Splunk container
+
 - name: Deploy web.conf for SSL and update checker configuration
   ansible.builtin.template:
     src: web.conf.j2

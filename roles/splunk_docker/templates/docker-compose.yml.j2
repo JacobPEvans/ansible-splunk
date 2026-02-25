@@ -16,8 +16,6 @@ services:
       SPLUNK_GENERAL_TERMS: "--accept-sgt-current-at-splunk-com"
       SPLUNK_PASSWORD: "{{ splunk_docker_password }}"
       SPLUNK_HEC_TOKEN: "{{ splunk_docker_hec_token }}"
-      # TODO: Move HEC configuration to inputs.conf template instead of environment variable
-      # for better separation of concerns and to avoid exposing tokens in container env.
       # Let container entrypoint chown mounted volumes to splunk user at startup
       SPLUNK_HOME_OWNERSHIP_ENFORCEMENT: "true"
 {% if splunk_docker_java_enabled %}
