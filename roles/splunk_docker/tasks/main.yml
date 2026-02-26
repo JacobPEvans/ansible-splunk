@@ -161,32 +161,6 @@
   when: splunk_docker_firewall_enabled
   notify: Apply firewall rules
 
-# Install Technology Add-ons (TAs)
-- name: Create Splunk apps directory
-  ansible.builtin.file:
-    path: "{{ splunk_docker_etc_dir }}/apps"
-    state: directory
-    owner: "{{ splunk_docker_user }}"
-    group: "{{ splunk_docker_group }}"
-    mode: '0755'
-
-- name: Extract and deploy TAs to Splunk apps directory
-  ansible.builtin.unarchive:
-    src: "{{ role_path }}/files/{{ item.filename }}"
-    dest: "{{ splunk_docker_etc_dir }}/apps/"
-    owner: "{{ splunk_docker_user }}"
-    group: "{{ splunk_docker_group }}"
-  loop: "{{ splunk_docker_addons }}"
-  loop_control:
-    label: "{{ item.name }}"
-  notify: Restart Splunk container
-
-# CRITICAL: Ensure proper ownership after extracting TAs
-# Splunk container runs as uid 41812, apps must be owned by this user
-- name: Set correct ownership on Splunk apps
-  ansible.builtin.file:
-    path: "{{ splunk_docker_etc_dir }}/apps"
-    owner: "{{ splunk_docker_user }}"
-    group: "{{ splunk_docker_group }}"
-    recurse: true
-  notify: Restart Splunk container
+# Install Splunkbase apps and custom add-ons
+- name: Install apps and add-ons
+  ansible.builtin.include_tasks: apps.yml

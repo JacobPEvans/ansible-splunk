@@ -27,6 +27,11 @@ splunk_docker_hec_indexes: "{{ (['main'] + (splunk_docker_indexes | map(attribut
 # Splunk ports
 splunk_docker_web_port: 8000
 splunk_docker_hec_port: 8088
+# Management API port (splunkd REST). Bound to 0.0.0.0 so external tools
+# (MCP Server, CI validation) can reach the REST API.
+# Proxmox firewall controls network-level access to this port.
+splunk_docker_mgmt_port: 8089
+splunk_docker_mgmt_bind: "0.0.0.0"
 
 # Splunk Web SSL (enableSplunkWebSSL)
 splunk_docker_web_ssl: true
@@ -104,19 +109,9 @@ splunk_docker_java_home: "/usr/lib/jvm/temurin-{{ splunk_docker_java_version }}-
 # Container-internal path where the JRE is bind-mounted (decoupled from host path)
 splunk_docker_java_container_home: "/opt/java"
 
-# Technology Add-ons (TAs) to install
+# Custom add-on version pins (used by vars/custom_addons.yml)
 # TAs must be placed in roles/splunk_docker/files/ as .tar, .tgz, or .spl files
 splunk_docker_unifi_ta_version: 1.0.2+00b9ecb
 splunk_docker_duck_yeah_version: 234
 # Splunkbase strips dots from version strings in filenames: 4.2.1 -> 421
 splunk_docker_dbconnect_version: "421"
-splunk_docker_addons:
-  - name: TA-unifi-cloud
-    filename: "TA-unifi-cloud-{{ splunk_docker_unifi_ta_version }}.tar"
-    description: UniFi Cloud Add-on for Splunk (syslog parsing and field extraction)
-  - name: Duck Yeah
-    filename: "duck-yeah_{{ splunk_docker_duck_yeah_version }}.tgz"
-    description: Duck Yeah - Splunk app for packaging and app management
-  - name: Splunk DB Connect
-    filename: "splunk-db-connect_{{ splunk_docker_dbconnect_version }}.tar"
-    description: Splunk DB Connect - database connectivity for Splunk

@@ -77,6 +77,20 @@
         validation_results: >-
           {{ validation_results + [{'check': web_check, 'passed': web_port.failed is false}] }}
 
+    - name: Check management API port is listening
+      ansible.builtin.wait_for:
+        port: "{{ splunk_docker_mgmt_port }}"
+        timeout: 5
+      register: mgmt_port
+      failed_when: false
+
+    - name: Record management port status
+      vars:
+        mgmt_check: "Management API port {{ splunk_docker_mgmt_port }} listening"
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': mgmt_check, 'passed': mgmt_port.failed is false}] }}
+
 
     - name: Test HEC endpoint with POST
       ansible.builtin.uri:

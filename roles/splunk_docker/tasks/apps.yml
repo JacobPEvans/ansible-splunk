@@ -1,0 +1,116 @@
+---
+# App installation tasks
+# Installs Splunkbase apps (from registry) and custom add-ons.
+# Called from tasks/main.yml via include_tasks.
+
+- name: Load Splunkbase app registry
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/vars/splunkbase_apps.yml"
+
+- name: Load custom add-on definitions
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/vars/custom_addons.yml"
+
+- name: Ensure Splunk apps directory exists
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/apps"
+    state: directory
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0755'
+
+# Validate all enabled Splunkbase app archives exist before starting
+- name: Validate enabled Splunkbase app archives exist
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/{{ item.filename }}"
+  loop: "{{ splunk_docker_apps | selectattr('enabled', 'equalto', true) | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: splunk_docker_splunkbase_archive_stat
+
+- name: Fail if any enabled Splunkbase app archive is missing
+  ansible.builtin.fail:
+    msg: >
+      Missing app archive: {{ item.item.filename }}
+      Download app '{{ item.item.name }}' (Splunkbase ID: {{ item.item.splunkbase_id }})
+      and place it in roles/splunk_docker/files/.
+      See roles/splunk_docker/files/README.md for download instructions.
+  loop: "{{ splunk_docker_splunkbase_archive_stat.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists
+
+# Validate all custom add-on archives exist before starting
+- name: Validate custom add-on archives exist
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/{{ item.filename }}"
+  loop: "{{ splunk_docker_custom_addons }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: splunk_docker_custom_addon_stat
+
+- name: Fail if any custom add-on archive is missing
+  ansible.builtin.fail:
+    msg: >
+      Missing add-on archive: {{ item.item.filename }}
+      Place it in roles/splunk_docker/files/.
+      See roles/splunk_docker/files/README.md for details.
+  loop: "{{ splunk_docker_custom_addon_stat.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists
+
+# Install enabled Splunkbase apps sorted by dependency order.
+# depends_on references are resolved by installing apps with no
+# unresolved deps first (simple single-pass ordering sufficient
+# for our shallow dependency tree).
+- name: Install enabled Splunkbase apps (no dependencies first)
+  ansible.builtin.unarchive:
+    src: "{{ role_path }}/files/{{ item.filename }}"
+    dest: "{{ splunk_docker_etc_dir }}/apps/"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+  loop: >-
+    {{ splunk_docker_apps
+       | selectattr('enabled', 'equalto', true)
+       | selectattr('depends_on', 'equalto', [])
+       | list }}
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Restart Splunk container
+
+- name: Install enabled Splunkbase apps (with dependencies)
+  ansible.builtin.unarchive:
+    src: "{{ role_path }}/files/{{ item.filename }}"
+    dest: "{{ splunk_docker_etc_dir }}/apps/"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+  loop: >-
+    {{ splunk_docker_apps
+       | selectattr('enabled', 'equalto', true)
+       | rejectattr('depends_on', 'equalto', [])
+       | list }}
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Restart Splunk container
+
+- name: Install custom add-ons
+  ansible.builtin.unarchive:
+    src: "{{ role_path }}/files/{{ item.filename }}"
+    dest: "{{ splunk_docker_etc_dir }}/apps/"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+  loop: "{{ splunk_docker_custom_addons }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Restart Splunk container
+
+# CRITICAL: Ensure proper ownership after extracting all apps/TAs.
+# Splunk container runs as uid 41812; apps must be owned by this user.
+- name: Set correct ownership on Splunk apps directory
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/apps"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    recurse: true
+  notify: Restart Splunk container
