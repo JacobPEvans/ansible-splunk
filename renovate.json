@@ -5,12 +5,13 @@
   ],
   "packageRules": [
     {
-      "description": "Auto-merge official GitHub Actions (including major versions)",
+      "description": "Auto-merge official GitHub Actions (minor and patch updates)",
       "matchDatasources": ["github-actions"],
       "matchPackagePrefixes": ["actions/"],
+      "matchUpdateTypes": ["minor", "patch"],
       "automerge": true,
       "automergeType": "squash",
-      "minimumReleaseAge": null
+      "minimumReleaseAge": "3 days"
     },
     {
       "description": "Auto-merge pre-commit hooks minor and patch updates",
