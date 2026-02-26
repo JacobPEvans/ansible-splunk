@@ -107,6 +107,8 @@
           - "'[firewall]' in (indexes_content.content | b64decode)"
           - "'[network]' in (indexes_content.content | b64decode)"
           - "'[os]' in (indexes_content.content | b64decode)"
+          - "'[ai]' in (indexes_content.content | b64decode)"
+          - "'[claude]' in (indexes_content.content | b64decode)"
         fail_msg: "One or more pipeline indexes missing from indexes.conf"
 
     - name: Read docker-compose.yml content
@@ -115,7 +117,9 @@
       register: compose_content
 
     - name: Verify HEC port is mapped
+      vars:
+        compose_data: "{{ compose_content.content | b64decode | from_yaml }}"
       ansible.builtin.assert:
         that:
-          - "'8088:8088' in (compose_content.content | b64decode)"
+          - "'8088:8088' in compose_data.services.splunk.ports"
         fail_msg: "HEC port 8088:8088 not found in docker-compose.yml"
