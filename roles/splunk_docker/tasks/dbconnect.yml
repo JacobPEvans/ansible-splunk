@@ -8,11 +8,13 @@
     file: "{{ role_path }}/vars/dbconnect.yml"
 
 - name: Configure DB Connect Java path
-  when: splunk_docker_java_enabled | bool
+  when: splunk_docker_java_enabled
+  vars:
+    dbconnect_local_dir: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_dbconnect_app_dir }}/local"
   block:
     - name: Create DB Connect local config directory
       ansible.builtin.file:
-        path: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_dbconnect_app_dir }}/local"
+        path: "{{ dbconnect_local_dir }}"
         state: directory
         owner: "{{ splunk_docker_user }}"
         group: "{{ splunk_docker_group }}"
@@ -21,8 +23,7 @@
     - name: Configure DB Connect JAVA_HOME setting
       ansible.builtin.template:
         src: dbconnect_dbx_settings.conf.j2
-        dest: >-
-          {{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_dbconnect_app_dir }}/local/dbx_settings.conf
+        dest: "{{ dbconnect_local_dir }}/dbx_settings.conf"
         owner: "{{ splunk_docker_user }}"
         group: "{{ splunk_docker_group }}"
         mode: '0644'
