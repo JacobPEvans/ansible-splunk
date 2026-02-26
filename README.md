@@ -68,7 +68,7 @@ See [`roles/splunk_docker/files/README.md`](roles/splunk_docker/files/README.md)
 | --- | --- |
 | `site.yml` | Full deployment: loads inventory, runs `splunk_docker` role |
 | `deploy.yml` | Bare deployment (no inventory load) |
-| `deploy_docker.yml` | Docker-only deployment variant |
+| `deploy_docker.yml` | Deploys Splunk container, assuming Docker is pre-installed |
 | `validate.yml` | Post-deploy validation: ports, HEC, web UI |
 | `configure_indexes.yml` | Index configuration only (idempotent) |
 
@@ -98,14 +98,14 @@ Key defaults in `roles/splunk_docker/defaults/main.yml`:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `splunk_docker_image` | `splunk/splunk:latest` | Docker image |
+| `splunk_docker_image` | `splunk/splunk:latest` | Docker image. Pin to a specific version for production. |
 | `splunk_docker_web_port` | `8000` | Splunk Web UI port |
 | `splunk_docker_hec_port` | `8088` | HEC ingestion port |
 | `splunk_docker_data_dir` | `/opt/splunk` | Data volume mount path |
 | `splunk_docker_web_ssl` | `true` | Enable Splunk Web SSL |
 | `splunk_docker_java_enabled` | `false` | Enable JRE for DB Connect |
 | `splunk_docker_firewall_enabled` | `false` | Guest iptables (disabled; use Proxmox firewall) |
-| `splunk_docker_allow_internet_access` | `false` | Disable for air-gapped VM |
+| `splunk_docker_allow_internet_access` | `false` | Disables Splunkbase app browsing, update checks, and telemetry to prevent DNS timeouts on air-gapped VMs. |
 | `splunk_docker_index_default_max_size_mb` | `102400` | 100 GiB per index |
 | `splunk_docker_index_default_frozen_time_secs` | `31536000` | 365-day retention |
 
