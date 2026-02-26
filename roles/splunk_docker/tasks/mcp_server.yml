@@ -7,24 +7,26 @@
   ansible.builtin.include_vars:
     file: "{{ role_path }}/vars/mcp.yml"
 
-- name: Configure MCP Server authentication token
-  ansible.builtin.template:
-    src: mcp_server_app.conf.j2
-    dest: "{{ splunk_docker_etc_dir }}/apps/splunk-mcp-server/local/app.conf"
-    owner: "{{ splunk_docker_user }}"
-    group: "{{ splunk_docker_group }}"
-    mode: '0600'
-  no_log: true
-  notify: Restart Splunk container
+- name: Configure MCP Server if enabled
   when:
     - splunk_docker_mcp_server_enabled | bool
-    - splunk_docker_mcp_token | length > 0
+  block:
+    - name: Configure MCP Server authentication token
+      ansible.builtin.template:
+        src: mcp_server_app.conf.j2
+        dest: "{{ splunk_docker_etc_dir }}/apps/splunk-mcp-server/local/app.conf"
+        owner: "{{ splunk_docker_user }}"
+        group: "{{ splunk_docker_group }}"
+        mode: '0600'
+      no_log: true
+      notify: Restart Splunk container
+      when:
+        - splunk_docker_mcp_token | length > 0
 
-- name: Warn when MCP token is not configured
-  ansible.builtin.debug:
-    msg: >
-      SPLUNK_MCP_TOKEN is not set - MCP Server installed but not authenticated.
-      Add SPLUNK_MCP_TOKEN to Doppler (iac-conf-mgmt / prd) and re-run.
-  when:
-    - splunk_docker_mcp_server_enabled | bool
-    - splunk_docker_mcp_token | length == 0
+    - name: Warn when MCP token is not configured
+      ansible.builtin.debug:
+        msg: >
+          SPLUNK_MCP_TOKEN is not set - MCP Server installed but not authenticated.
+          Add SPLUNK_MCP_TOKEN to Doppler (iac-conf-mgmt / prd) and re-run.
+      when:
+        - splunk_docker_mcp_token | length == 0
