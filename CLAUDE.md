@@ -29,11 +29,13 @@ Cribl Edge is configured to send to `http://splunk:8088`.
 
 | Index | Purpose | Size | Retention |
 | --- | --- | --- | --- |
-| unifi | UniFi syslog | 100GB | 365 days |
+| ai | AI assistant activity | 100GB | 365 days |
+| claude | Claude-specific events | 100GB | 365 days |
 | firewall | Palo Alto/Cisco | 100GB | 365 days |
+| netflow | NetFlow/IPFIX | 100GB | 365 days |
 | network | Network devices | 100GB | 365 days |
 | os | Linux/Windows | 100GB | 365 days |
-| netflow | NetFlow/IPFIX | 100GB | 365 days |
+| unifi | UniFi syslog | 100GB | 365 days |
 
 ## Inventory
 
@@ -47,9 +49,35 @@ Loaded from `terraform_inventory.json` via
 | --- | --- |
 | `SPLUNK_PASSWORD` | Splunk admin password |
 | `SPLUNK_HEC_TOKEN` | HTTP Event Collector token |
+| `SPLUNK_MCP_TOKEN` | MCP Server authentication token |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
 All secrets managed via Doppler (`doppler run --`).
+
+## MCP Server Integration
+
+The Splunk MCP Server (app 7931) enables AI agents to query Splunk directly
+via the Model Context Protocol (MCP). Configure the MCP client in
+`~/git/nix-config/main/modules/home-manager/ai-cli/mcp/default.nix`.
+
+### Available MCP Tools
+
+| Tool | Description |
+| --- | --- |
+| `run_splunk_query` | Execute SPL search queries |
+| `get_indexes` | List all Splunk indexes |
+| `get_sourcetypes` | List available sourcetypes |
+
+### Verifying MCP Connection
+
+```bash
+# Check MCP Server app is installed and REST API responds
+doppler run -- pipx run ansible-playbook playbooks/validate.yml
+
+# Direct REST API test
+curl -sk https://10.0.1.200:8089/services/apps/local/splunk-mcp-server \
+  -u admin:$SPLUNK_PASSWORD | grep -o '"name">.*<'
+```
 
 ## Commands
 
