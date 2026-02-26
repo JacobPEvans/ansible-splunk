@@ -211,6 +211,22 @@
           {{ validation_results + [{'check': 'Java accessible in container', 'passed': (java_check.rc | default(1)) == 0}] }}
       when: splunk_docker_java_enabled
 
+    - name: Check DB Connect JAVA_HOME configured in container
+      community.docker.docker_container_exec:
+        container: splunk
+        command: >-
+          grep -q "javaHome = {{ splunk_docker_java_container_home }}"
+          /opt/splunk/etc/apps/splunk_app_db_connect/local/dbx_settings.conf
+      register: splunk_docker_dbconnect_check
+      failed_when: false
+      when: splunk_docker_java_enabled
+
+    - name: Record DB Connect JAVA_HOME status
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'DB Connect JAVA_HOME configured', 'passed': (splunk_docker_dbconnect_check.rc | default(1)) == 0}] }}
+      when: splunk_docker_java_enabled
+
     - name: Get container disk usage
       ansible.builtin.command:
         cmd: df -h /opt/splunk
