@@ -63,7 +63,7 @@ doppler run -- pipx run ansible-playbook playbooks/validate.yml
 
 1. Place `.tar` or `.tgz` in `roles/splunk_docker/files/`
 2. Add entry to `roles/splunk_docker/vars/custom_addons.yml`
-3. Re-run the playbook
+3. Re-run `doppler run -- pipx run ansible-playbook playbooks/site.yml`
 
 ## MCP Server Tools
 
@@ -71,7 +71,7 @@ The Splunk MCP Server provides these tools for AI agents after deployment:
 
 | Tool | Description | Example |
 | --- | --- | --- |
-| `run_splunk_query` | Execute SPL searches | `\| makeresults \| eval test="ok"` |
+| `run_splunk_query` | Execute SPL searches | `` `\| makeresults \| eval test="ok"` `` |
 | `get_indexes` | List all indexes | Returns 7 custom + system indexes |
 | `get_sourcetypes` | List sourcetypes | Returns ingested sourcetypes |
 

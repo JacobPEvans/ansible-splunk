@@ -12,6 +12,6 @@ collections:
 roles:
   # Official Splunk Ansible role - use for REST API-based app management
   # and future cluster topology (indexer cluster, SHC) expansion.
-  # Pin to a specific tag (e.g. "7.0.0") when actively using this role.
   - name: splunk.splunk
     src: https://github.com/splunk/ansible-role-for-splunk
+    version: "7.0.0"

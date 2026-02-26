@@ -75,7 +75,7 @@ via the Model Context Protocol (MCP). Configure the MCP client in
 doppler run -- pipx run ansible-playbook playbooks/validate.yml
 
 # Direct REST API test
-curl -sk https://10.0.1.200:8089/services/apps/local/splunk-mcp-server \
+curl -sk https://<SPLUNK_HOST_IP>:8089/services/apps/local/splunk-mcp-server \
   -u admin:$SPLUNK_PASSWORD | grep -o '"name">.*<'
 ```
 
