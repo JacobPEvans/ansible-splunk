@@ -1,0 +1,29 @@
+---
+# DB Connect post-install configuration
+# Called from tasks/main.yml after apps.yml installs the app archive.
+# Configures JAVA_HOME so the Task Server and Query Server start correctly.
+
+- name: Load DB Connect configuration vars
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/vars/dbconnect.yml"
+
+- name: Configure DB Connect Java path
+  when: splunk_docker_java_enabled | bool
+  block:
+    - name: Create DB Connect local config directory
+      ansible.builtin.file:
+        path: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_dbconnect_app_dir }}/local"
+        state: directory
+        owner: "{{ splunk_docker_user }}"
+        group: "{{ splunk_docker_group }}"
+        mode: '0755'
+
+    - name: Configure DB Connect JAVA_HOME setting
+      ansible.builtin.template:
+        src: dbconnect_dbx_settings.conf.j2
+        dest: >-
+          {{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_dbconnect_app_dir }}/local/dbx_settings.conf
+        owner: "{{ splunk_docker_user }}"
+        group: "{{ splunk_docker_group }}"
+        mode: '0644'
+      notify: Restart Splunk container

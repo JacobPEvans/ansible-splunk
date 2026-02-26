@@ -1,0 +1,3 @@
+---
+# Splunk DB Connect configuration
+splunk_docker_dbconnect_app_dir: splunk_app_db_connect

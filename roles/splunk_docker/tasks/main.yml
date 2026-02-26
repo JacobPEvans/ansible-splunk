@@ -168,3 +168,7 @@
 # Configure MCP Server post-install (token auth, app settings)
 - name: Configure MCP Server
   ansible.builtin.include_tasks: mcp_server.yml
+
+# Configure DB Connect post-install (Java path for Task/Query servers)
+- name: Configure DB Connect
+  ansible.builtin.include_tasks: dbconnect.yml
