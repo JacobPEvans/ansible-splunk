@@ -76,7 +76,7 @@ doppler run -- pipx run ansible-playbook playbooks/validate.yml
 
 # Direct REST API test
 curl -sk https://<SPLUNK_HOST_IP>:8089/services/apps/local/splunk-mcp-server \
-  -u admin:$SPLUNK_PASSWORD | grep -o '"name">.*<'
+  -u "admin:$SPLUNK_PASSWORD" | grep -o '"name">.*<'
 ```
 
 ## Commands
