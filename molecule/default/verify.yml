@@ -73,12 +73,14 @@
       ansible.builtin.stat:
         path: "{{ splunk_docker_config_dir }}/firewall.sh"
       register: firewall_script
+      when: splunk_docker_firewall_enabled | default(false)
 
     - name: Assert firewall script configured
       ansible.builtin.assert:
         that:
           - firewall_script.stat.exists
         fail_msg: "firewall.sh not found - firewall not configured"
+      when: splunk_docker_firewall_enabled | default(false)
 
     - name: Check Splunk apps directory exists
       ansible.builtin.stat:
@@ -91,3 +93,33 @@
           - apps_dir.stat.exists
           - apps_dir.stat.isdir
         fail_msg: "Splunk apps directory not found"
+
+    - name: Read indexes.conf content
+      ansible.builtin.slurp:
+        src: "{{ splunk_docker_etc_dir }}/system/local/indexes.conf"
+      register: indexes_content
+
+    - name: Verify all pipeline indexes are configured
+      ansible.builtin.assert:
+        that:
+          - "'[unifi]' in (indexes_content.content | b64decode)"
+          - "'[netflow]' in (indexes_content.content | b64decode)"
+          - "'[firewall]' in (indexes_content.content | b64decode)"
+          - "'[network]' in (indexes_content.content | b64decode)"
+          - "'[os]' in (indexes_content.content | b64decode)"
+          - "'[ai]' in (indexes_content.content | b64decode)"
+          - "'[claude]' in (indexes_content.content | b64decode)"
+        fail_msg: "One or more pipeline indexes missing from indexes.conf"
+
+    - name: Read docker-compose.yml content
+      ansible.builtin.slurp:
+        src: "{{ splunk_docker_config_dir }}/docker-compose.yml"
+      register: compose_content
+
+    - name: Verify HEC port is mapped
+      vars:
+        compose_data: "{{ compose_content.content | b64decode | from_yaml }}"
+      ansible.builtin.assert:
+        that:
+          - "'8088:8088' in compose_data.services.splunk.ports"
+        fail_msg: "HEC port 8088:8088 not found in docker-compose.yml"

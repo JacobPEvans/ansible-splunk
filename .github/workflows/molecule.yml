@@ -45,9 +45,9 @@ jobs:
         run: |
           ansible-galaxy collection list
 
-      - name: Run molecule syntax check
+      - name: Run molecule tests
         run: |
-          molecule syntax
+          molecule test
         env:
           PY_COLORS: "1"
           ANSIBLE_FORCE_COLOR: "1"

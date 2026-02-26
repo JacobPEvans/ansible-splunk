@@ -33,3 +33,19 @@
           - python3-requests
         state: present
       when: ansible_os_family == 'Debian'
+
+    # Docker-in-Docker on GitHub Actions (Ubuntu 24.04) cannot use overlayfs
+    # to convert whiteout files even in privileged containers — EPERM from mknod.
+    # Pre-creating daemon.json with vfs storage driver before Docker is installed
+    # ensures the daemon starts with vfs on first run.
+    - name: Ensure /etc/docker directory exists
+      ansible.builtin.file:
+        path: /etc/docker
+        state: directory
+        mode: '0755'
+
+    - name: Configure Docker daemon to use vfs storage driver
+      ansible.builtin.copy:
+        dest: /etc/docker/daemon.json
+        content: '{"storage-driver": "vfs"}'
+        mode: '0644'
