@@ -173,19 +173,25 @@ Verify the Terraform inventory structure and sync script:
 
 ## Disk Layout
 
-### Boot Disk (25GB at /dev/sda)
+### Boot Disk (50GB at /dev/sda)
 
 ```text
-/dev/sda1 → /               (root filesystem)
+/dev/sda1 → /               (root filesystem, from template)
             ├── /opt        (Splunk app files)
             ├── /etc        (Splunk configuration)
             └── /var/log    (System logs)
 ```
 
-### Data Disk (200GB at /dev/sdb)
+### Unused Disk (25GB at /dev/vda)
 
 ```text
-/dev/sdb1 → /opt/splunk/var/lib/splunk
+/dev/vda    (unused)
+```
+
+### Data Disk (200GB at /dev/vdb)
+
+```text
+/dev/vdb1 → /opt/splunk
             ├── main/
             │   ├── db/        (hot data)
             │   ├── colddb/    (cold data)
