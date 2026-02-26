@@ -164,3 +164,7 @@
 # Install Splunkbase apps and custom add-ons
 - name: Install apps and add-ons
   ansible.builtin.include_tasks: apps.yml
+
+# Configure MCP Server post-install (token auth, app settings)
+- name: Configure MCP Server
+  ansible.builtin.include_tasks: mcp_server.yml

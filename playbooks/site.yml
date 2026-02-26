@@ -27,6 +27,7 @@
       ansible.builtin.set_fact:
         splunk_docker_password: "{{ lookup('env', 'SPLUNK_PASSWORD') }}"
         splunk_docker_hec_token: "{{ lookup('env', 'SPLUNK_HEC_TOKEN') }}"
+        splunk_docker_mcp_token: "{{ lookup('env', 'SPLUNK_MCP_TOKEN') }}"
       no_log: true
 
     - name: Deploy Splunk Docker
