@@ -16,12 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `ai` and `claude` Splunk indexes (#24)
 - Add `netflow` index for NetFlow/IPFIX data (#16)
 - Pipeline sync: standardize env vars, fix HEC config (#19)
-- Molecule test framework with Docker driver for automated testing
-- GitHub Actions workflows for linting, molecule tests, and syntax validation
-- Dynamic Terraform inventory integration via `load_terraform.yml`
-- `scripts/sync-terraform-inventory.sh` script to export Terraform outputs
-- Validation playbook (`playbooks/validate.yml`) for deployed Splunk instances
-- CONTRIBUTING.md with development guidelines
 
 ### Fixed
 
@@ -33,8 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disable internet access checks for air-gapped Splunk VM (#23)
 - Complete pipeline sync: license, inventory paths, HEC config (#20)
 - Disable guest iptables in favor of Proxmox firewall (#14)
-- **BREAKING** (0.2.0): Fixed Doppler secret retrieval to use `SPLUNK_PASSWORD`
-  and `SPLUNK_HEC_TOKEN` environment variables
 
 ### Changed
 
