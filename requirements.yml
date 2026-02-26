@@ -14,4 +14,4 @@ roles:
   # and future cluster topology (indexer cluster, SHC) expansion.
   - name: splunk.splunk
     src: https://github.com/splunk/ansible-role-for-splunk
-    version: "7.0.0"
+    version: "v2.1.4"
