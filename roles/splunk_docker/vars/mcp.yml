@@ -1,0 +1,20 @@
+---
+# Splunk MCP Server configuration
+#
+# The Splunk MCP Server (Splunkbase app 7931) provides MCP (Model Context
+# Protocol) tools for AI agents: run_splunk_query, get_indexes, etc.
+#
+# SPIKE NOTE: The exact configuration format for this app must be verified
+# by inspecting the actual app package archive. The template at
+# templates/mcp_server_app.conf.j2 uses a common Splunk app pattern for
+# token-based authentication - adjust after inspecting the app's README
+# or default configuration files.
+#
+# The authentication token should be generated and stored in Doppler as
+# SPLUNK_MCP_TOKEN before running the playbook.
+
+splunk_docker_mcp_server_enabled: true
+
+# MCP token loaded from SPLUNK_MCP_TOKEN env var in site.yml
+# Empty string means the task file will skip token configuration
+splunk_docker_mcp_token: ""
