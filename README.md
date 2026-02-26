@@ -4,384 +4,166 @@
 [![Molecule](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/molecule.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/molecule.yml)
 [![Validate](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/validate.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/validate.yml)
 
-Comprehensive Ansible automation for Splunk Enterprise deployment and
-configuration on Proxmox VMs.
+Deploy and configure Splunk Enterprise (Docker) on a Proxmox VM.
 
-## Purpose and Scope
+## Quick Facts
 
-This repository provides production-grade Ansible playbooks and roles to
-deploy Splunk Enterprise across Proxmox virtual machines. It automates:
+| Property | Value |
+| --- | --- |
+| **Type** | Ansible role + playbooks |
+| **Target** | Proxmox VM `10.0.1.200` (VMID 200) |
+| **Role** | `roles/splunk_docker` |
+| **Entry point** | `playbooks/site.yml` |
+| **Secrets** | Doppler (`iac-conf-mgmt` / `prd`) |
+| **Version** | See `VERSION` |
 
-- Splunk Enterprise installation and initialization
-- Index configuration with persistent data storage
-- HTTP Event Collector (HEC) configuration for log ingestion
-- Admin account setup with Doppler secrets
-- Systemd boot-start service enablement
-- Cold storage configuration on dedicated data disk
+## Pipeline Architecture
 
-## Dependencies
-
-### External Services
-
-- **terraform-proxmox**: VMs must be provisioned via
-  [terraform-proxmox](https://github.com/user/terraform-proxmox) with 25GB
-  boot disk and 200GB data disk
-- **Doppler**: Secrets stored in Doppler vault with `SPLUNK_PASSWORD`
-  and `SPLUNK_HEC_TOKEN`
-
-### Ansible Collections
-
-```yaml
-ansible.builtin:     Core Ansible functionality
-ansible.posix:       POSIX system modules
-community.general:   General utilities
-```
-
-Install dependencies:
-
-```bash
-uv run ansible-galaxy collection install -r requirements.yml
+```text
+Cribl Edge (181/182) ──HEC :8088──> Splunk (200)
+                                      │
+                                  Splunk indexes:
+                                    ai, claude, firewall,
+                                    netflow, network, os, unifi
 ```
 
 ## Quick Start
 
-### Option A: Dynamic Inventory (Recommended)
-
-Use Terraform outputs for automatic inventory management:
-
-1. **Sync Terraform inventory:**
-
-   ```bash
-   ./scripts/sync-terraform-inventory.sh
-   ```
-
-2. **Deploy with Doppler secrets:**
-
-   ```bash
-   doppler run -- uv run ansible-playbook playbooks/site.yml
-   ```
-
-3. **Configure indexes:**
-
-   ```bash
-   doppler run -- uv run ansible-playbook playbooks/configure_indexes.yml
-   ```
-
-4. **Validate deployment:**
-
-   ```bash
-   doppler run -- uv run ansible-playbook playbooks/validate.yml
-   ```
-
-### Option B: Static Inventory (Fallback)
-
-For manual inventory configuration:
-
-1. **Set environment variables:**
-
-   ```bash
-   export SPLUNK_VM_HOST="splunk.example.com"
-   ```
-
-2. **Deploy with Doppler secrets:**
-
-   ```bash
-   doppler run -- uv run ansible-playbook playbooks/deploy.yml
-   doppler run -- uv run ansible-playbook playbooks/configure_indexes.yml
-   ```
-
-## Doppler Secrets Setup
-
-This project uses Doppler for secrets management. The following secrets must
-be configured in your Doppler project:
-
-| Secret Name            | Description                            |
-|------------------------|----------------------------------------|
-| `SPLUNK_PASSWORD`      | Splunk admin account password          |
-| `SPLUNK_HEC_TOKEN`     | HTTP Event Collector token UUID        |
-| `PROXMOX_SSH_KEY_PATH` | SSH private key path for VM access     |
-
-### Setting Up Secrets
-
 ```bash
-# Set Splunk admin password
-doppler secrets set SPLUNK_PASSWORD "your-secure-password"
+# 1. Deploy Splunk
+doppler run -- pipx run ansible-playbook playbooks/site.yml
 
-# Set HEC token (generate a UUID)
-doppler secrets set SPLUNK_HEC_TOKEN "$(uuidgen)"
+# 2. Validate deployment
+doppler run -- pipx run ansible-playbook playbooks/validate.yml
 ```
 
-### Running Playbooks
+## Custom Indexes
 
-Always run playbooks with `doppler run --` to inject secrets:
+All indexes: 100 GiB max size, 365-day retention, stored at `/opt/splunk/<index>/`.
+
+| Index | Purpose |
+| --- | --- |
+| `ai` | AI assistant activity and tool calls |
+| `claude` | Claude-specific events |
+| `firewall` | Palo Alto / Cisco firewall logs |
+| `netflow` | NetFlow / IPFIX flow data |
+| `network` | Network device syslog |
+| `os` | Linux / Windows system logs |
+| `unifi` | UniFi network syslog |
+
+## Technology Add-ons
+
+Archives must be placed in `roles/splunk_docker/files/` before running (gitignored).
+See [`roles/splunk_docker/files/README.md`](roles/splunk_docker/files/README.md) for download instructions.
+
+| Add-on | Source | Notes |
+| --- | --- | --- |
+| TA-unifi-cloud | Internal build | UniFi syslog parsing |
+| Duck Yeah | Splunkbase | App packaging utilities |
+| Splunk DB Connect | Splunkbase [#2686](https://splunkbase.splunk.com/app/2686) | DB connectivity |
+
+## Playbooks
+
+| Playbook | Purpose |
+| --- | --- |
+| `site.yml` | Full deployment: loads inventory, runs `splunk_docker` role |
+| `deploy.yml` | Bare deployment (no inventory load) |
+| `deploy_docker.yml` | Deploys Splunk container, assuming Docker is pre-installed |
+| `validate.yml` | Post-deploy validation: ports, HEC, web UI |
+| `configure_indexes.yml` | Index configuration only (idempotent) |
+
+## Role Structure
+
+```text
+roles/splunk_docker/
+├── defaults/main.yml       # Core Docker + Splunk configuration
+├── tasks/
+│   ├── main.yml            # Orchestrates all tasks
+│   ├── java.yml            # Optional JRE-21 for DB Connect
+│   └── wait_for_splunk.yml # Health check loop after container start
+├── templates/
+│   ├── docker-compose.yml.j2
+│   ├── indexes.conf.j2
+│   ├── inputs.conf.j2      # HEC token configuration
+│   ├── web.conf.j2
+│   ├── server.conf.j2
+│   └── firewall.sh.j2
+├── handlers/main.yml       # Restart Splunk container
+└── files/                  # TA archives (gitignored)
+```
+
+## Configuration Variables
+
+Key defaults in `roles/splunk_docker/defaults/main.yml`:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `splunk_docker_image` | `splunk/splunk:latest` | Docker image. Pin to a specific version for production. |
+| `splunk_docker_web_port` | `8000` | Splunk Web UI port |
+| `splunk_docker_hec_port` | `8088` | HEC ingestion port |
+| `splunk_docker_data_dir` | `/opt/splunk` | Data volume mount path |
+| `splunk_docker_web_ssl` | `true` | Enable Splunk Web SSL |
+| `splunk_docker_java_enabled` | `false` | Enable JRE for DB Connect |
+| `splunk_docker_firewall_enabled` | `false` | Guest iptables (disabled; use Proxmox firewall) |
+| `splunk_docker_allow_internet_access` | `false` | Disables Splunkbase app browsing, update checks, and telemetry to prevent DNS timeouts on air-gapped VMs. |
+| `splunk_docker_index_default_max_size_mb` | `102400` | 100 GiB per index |
+| `splunk_docker_index_default_frozen_time_secs` | `31536000` | 365-day retention |
+
+## Secrets
+
+All secrets via Doppler (`iac-conf-mgmt` / `prd`):
+
+| Doppler Secret | Ansible Variable | Purpose |
+| --- | --- | --- |
+| `SPLUNK_PASSWORD` | `splunk_docker_password` | Splunk admin password |
+| `SPLUNK_HEC_TOKEN` | `splunk_docker_hec_token` | HEC token UUID |
+| `PROXMOX_SSH_KEY_PATH` | — | SSH key for VM access |
 
 ```bash
-doppler run -- uv run ansible-playbook playbooks/deploy.yml
+# Run any playbook with secrets injected
+doppler run -- pipx run ansible-playbook playbooks/site.yml
 ```
 
 ## Testing
 
-### Syntax Validation
+```bash
+# Lint
+pipx run ansible-lint
+
+# Syntax check
+doppler run -- pipx run ansible-playbook playbooks/site.yml --syntax-check
+
+# Molecule (syntax-only CI test)
+pipx run molecule test
+
+# Post-deploy validation
+doppler run -- pipx run ansible-playbook playbooks/validate.yml
+```
+
+## Dependencies
+
+### Ansible Collections (`requirements.yml`)
+
+| Collection | Version |
+| --- | --- |
+| `ansible.posix` | `>=2.1.0,<3.0.0` |
+| `community.general` | `>=12.4.0,<13.0.0` |
+| `community.docker` | `>=5.0.6,<6.0.0` |
+| `cloud.terraform` | `>=4.0.0,<5.0.0` |
 
 ```bash
-uv run ansible-playbook playbooks/deploy.yml --syntax-check
-uv run ansible-playbook playbooks/validate.yml --syntax-check
+pipx run ansible-galaxy collection install -r requirements.yml
 ```
 
-### Linting
+### External Services
 
-```bash
-uv run yamllint .
-uv run ansible-lint playbooks/ roles/
-```
+- **terraform-proxmox** — provisions Splunk VM (VMID 200)
+- **Doppler** — secrets management
+- **Proxmox firewall** — network access control (no guest iptables)
 
-### Molecule Tests
+## Links
 
-Run the full test suite:
-
-```bash
-uv run molecule test
-```
-
-Run individual stages:
-
-```bash
-uv run molecule converge  # Create and configure test container
-uv run molecule verify    # Run verification tests
-uv run molecule destroy   # Clean up
-```
-
-### Deployment Validation
-
-After deploying to a real VM, validate the deployment:
-
-```bash
-doppler run -- uv run ansible-playbook playbooks/validate.yml
-```
-
-### Inventory Tests
-
-Verify the Terraform inventory structure and sync script:
-
-```bash
-# Fixture-based tests (CI-safe, no live infrastructure needed):
-./scripts/test-inventory.sh
-
-# With live inventory validation:
-./scripts/test-inventory.sh --live
-```
-
-## Disk Layout
-
-### Boot Disk (50GB at /dev/sda)
-
-```text
-/dev/sda1 → /               (root filesystem, from template)
-            ├── /opt        (Splunk app files)
-            ├── /etc        (Splunk configuration)
-            └── /var/log    (System logs)
-```
-
-### Unused Disk (25GB at /dev/vda)
-
-```text
-/dev/vda    (unused)
-```
-
-### Data Disk (200GB at /dev/vdb)
-
-```text
-/dev/vdb1 → /opt/splunk
-            ├── main/
-            │   ├── db/        (hot data)
-            │   ├── colddb/    (cold data)
-            │   └── thaweddb/  (thawed data)
-            ├── _internal/
-            │   ├── db/
-            │   ├── colddb/
-            │   └── thaweddb/
-            ├── _audit/
-            │   ├── db/
-            │   ├── colddb/
-            │   └── thaweddb/
-            └── [other indexes...]
-```
-
-## Index Retention Policy
-
-All indexes configured with:
-
-- **Maximum data size**: auto_high_volume for main index (rollover on size)
-- **Frozen time period**: 7776000 seconds (90 days)
-- **Home path**: `/opt/splunk/<index>/db`
-- **Cold path**: `/opt/splunk/<index>/colddb`
-- **Thawed path**: `/opt/splunk/<index>/thaweddb`
-
-Data retention timeline:
-
-1. **Hot**: Actively written to (newest data)
-2. **Warm**: Recently closed buckets
-3. **Cold**: Buckets after 90-day threshold
-4. **Frozen**: Deleted after retention period
-
-## Default Indexes
-
-Splunk Enterprise is configured with these standard indexes:
-
-- **main**: Primary index for general purpose logs
-- **_internal**: Splunk internal operations and metrics
-- **_audit**: Authorization, configuration change audits
-- **_telemetry**: Performance telemetry (if enabled)
-
-## HEC Input Configuration
-
-HTTP Event Collector is configured on:
-
-- **Port**: 8088
-- **Token**: Retrieved from Doppler (`SPLUNK_HEC_TOKEN`)
-- **SSL**: Disabled (internal network, Cribl Edge handles encryption)
-- **Default index**: main
-- **Sourcetype**: _json (recommended for Cribl Edge)
-
-## Playbook Directory
-
-### playbooks/site.yml
-
-Main site playbook that orchestrates all deployment plays. Automatically loads
-dynamic inventory from Terraform outputs.
-
-### playbooks/deploy.yml
-
-Core deployment playbook:
-
-- Install Splunk Enterprise 9.x
-- Configure boot-start via systemd
-- Mount data disk at /opt/splunk
-- Set admin password from Doppler
-- Enable HEC inputs
-
-### playbooks/configure_indexes.yml
-
-Index configuration playbook:
-
-- Create default indexes with persistent storage
-- Configure retention policies
-- Set cold storage paths
-- Validate index configuration
-
-### playbooks/validate.yml
-
-Validation playbook to verify deployment:
-
-- Check Splunk service is running
-- Verify boot-start is enabled
-- Confirm data disk is mounted
-- Test HEC port is listening
-- Check web interface accessibility
-
-## Role Structure
-
-### roles/splunk_enterprise
-
-Main Splunk Enterprise role with modular tasks:
-
-- **tasks/install.yml**: Package installation and initialization
-- **tasks/configure.yml**: Service and boot configuration
-- **tasks/indexes.yml**: Index creation and configuration
-- **tasks/inputs.yml**: HEC input setup
-- **templates/**: Jinja2 configuration templates
-- **handlers/**: Service restart handlers
-
-## Playbook Variables
-
-Override defaults in `group_vars/splunk.yml`:
-
-```yaml
-# Service configuration
-splunk_admin_user: admin
-splunk_service_state: started
-splunk_service_enabled: true
-
-# Data disk configuration
-splunk_data_disk_device: /dev/vdb1
-splunk_data_disk_mount_path: /opt/splunk
-```
-
-## Troubleshooting
-
-### Splunk Service Not Starting
-
-Check systemd status:
-
-```bash
-systemctl status Splunkd
-journalctl -u Splunkd -n 50
-```
-
-### Missing Environment Variables
-
-If you see "SPLUNK_PASSWORD and SPLUNK_HEC_TOKEN environment variables
-must be set", ensure you're running with Doppler:
-
-```bash
-doppler run -- uv run ansible-playbook playbooks/deploy.yml
-```
-
-### HEC Token Not Working
-
-Verify the token is set in Doppler:
-
-```bash
-doppler secrets get SPLUNK_HEC_TOKEN
-```
-
-Reload Splunk after configuration changes:
-
-```bash
-/opt/splunk/bin/splunk restart
-```
-
-### Data Disk Not Mounted
-
-Check mount status:
-
-```bash
-mount | grep /opt/splunk
-df -h /opt/splunk
-```
-
-Format and mount manually:
-
-```bash
-mkfs.ext4 /dev/vdb1
-mkdir -p /opt/splunk
-mount /dev/vdb1 /opt/splunk
-```
-
-### Terraform Inventory Not Found
-
-If dynamic inventory fails, ensure you've synced from Terraform:
-
-```bash
-./scripts/sync-terraform-inventory.sh
-```
-
-Check the inventory file exists:
-
-```bash
-cat inventory/terraform_inventory.json
-```
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing
-guidelines, and contribution workflow.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE)
-file for details.
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Splunk Docker image](https://hub.docker.com/r/splunk/splunk)
+- [ansible-proxmox-apps](https://github.com/JacobPEvans/ansible-proxmox-apps) — Cribl Edge (upstream sender)
