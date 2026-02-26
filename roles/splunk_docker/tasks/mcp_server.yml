@@ -6,11 +6,22 @@
 - name: Load MCP Server configuration vars
   ansible.builtin.include_vars:
     file: "{{ role_path }}/vars/mcp.yml"
+  when: splunk_docker_mcp_token is not defined
 
 - name: Configure MCP Server if enabled
   when:
     - splunk_docker_mcp_server_enabled | bool
   block:
+    - name: Create MCP Server local config directory
+      ansible.builtin.file:
+        path: "{{ splunk_docker_etc_dir }}/apps/splunk-mcp-server/local"
+        state: directory
+        owner: "{{ splunk_docker_user }}"
+        group: "{{ splunk_docker_group }}"
+        mode: '0755'
+      when:
+        - splunk_docker_mcp_token | length > 0
+
     - name: Configure MCP Server authentication token
       ansible.builtin.template:
         src: mcp_server_app.conf.j2
