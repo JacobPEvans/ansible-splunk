@@ -8,3 +8,10 @@ collections:
     version: ">=5.0.6,<6.0.0"
   - name: cloud.terraform
     version: ">=4.0.0,<5.0.0"
+
+roles:
+  # Official Splunk Ansible role - use for REST API-based app management
+  # and future cluster topology (indexer cluster, SHC) expansion.
+  - name: splunk.splunk
+    src: https://github.com/splunk/ansible-role-for-splunk
+    version: "v2.1.4"
