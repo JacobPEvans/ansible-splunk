@@ -1,0 +1,80 @@
+---
+# Splunkbase App Registry
+#
+# Each entry tracks a Splunkbase app with metadata for install,
+# dependency ordering, and validation.
+#
+# App archives must be manually downloaded and placed in
+# roles/splunk_docker/files/ before running the playbook.
+# See roles/splunk_docker/files/README.md for download instructions.
+#
+# Fields:
+#   name:          App directory name after extraction
+#   splunkbase_id: Splunkbase app ID (for reference / download URL)
+#   version:       Version string (for documentation)
+#   filename:      Archive filename in roles/splunk_docker/files/
+#   enabled:       true to install, false to skip
+#   depends_on:    List of app names that must be installed first
+
+splunk_docker_apps:
+
+  # --- Core: MCP Server ---
+  - name: splunk-mcp-server
+    splunkbase_id: 7931
+    version: "1.0.1"
+    filename: "splunk-mcp-server_101.tgz"
+    enabled: true
+    depends_on: []
+
+  # --- ML Foundation: Python for Scientific Computing ---
+  - name: python_for_scientific_computing
+    splunkbase_id: 2882
+    version: "4.3.0"
+    filename: "python-for-scientific-computing-for-linux-64-bit_430.tgz"
+    enabled: true
+    depends_on: []
+
+  # --- ML Toolkit (requires PSC) ---
+  - name: Splunk_ML_Toolkit
+    splunkbase_id: 2890
+    version: "5.5.0"
+    filename: "splunk-machine-learning-toolkit_550.tgz"
+    enabled: true
+    depends_on:
+      - python_for_scientific_computing
+
+  # --- Deep Learning Toolkit (requires PSC) ---
+  # Deployed WITHOUT Docker features (no Docker socket passthrough).
+  # Jupyter Lab notebooks work; TensorFlow/PyTorch container workloads
+  # are deferred until Docker-in-Docker is configured on the VM.
+  - name: Splunk_DSDL
+    splunkbase_id: 4607
+    version: "5.1.0"
+    filename: "splunk-app-for-data-science-and-deep-learning_510.tgz"
+    enabled: true
+    depends_on:
+      - python_for_scientific_computing
+
+  # --- Optional: Local AI (disabled - requires Ollama network access) ---
+  - name: local_ai_assistant
+    splunkbase_id: 8374
+    version: "1.0.0"
+    filename: "local-ai-assistant_100.tgz"
+    enabled: false
+    depends_on: []
+
+  # --- Optional: TA-Ollama (disabled - requires Ollama network access) ---
+  - name: TA-ollama
+    splunkbase_id: 8024
+    version: "1.0.0"
+    filename: "ta-ollama_100.tgz"
+    enabled: false
+    depends_on: []
+
+  # --- Optional: CIMPlicity AI (disabled - low priority) ---
+  - name: CIMPlicity
+    splunkbase_id: 7945
+    version: "1.0.0"
+    filename: "cimplicity-ai_100.tgz"
+    enabled: false
+    depends_on: []

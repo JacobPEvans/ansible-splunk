@@ -1,0 +1,16 @@
+---
+# Custom (non-Splunkbase) Add-ons
+#
+# Internal or third-party TAs not distributed via Splunkbase.
+# Archives must be placed in roles/splunk_docker/files/.
+# See roles/splunk_docker/files/README.md for details.
+
+splunk_docker_custom_addons:
+  - name: TA-unifi-cloud
+    filename: "TA-unifi-cloud-{{ splunk_docker_unifi_ta_version }}.tar"
+
+  - name: Duck Yeah
+    filename: "duck-yeah_{{ splunk_docker_duck_yeah_version }}.tgz"
+
+  - name: Splunk DB Connect
+    filename: "splunk-db-connect_{{ splunk_docker_dbconnect_version }}.tar"
