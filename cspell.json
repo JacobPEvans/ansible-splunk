@@ -1,0 +1,18 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "Cribl",
+    "colddb",
+    "journalctl",
+    "Sourcetype",
+    "Splunkd",
+    "thaweddb",
+    "uuidgen"
+  ],
+  "ignorePaths": [
+    ".git",
+    "node_modules",
+    "*.lock"
+  ]
+}

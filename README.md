@@ -173,19 +173,25 @@ Verify the Terraform inventory structure and sync script:
 
 ## Disk Layout
 
-### Boot Disk (25GB at /dev/sda)
+### Boot Disk (50GB at /dev/sda)
 
 ```text
-/dev/sda1 → /               (root filesystem)
+/dev/sda1 → /               (root filesystem, from template)
             ├── /opt        (Splunk app files)
             ├── /etc        (Splunk configuration)
             └── /var/log    (System logs)
 ```
 
-### Data Disk (200GB at /dev/sdb)
+### Unused Disk (25GB at /dev/vda)
 
 ```text
-/dev/sdb1 → /opt/splunk/var/lib/splunk
+/dev/vda    (unused)
+```
+
+### Data Disk (200GB at /dev/vdb)
+
+```text
+/dev/vdb1 → /opt/splunk
             ├── main/
             │   ├── db/        (hot data)
             │   ├── colddb/    (cold data)
@@ -207,9 +213,9 @@ All indexes configured with:
 
 - **Maximum data size**: auto_high_volume for main index (rollover on size)
 - **Frozen time period**: 7776000 seconds (90 days)
-- **Home path**: `/opt/splunk/var/lib/splunk/<index>/db`
-- **Cold path**: `/opt/splunk/var/lib/splunk/<index>/colddb`
-- **Thawed path**: `/opt/splunk/var/lib/splunk/<index>/thaweddb`
+- **Home path**: `/opt/splunk/<index>/db`
+- **Cold path**: `/opt/splunk/<index>/colddb`
+- **Thawed path**: `/opt/splunk/<index>/thaweddb`
 
 Data retention timeline:
 
@@ -250,7 +256,7 @@ Core deployment playbook:
 
 - Install Splunk Enterprise 9.x
 - Configure boot-start via systemd
-- Mount data disk at /opt/splunk/var/lib/splunk
+- Mount data disk at /opt/splunk
 - Set admin password from Doppler
 - Enable HEC inputs
 
@@ -297,8 +303,8 @@ splunk_service_state: started
 splunk_service_enabled: true
 
 # Data disk configuration
-splunk_data_disk_device: /dev/sdb1
-splunk_data_disk_mount_path: /opt/splunk/var/lib/splunk
+splunk_data_disk_device: /dev/vdb1
+splunk_data_disk_mount_path: /opt/splunk
 ```
 
 ## Troubleshooting
@@ -340,16 +346,16 @@ Reload Splunk after configuration changes:
 Check mount status:
 
 ```bash
-mount | grep /opt/splunk/var/lib/splunk
-df -h /opt/splunk/var/lib/splunk
+mount | grep /opt/splunk
+df -h /opt/splunk
 ```
 
 Format and mount manually:
 
 ```bash
-mkfs.ext4 /dev/sdb1
-mkdir -p /opt/splunk/var/lib/splunk
-mount /dev/sdb1 /opt/splunk/var/lib/splunk
+mkfs.ext4 /dev/vdb1
+mkdir -p /opt/splunk
+mount /dev/vdb1 /opt/splunk
 ```
 
 ### Terraform Inventory Not Found
