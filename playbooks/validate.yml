@@ -144,6 +144,25 @@
         validation_results: "{{ validation_results + [{'check': 'Firewall configured', 'passed': firewall_script.stat.exists}] }}"
       when: splunk_docker_firewall_enabled | default(false)
 
+    - name: Check Splunk ML apps are installed
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_etc_dir }}/apps/{{ item.dir }}"
+      loop:
+        - {name: PSC, dir: python_for_scientific_computing, check: 'PSC app installed'}
+        - {name: MLTK, dir: Splunk_ML_Toolkit, check: 'MLTK app installed'}
+        - {name: DSDL, dir: Splunk_DSDL, check: 'DSDL app installed'}
+      loop_control:
+        label: "{{ item.name }}"
+      register: splunk_docker_ml_app_checks
+
+    - name: Record Splunk ML app installation status
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': item.item.check, 'passed': item.stat.exists}] }}
+      loop: "{{ splunk_docker_ml_app_checks.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
     - name: Check Java is accessible in Splunk container
       community.docker.docker_container_exec:
         container: splunk
