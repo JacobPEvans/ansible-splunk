@@ -6,10 +6,12 @@
 - name: Load Splunkbase app registry
   ansible.builtin.include_vars:
     file: "{{ role_path }}/vars/splunkbase_apps.yml"
+  when: splunk_docker_apps is not defined
 
 - name: Load custom add-on definitions
   ansible.builtin.include_vars:
     file: "{{ role_path }}/vars/custom_addons.yml"
+  when: splunk_docker_custom_addons is not defined
 
 - name: Ensure Splunk apps directory exists
   ansible.builtin.file:
