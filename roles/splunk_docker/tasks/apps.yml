@@ -21,88 +21,54 @@
     group: "{{ splunk_docker_group }}"
     mode: '0755'
 
-# Validate all enabled Splunkbase app archives exist before starting
-- name: Validate enabled Splunkbase app archives exist
+# Validate all enabled Splunkbase app archives and custom add-on archives exist
+- name: Set combined list of all apps to validate
+  ansible.builtin.set_fact:
+    splunk_docker_all_apps_to_validate: >-
+      {{ (splunk_docker_apps | selectattr('enabled', 'equalto', true) | list)
+         + splunk_docker_custom_addons }}
+
+- name: Validate app archives exist
   ansible.builtin.stat:
     path: "{{ role_path }}/files/{{ item.filename }}"
-  loop: "{{ splunk_docker_apps | selectattr('enabled', 'equalto', true) | list }}"
+  loop: "{{ splunk_docker_all_apps_to_validate }}"
   loop_control:
     label: "{{ item.name }}"
-  register: splunk_docker_splunkbase_archive_stat
+  register: splunk_docker_archive_stat
 
-- name: Fail if any enabled Splunkbase app archive is missing
+- name: Fail if any app archive is missing
   ansible.builtin.fail:
     msg: >
+      {% if item.item.splunkbase_id is defined -%}
       Missing app archive: {{ item.item.filename }}
       Download app '{{ item.item.name }}' (Splunkbase ID: {{ item.item.splunkbase_id }})
       and place it in roles/splunk_docker/files/.
       See roles/splunk_docker/files/README.md for download instructions.
-  loop: "{{ splunk_docker_splunkbase_archive_stat.results }}"
-  loop_control:
-    label: "{{ item.item.name }}"
-  when: not item.stat.exists
-
-# Validate all custom add-on archives exist before starting
-- name: Validate custom add-on archives exist
-  ansible.builtin.stat:
-    path: "{{ role_path }}/files/{{ item.filename }}"
-  loop: "{{ splunk_docker_custom_addons }}"
-  loop_control:
-    label: "{{ item.name }}"
-  register: splunk_docker_custom_addon_stat
-
-- name: Fail if any custom add-on archive is missing
-  ansible.builtin.fail:
-    msg: >
+      {%- else -%}
       Missing add-on archive: {{ item.item.filename }}
       Place it in roles/splunk_docker/files/.
       See roles/splunk_docker/files/README.md for details.
-  loop: "{{ splunk_docker_custom_addon_stat.results }}"
+      {%- endif %}
+  loop: "{{ splunk_docker_archive_stat.results }}"
   loop_control:
     label: "{{ item.item.name }}"
   when: not item.stat.exists
 
-# Install enabled Splunkbase apps sorted by dependency order.
-# depends_on references are resolved by installing apps with no
-# unresolved deps first (simple single-pass ordering sufficient
-# for our shallow dependency tree).
-- name: Install enabled Splunkbase apps (no dependencies first)
+# Install all enabled apps in dependency order using a two-pass approach:
+# pass 1 - no-dep apps (depends_on: []) and custom add-ons
+# pass 2 - apps with dependencies (after their deps are installed)
+# NOTE: Only single-level dependencies are supported. Transitive deps
+# (A -> B -> C) are not handled; all current apps use direct deps only.
+- name: Install all enabled apps and add-ons in order
   ansible.builtin.unarchive:
     src: "{{ role_path }}/files/{{ item.filename }}"
     dest: "{{ splunk_docker_etc_dir }}/apps/"
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
   loop: >-
-    {{ splunk_docker_apps
-       | selectattr('enabled', 'equalto', true)
-       | selectattr('depends_on', 'equalto', [])
-       | list }}
-  loop_control:
-    label: "{{ item.name }}"
-  notify: Restart Splunk container
-
-- name: Install enabled Splunkbase apps (with dependencies)
-  ansible.builtin.unarchive:
-    src: "{{ role_path }}/files/{{ item.filename }}"
-    dest: "{{ splunk_docker_etc_dir }}/apps/"
-    owner: "{{ splunk_docker_user }}"
-    group: "{{ splunk_docker_group }}"
-  loop: >-
-    {{ splunk_docker_apps
-       | selectattr('enabled', 'equalto', true)
-       | rejectattr('depends_on', 'equalto', [])
-       | list }}
-  loop_control:
-    label: "{{ item.name }}"
-  notify: Restart Splunk container
-
-- name: Install custom add-ons
-  ansible.builtin.unarchive:
-    src: "{{ role_path }}/files/{{ item.filename }}"
-    dest: "{{ splunk_docker_etc_dir }}/apps/"
-    owner: "{{ splunk_docker_user }}"
-    group: "{{ splunk_docker_group }}"
-  loop: "{{ splunk_docker_custom_addons }}"
+    {{ (splunk_docker_apps | selectattr('enabled', 'equalto', true) | selectattr('depends_on', 'equalto', []) | list)
+       + splunk_docker_custom_addons
+       + (splunk_docker_apps | selectattr('enabled', 'equalto', true) | rejectattr('depends_on', 'equalto', []) | list) }}
   loop_control:
     label: "{{ item.name }}"
   notify: Restart Splunk container

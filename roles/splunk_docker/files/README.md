@@ -34,7 +34,7 @@ The Deep Learning Toolkit (DSDL) is deployed **without Docker features**:
 
 ## Custom Add-ons (`vars/custom_addons.yml`)
 
-Internal or third-party TAs not available on Splunkbase.
+Internal or third-party TAs not managed via the Splunkbase app registry.
 
 | File | Description | Source |
 | ---- | ----------- | ------ |
