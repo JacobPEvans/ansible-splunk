@@ -144,35 +144,24 @@
         validation_results: "{{ validation_results + [{'check': 'Firewall configured', 'passed': firewall_script.stat.exists}] }}"
       when: splunk_docker_firewall_enabled | default(false)
 
-    - name: Check PSC app is installed
+    - name: Check Splunk ML apps are installed
       ansible.builtin.stat:
-        path: "{{ splunk_docker_etc_dir }}/apps/python_for_scientific_computing"
-      register: splunk_docker_psc_check
+        path: "{{ splunk_docker_etc_dir }}/apps/{{ item.dir }}"
+      loop:
+        - {name: PSC, dir: python_for_scientific_computing, check: 'PSC app installed'}
+        - {name: MLTK, dir: Splunk_ML_Toolkit, check: 'MLTK app installed'}
+        - {name: DSDL, dir: Splunk_DSDL, check: 'DSDL app installed'}
+      loop_control:
+        label: "{{ item.name }}"
+      register: splunk_docker_ml_app_checks
 
-    - name: Record PSC app status
+    - name: Record Splunk ML app installation status
       ansible.builtin.set_fact:
         validation_results: >-
-          {{ validation_results + [{'check': 'PSC app installed', 'passed': splunk_docker_psc_check.stat.exists}] }}
-
-    - name: Check MLTK app is installed
-      ansible.builtin.stat:
-        path: "{{ splunk_docker_etc_dir }}/apps/Splunk_ML_Toolkit"
-      register: splunk_docker_mltk_check
-
-    - name: Record MLTK app status
-      ansible.builtin.set_fact:
-        validation_results: >-
-          {{ validation_results + [{'check': 'MLTK app installed', 'passed': splunk_docker_mltk_check.stat.exists}] }}
-
-    - name: Check DSDL app is installed
-      ansible.builtin.stat:
-        path: "{{ splunk_docker_etc_dir }}/apps/Splunk_DSDL"
-      register: splunk_docker_dsdl_check
-
-    - name: Record DSDL app status
-      ansible.builtin.set_fact:
-        validation_results: >-
-          {{ validation_results + [{'check': 'DSDL app installed', 'passed': splunk_docker_dsdl_check.stat.exists}] }}
+          {{ validation_results + [{'check': item.item.check, 'passed': item.stat.exists}] }}
+      loop: "{{ splunk_docker_ml_app_checks.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
 
     - name: Check Java is accessible in Splunk container
       community.docker.docker_container_exec:
