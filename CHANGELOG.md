@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-26
+
+### Added
+
+- Configure HEC token via inputs.conf template (#31)
+- Add JRE-21 and Splunk DB Connect support (#30)
+- Add `ai` and `claude` Splunk indexes (#24)
+- Add `netflow` index for NetFlow/IPFIX data (#16)
+- Pipeline sync: standardize env vars, fix HEC config (#19)
+- Molecule test framework with Docker driver for automated testing
+- GitHub Actions workflows for linting, molecule tests, and syntax validation
+- Dynamic Terraform inventory integration via `load_terraform.yml`
+- `scripts/sync-terraform-inventory.sh` script to export Terraform outputs
+- Validation playbook (`playbooks/validate.yml`) for deployed Splunk instances
+- CONTRIBUTING.md with development guidelines
+
+### Fixed
+
+- Use `include_role` in post_tasks so role defaults are available (#35)
+- Remove quotes from inputs.conf values and add post-restart health check (#34)
+- Use `ansible_facts` dict to avoid `INJECT_FACTS_AS_VARS` deprecation (#33)
+- Allow all custom indexes in HEC token (#32)
+- Correct `splunk_vm` key path in `load_terraform.yml` (#25)
+- Disable internet access checks for air-gapped Splunk VM (#23)
+- Complete pipeline sync: license, inventory paths, HEC config (#20)
+- Disable guest iptables in favor of Proxmox firewall (#14)
+- **BREAKING** (0.2.0): Fixed Doppler secret retrieval to use `SPLUNK_PASSWORD`
+  and `SPLUNK_HEC_TOKEN` environment variables
+
+### Changed
+
+- Rewrite README for accuracy and AI-agent readability (fixes role name,
+  retention values, variable names, and missing indexes)
+- Config standardization and CI dedup (#37)
+- Consolidated to single `splunk_docker` role (previously multiple roles)
+- All variable names prefixed with `splunk_docker_` for ansible-lint compliance
+
 ## [0.2.0] - 2026-01-18
 
 ### Fixed
