@@ -14,15 +14,15 @@ splunk_docker_container_name: splunk
 
 # Splunk credentials (from Doppler) - set in playbook vars
 splunk_docker_password: ""
-splunk_docker_hec_token: ""
 
-# HEC token configuration
-splunk_docker_hec_token_name: splunk_hec_token
-splunk_docker_hec_token_description: "Ansible-managed HEC token for data ingestion"
-splunk_docker_hec_default_index: main
-# Dynamically built from splunk_docker_indexes so HEC allowed indexes stay in sync
-# with defined indexes. Always includes 'main' plus all custom index names.
-splunk_docker_hec_indexes: "{{ (['main'] + (splunk_docker_indexes | map(attribute='name') | list)) | join(',') }}"
+# HEC token values — dict of { index_name: token_uuid }.
+# Populated in playbook from terraform_inventory.json or Doppler derivation.
+# Keys must match index names in splunk_docker_indexes.
+splunk_docker_hec_token_values: {}
+
+# HEC namespace UUID for token derivation (from Doppler HEC_NAMESPACE).
+# Used by the uuidv5 filter: 'splunk-hec-<index>' | uuidv5(namespace)
+splunk_docker_hec_namespace: ""
 
 # Splunk ports
 splunk_docker_web_port: 8000
@@ -77,6 +77,9 @@ splunk_docker_indexes:
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: network
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  - name: otel
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: os

@@ -16,19 +16,58 @@
       ansible.builtin.assert:
         that:
           - lookup('env', 'SPLUNK_PASSWORD') | length > 0
-          - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
         fail_msg: >-
-          SPLUNK_PASSWORD and SPLUNK_HEC_TOKEN environment variables must be set
-          (use: doppler run -- ansible-playbook ...)
+          SPLUNK_PASSWORD must be set (use: doppler run -- ansible-playbook ...)
       run_once: true
       delegate_to: localhost
 
     - name: Set Splunk credentials from environment
       ansible.builtin.set_fact:
         splunk_docker_password: "{{ lookup('env', 'SPLUNK_PASSWORD') }}"
-        splunk_docker_hec_token: "{{ lookup('env', 'SPLUNK_HEC_TOKEN') }}"
         splunk_docker_mcp_token: "{{ lookup('env', 'SPLUNK_MCP_TOKEN') }}"
+        splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') }}"
       no_log: true
+
+    # Build per-index HEC tokens via UUID v5 derivation
+    - name: Derive HEC token values from namespace
+      ansible.builtin.set_fact:
+        splunk_docker_hec_token_values: >-
+          {{ splunk_docker_hec_token_values | default({}) | combine({
+            item.name: ('splunk-hec-' + item.name) | uuidv5(splunk_docker_hec_namespace)
+          }) }}
+      loop: "{{ splunk_docker_indexes }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: splunk_docker_hec_namespace | length > 0
+      no_log: true
+
+    # Add legacy token (derives from same namespace, all-index access)
+    - name: Derive legacy HEC token
+      ansible.builtin.set_fact:
+        splunk_docker_hec_token_values: >-
+          {{ splunk_docker_hec_token_values | combine({
+            'legacy': ('splunk-hec-legacy') | uuidv5(splunk_docker_hec_namespace)
+          }) }}
+      when: splunk_docker_hec_namespace | length > 0
+      no_log: true
+
+    # Fallback: if no namespace, try legacy env var for backward compat
+    - name: Fallback to SPLUNK_HEC_TOKEN if no namespace
+      ansible.builtin.set_fact:
+        splunk_docker_hec_token_values: >-
+          {{ {'legacy': lookup('env', 'SPLUNK_HEC_TOKEN')} }}
+      when:
+        - splunk_docker_hec_namespace | length == 0
+        - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+      no_log: true
+
+    - name: Validate at least one HEC token is available
+      ansible.builtin.assert:
+        that:
+          - splunk_docker_hec_token_values | length > 0
+        fail_msg: >-
+          No HEC tokens available. Set HEC_NAMESPACE in Doppler
+          or provide SPLUNK_HEC_TOKEN as fallback.
 
     - name: Deploy Splunk Docker
       ansible.builtin.include_role:

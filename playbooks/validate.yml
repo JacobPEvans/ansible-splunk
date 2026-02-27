@@ -92,28 +92,35 @@
           {{ validation_results + [{'check': mgmt_check, 'passed': mgmt_port.failed is false}] }}
 
 
-    - name: Test HEC endpoint with POST
+    - name: Test HEC endpoint per index token
       ansible.builtin.uri:
         url: "http://localhost:{{ splunk_docker_hec_port }}/services/collector/event"
         method: POST
         headers:
-          Authorization: "Splunk {{ lookup('env', 'SPLUNK_HEC_TOKEN') }}"
+          Authorization: "Splunk {{ splunk_docker_hec_token_values[item.name] }}"
         body_format: json
         body:
-          event: "ansible-validation-test"
+          event: "ansible-validation-test-{{ item.name }}"
           sourcetype: "_json"
-          index: "main"
+          index: "{{ item.name }}"
         status_code: 200
-      register: hec_test
+      register: splunk_docker_hec_test
       failed_when: false
-      when: lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+      loop: "{{ splunk_docker_indexes }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: splunk_docker_hec_token_values[item.name] is defined
       no_log: true
 
-    - name: Record HEC POST test status
+    - name: Record HEC POST test results
       ansible.builtin.set_fact:
         validation_results: >-
-          {{ validation_results + [{'check': 'HEC POST test', 'passed': (hec_test.status | default(0)) == 200}] }}
-      when: lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+          {{ validation_results + [{'check': 'HEC POST (' + item.item.name + ')',
+             'passed': (item.status | default(0)) == 200}] }}
+      loop: "{{ splunk_docker_hec_test.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: item.skipped is not defined or not item.skipped
 
     - name: Check web.conf exists
       ansible.builtin.stat:
