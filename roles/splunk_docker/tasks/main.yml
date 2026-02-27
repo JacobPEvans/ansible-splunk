@@ -147,6 +147,8 @@
     project_src: "{{ splunk_docker_config_dir }}"
     state: present
   register: splunk_docker_compose_result
+  changed_when: >-
+    (splunk_docker_compose_result.actions | default([])) | length > 0
 
 - name: Wait for Splunk to be ready
   ansible.builtin.include_tasks: wait_for_splunk.yml
