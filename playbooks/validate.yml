@@ -214,6 +214,7 @@
     - name: Check DB Connect JAVA_HOME configured in container
       community.docker.docker_container_exec:
         container: splunk
+        user: root
         command: >-
           grep -q "javaHome = {{ splunk_docker_java_container_home }}"
           /opt/splunk/etc/apps/splunk_app_db_connect/local/dbx_settings.conf
