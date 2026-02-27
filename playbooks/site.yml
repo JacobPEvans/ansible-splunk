@@ -28,26 +28,26 @@
         splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') }}"
       no_log: true
 
-    # Build per-index HEC tokens via UUID v5 derivation
-    - name: Derive HEC token values from namespace
-      ansible.builtin.set_fact:
-        splunk_docker_hec_token_values: >-
-          {{ splunk_docker_hec_token_values | default({}) | combine({
-            item.name: ('splunk-hec-' + item.name) | uuidv5(splunk_docker_hec_namespace)
-          }) }}
-      loop: "{{ splunk_docker_indexes }}"
-      loop_control:
-        label: "{{ item.name }}"
+    - name: Validate HEC_NAMESPACE is a valid UUID
+      ansible.builtin.assert:
+        that:
+          - splunk_docker_hec_namespace | regex_search('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', ignorecase=True)
+        fail_msg: >-
+          HEC_NAMESPACE must be a valid UUID (e.g. uuidgen output).
+          Got: {{ splunk_docker_hec_namespace | default('(empty)') }}
       when: splunk_docker_hec_namespace | length > 0
-      no_log: true
 
-    # Add legacy token (derives from same namespace, all-index access)
-    - name: Derive legacy HEC token
+    # Build per-index HEC tokens via UUID v5 derivation (all in one task)
+    - name: Derive HEC token values from namespace
+      vars:
+        index_names: "{{ splunk_docker_indexes | map(attribute='name') | list }}"
       ansible.builtin.set_fact:
         splunk_docker_hec_token_values: >-
-          {{ splunk_docker_hec_token_values | combine({
-            'legacy': ('splunk-hec-legacy') | uuidv5(splunk_docker_hec_namespace)
-          }) }}
+          {{
+            dict(index_names | zip(
+              index_names | map('regex_replace', '^', 'splunk-hec-') | map('uuidv5', splunk_docker_hec_namespace)
+            )) | combine({'legacy': 'splunk-hec-legacy' | uuidv5(splunk_docker_hec_namespace)})
+          }}
       when: splunk_docker_hec_namespace | length > 0
       no_log: true
 
