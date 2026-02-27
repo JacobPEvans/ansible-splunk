@@ -20,6 +20,41 @@
     validation_results: []
 
   tasks:
+    - name: Set HEC namespace from environment
+      ansible.builtin.set_fact:
+        splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') }}"
+      no_log: true
+
+    - name: Derive HEC token values from namespace
+      ansible.builtin.set_fact:
+        splunk_docker_hec_token_values: >-
+          {{ splunk_docker_hec_token_values | default({}) | combine({
+            item.name: ('splunk-hec-' + item.name) | uuidv5(splunk_docker_hec_namespace)
+          }) }}
+      loop: "{{ splunk_docker_indexes }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: splunk_docker_hec_namespace | length > 0
+      no_log: true
+
+    - name: Derive legacy HEC token
+      ansible.builtin.set_fact:
+        splunk_docker_hec_token_values: >-
+          {{ splunk_docker_hec_token_values | default({}) | combine({
+            'legacy': ('splunk-hec-legacy') | uuidv5(splunk_docker_hec_namespace)
+          }) }}
+      when: splunk_docker_hec_namespace | length > 0
+      no_log: true
+
+    - name: Fallback to SPLUNK_HEC_TOKEN if no namespace
+      ansible.builtin.set_fact:
+        splunk_docker_hec_token_values: >-
+          {{ {'legacy': lookup('env', 'SPLUNK_HEC_TOKEN')} }}
+      when:
+        - splunk_docker_hec_namespace | length == 0
+        - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+      no_log: true
+
     - name: Check Docker service is running
       ansible.builtin.service_facts:
 
@@ -117,10 +152,10 @@
         validation_results: >-
           {{ validation_results + [{'check': 'HEC POST (' + item.item.name + ')',
              'passed': (item.status | default(0)) == 200}] }}
-      loop: "{{ splunk_docker_hec_test.results }}"
+      loop: "{{ splunk_docker_hec_test.results | default([]) }}"
       loop_control:
         label: "{{ item.item.name }}"
-      when: item.skipped is not defined or not item.skipped
+      when: splunk_docker_hec_test is defined and (item.skipped is not defined or not item.skipped)
 
     - name: Check web.conf exists
       ansible.builtin.stat:
