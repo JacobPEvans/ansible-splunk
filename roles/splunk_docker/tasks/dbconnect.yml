@@ -28,3 +28,12 @@
         group: "{{ splunk_docker_group }}"
         mode: '0644'
       notify: Restart Splunk container
+
+    - name: Mark DB Connect as configured
+      ansible.builtin.template:
+        src: dbconnect_app.conf.j2
+        dest: "{{ dbconnect_local_dir }}/app.conf"
+        owner: "{{ splunk_docker_user }}"
+        group: "{{ splunk_docker_group }}"
+        mode: '0644'
+      notify: Restart Splunk container
