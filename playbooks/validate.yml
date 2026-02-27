@@ -211,6 +211,36 @@
           {{ validation_results + [{'check': 'Java accessible in container', 'passed': (java_check.rc | default(1)) == 0}] }}
       when: splunk_docker_java_enabled
 
+    - name: Check DB Connect JAVA_HOME configured in container
+      community.docker.docker_container_exec:
+        container: splunk
+        user: root
+        command: >-
+          grep -q "javaHome = {{ splunk_docker_java_container_home }}"
+          /opt/splunk/etc/apps/splunk_app_db_connect/local/dbx_settings.conf
+      register: splunk_docker_dbconnect_check
+      failed_when: false
+      when: splunk_docker_java_enabled
+
+    - name: Record DB Connect JAVA_HOME status
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'DB Connect JAVA_HOME configured', 'passed': (splunk_docker_dbconnect_check.rc | default(1)) == 0}] }}
+      when: splunk_docker_java_enabled
+
+    - name: Check MS SQL JDBC driver is present
+      ansible.builtin.stat:
+        path: >-
+          {{ splunk_docker_etc_dir }}/apps/splunk_app_db_connect/drivers/mssql-jdbc-{{ splunk_docker_mssql_driver_version }}.jar
+      register: splunk_docker_mssql_driver_check
+      when: splunk_docker_java_enabled and splunk_docker_mssql_driver_enabled | default(false)
+
+    - name: Record MS SQL driver status
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'MS SQL JDBC driver installed', 'passed': splunk_docker_mssql_driver_check.stat.exists}] }}
+      when: splunk_docker_java_enabled and splunk_docker_mssql_driver_enabled | default(false)
+
     - name: Get container disk usage
       ansible.builtin.command:
         cmd: df -h /opt/splunk

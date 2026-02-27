@@ -109,6 +109,11 @@ splunk_docker_java_home: "/usr/lib/jvm/temurin-{{ splunk_docker_java_version }}-
 # Container-internal path where the JRE is bind-mounted (decoupled from host path)
 splunk_docker_java_container_home: "/opt/java"
 
+# MS SQL Server JDBC driver for DB Connect
+# Downloads mssql-jdbc from Maven Central into the DB Connect drivers/ directory.
+splunk_docker_mssql_driver_enabled: false
+splunk_docker_mssql_driver_version: "12.8.1.jre11"
+
 # Custom add-on version pins (used by vars/custom_addons.yml)
 # TAs must be placed in roles/splunk_docker/files/ as .tar, .tgz, or .spl files
 splunk_docker_unifi_ta_version: 1.0.2+00b9ecb

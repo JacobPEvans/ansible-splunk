@@ -7,6 +7,6 @@
     validate_certs: false
   register: splunk_docker_health
   until: splunk_docker_health.status == 200
-  retries: 24
+  retries: 36
   delay: 10
   failed_when: false

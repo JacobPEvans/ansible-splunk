@@ -1,0 +1,54 @@
+---
+# DB Connect post-install configuration
+# Called from tasks/main.yml after apps.yml installs the app archive.
+# Configures JAVA_HOME so the Task Server and Query Server start correctly.
+
+- name: Load DB Connect configuration vars
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/vars/dbconnect.yml"
+
+- name: Configure DB Connect Java path
+  when: splunk_docker_java_enabled
+  vars:
+    dbconnect_local_dir: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_dbconnect_app_dir }}/local"
+  block:
+    - name: Create DB Connect local config directory
+      ansible.builtin.file:
+        path: "{{ dbconnect_local_dir }}"
+        state: directory
+        owner: "{{ splunk_docker_user }}"
+        group: "{{ splunk_docker_group }}"
+        mode: '0755'
+
+    - name: Configure DB Connect JAVA_HOME setting
+      ansible.builtin.template:
+        src: dbconnect_dbx_settings.conf.j2
+        dest: "{{ dbconnect_local_dir }}/dbx_settings.conf"
+        owner: "{{ splunk_docker_user }}"
+        group: "{{ splunk_docker_group }}"
+        mode: '0644'
+      notify: Restart Splunk container
+
+    - name: Mark DB Connect as configured
+      ansible.builtin.template:
+        src: dbconnect_app.conf.j2
+        dest: "{{ dbconnect_local_dir }}/app.conf"
+        owner: "{{ splunk_docker_user }}"
+        group: "{{ splunk_docker_group }}"
+        mode: '0644'
+      notify: Restart Splunk container
+
+- name: Install MS SQL Server JDBC driver for DB Connect
+  when: splunk_docker_java_enabled and splunk_docker_mssql_driver_enabled
+  vars:
+    mssql_jar: "mssql-jdbc-{{ splunk_docker_mssql_driver_version }}.jar"
+    mssql_jar_url: >-
+      https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/{{ splunk_docker_mssql_driver_version }}/{{ mssql_jar }}
+    drivers_dir: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_dbconnect_app_dir }}/drivers"
+  ansible.builtin.get_url:
+    url: "{{ mssql_jar_url }}"
+    dest: "{{ drivers_dir }}/{{ mssql_jar }}"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0644'
+  notify: Restart Splunk container
