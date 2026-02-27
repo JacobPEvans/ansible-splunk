@@ -15,7 +15,7 @@ services:
       SPLUNK_START_ARGS: "--accept-license"
       SPLUNK_GENERAL_TERMS: "--accept-sgt-current-at-splunk-com"
       SPLUNK_PASSWORD: "{{ splunk_docker_password }}"
-      SPLUNK_HEC_TOKEN: "{{ splunk_docker_hec_token_values['legacy'] | default(splunk_docker_hec_token_values.values() | first) }}"
+      SPLUNK_HEC_TOKEN: "{{ splunk_docker_hec_token_values['legacy'] }}"
       # Let container entrypoint chown mounted volumes to splunk user at startup
       SPLUNK_HOME_OWNERSHIP_ENFORCEMENT: "true"
 {% if splunk_docker_java_enabled %}
