@@ -37,3 +37,18 @@
         group: "{{ splunk_docker_group }}"
         mode: '0644'
       notify: Restart Splunk container
+
+- name: Install MS SQL Server JDBC driver for DB Connect
+  when: splunk_docker_java_enabled and splunk_docker_mssql_driver_enabled
+  vars:
+    mssql_jar: "mssql-jdbc-{{ splunk_docker_mssql_driver_version }}.jar"
+    mssql_jar_url: >-
+      https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/{{ splunk_docker_mssql_driver_version }}/{{ mssql_jar }}
+    drivers_dir: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_dbconnect_app_dir }}/drivers"
+  ansible.builtin.get_url:
+    url: "{{ mssql_jar_url }}"
+    dest: "{{ drivers_dir }}/{{ mssql_jar }}"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0644'
+  notify: Restart Splunk container

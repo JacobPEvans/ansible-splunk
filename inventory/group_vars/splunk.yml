@@ -9,6 +9,9 @@ splunk_service_enabled: true
 # Enable Java for Splunk DB Connect
 splunk_docker_java_enabled: true
 
+# Install MS SQL Server JDBC driver for DB Connect
+splunk_docker_mssql_driver_enabled: true
+
 # Data disk configuration
 splunk_data_disk_device: /dev/sdb1
 splunk_data_disk_mount_path: /opt/splunk/var/lib/splunk
