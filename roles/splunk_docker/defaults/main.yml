@@ -36,6 +36,10 @@ splunk_docker_mgmt_bind: "0.0.0.0"
 # Splunk Web SSL (enableSplunkWebSSL)
 splunk_docker_web_ssl: true
 
+# Health check control
+# Set to false in CI (Molecule) where 127.0.0.1:8000 is unreachable from inside the test container.
+splunk_docker_wait_enabled: true
+
 # Internet access control
 # Disabled by default for air-gapped/network-isolated VMs.
 # When false, disables Splunkbase app browsing, update checks, and telemetry

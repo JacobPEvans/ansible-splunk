@@ -41,6 +41,10 @@ provisioner:
         # and trying to validate missing archive files in CI.
         splunk_docker_apps: []
         splunk_docker_custom_addons: []
+        # 127.0.0.1:8000 is unreachable from inside the Molecule container
+        # (Docker socket mounts expose ports on the HOST, not inside the test container).
+        # Skip the wait entirely in CI rather than burning 360s per invocation.
+        splunk_docker_wait_enabled: false
   env:
     SPLUNK_DOCKER_PASSWORD: "molecule-test-password"
     SPLUNK_DOCKER_HEC_TOKEN: "molecule-test-hec-token"

@@ -9,4 +9,4 @@
   until: splunk_docker_health.status == 200
   retries: 36
   delay: 10
-  failed_when: false
+  when: splunk_docker_wait_enabled
