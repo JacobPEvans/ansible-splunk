@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.13"]
 
     steps:
       - name: Checkout code
@@ -31,6 +31,12 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
+
+      - name: Cache Ansible collections
+        uses: actions/cache@v4
+        with:
+          path: ~/.ansible/collections
+          key: ansible-collections-${{ hashFiles('requirements.yml') }}
 
       - name: Install dependencies
         run: |
