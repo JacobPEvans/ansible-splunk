@@ -18,3 +18,12 @@
     - name: Include splunk_docker role
       ansible.builtin.include_role:
         name: splunk_docker
+
+  # Handlers fire between tasks and post_tasks. This ensures the
+  # container is fully stable after any handler-triggered restarts
+  # before Molecule's idempotence run begins.
+  post_tasks:
+    - name: Wait for Splunk to be ready after any restarts
+      ansible.builtin.include_role:
+        name: splunk_docker
+        tasks_from: wait_for_splunk
