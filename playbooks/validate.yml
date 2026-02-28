@@ -26,23 +26,15 @@
       no_log: true
 
     - name: Derive HEC token values from namespace
+      vars:
+        index_names: "{{ splunk_docker_indexes | map(attribute='name') | list }}"
       ansible.builtin.set_fact:
         splunk_docker_hec_token_values: >-
-          {{ splunk_docker_hec_token_values | default({}) | combine({
-            item.name: ('splunk-hec-' + item.name) | uuidv5(splunk_docker_hec_namespace)
-          }) }}
-      loop: "{{ splunk_docker_indexes }}"
-      loop_control:
-        label: "{{ item.name }}"
-      when: splunk_docker_hec_namespace | length > 0
-      no_log: true
-
-    - name: Derive legacy HEC token
-      ansible.builtin.set_fact:
-        splunk_docker_hec_token_values: >-
-          {{ splunk_docker_hec_token_values | default({}) | combine({
-            'legacy': ('splunk-hec-legacy') | uuidv5(splunk_docker_hec_namespace)
-          }) }}
+          {{
+            dict(index_names | zip(
+              index_names | map('regex_replace', '^', 'splunk-hec-') | map('uuidv5', splunk_docker_hec_namespace)
+            )) | combine({'legacy': 'splunk-hec-legacy' | uuidv5(splunk_docker_hec_namespace)})
+          }}
       when: splunk_docker_hec_namespace | length > 0
       no_log: true
 
