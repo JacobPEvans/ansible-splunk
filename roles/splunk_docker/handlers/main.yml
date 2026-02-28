@@ -2,8 +2,7 @@
 - name: Restart Splunk container
   community.docker.docker_compose_v2:
     project_src: "{{ splunk_docker_config_dir }}"
-    state: present
-    recreate: always
+    state: restarted
   listen: Restart Splunk container
 
 - name: Apply firewall rules
