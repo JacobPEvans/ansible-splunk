@@ -35,7 +35,6 @@ provisioner:
       all:
         # Test values for molecule - override in production
         splunk_docker_password: "molecule-test-password"
-        splunk_docker_hec_token: "molecule-test-hec-token"
         # App archives are gitignored (placed manually at deploy time).
         # Setting these here prevents include_vars from loading the registry
         # and trying to validate missing archive files in CI.
@@ -43,7 +42,6 @@ provisioner:
         splunk_docker_custom_addons: []
   env:
     SPLUNK_DOCKER_PASSWORD: "molecule-test-password"
-    SPLUNK_DOCKER_HEC_TOKEN: "molecule-test-hec-token"
 
 verifier:
   name: ansible
