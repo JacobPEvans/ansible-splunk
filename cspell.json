@@ -28,6 +28,8 @@
     "thaweddb",
     "unifi",
     "uuidgen",
+    "uuidv4",
+    "uuidv5",
     "VMID"
   ],
   "ignorePaths": [

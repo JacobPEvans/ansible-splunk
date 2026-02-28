@@ -34,6 +34,7 @@ Cribl Edge is configured to send to `http://splunk:8088`.
 | firewall | Palo Alto/Cisco | 100GB | 365 days |
 | netflow | NetFlow/IPFIX | 100GB | 365 days |
 | network | Network devices | 100GB | 365 days |
+| otel | OpenTelemetry spans/metrics | 100GB | 365 days |
 | os | Linux/Windows | 100GB | 365 days |
 | unifi | UniFi syslog | 100GB | 365 days |
 
@@ -48,11 +49,40 @@ Loaded from `terraform_inventory.json` via
 | Variable | Purpose |
 | --- | --- |
 | `SPLUNK_PASSWORD` | Splunk admin password |
-| `SPLUNK_HEC_TOKEN` | HTTP Event Collector token |
+| `HEC_NAMESPACE` | UUID namespace for token derivation (primary) |
+| `SPLUNK_HEC_TOKEN` | Legacy fallback token (if no `HEC_NAMESPACE`) |
 | `SPLUNK_MCP_TOKEN` | MCP Server authentication token |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
 All secrets managed via Doppler (`doppler run --`).
+
+## HEC Token Architecture
+
+**1 index = 1 HEC token.** Tokens are derived deterministically via UUID v5:
+
+```text
+Token = uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")
+```
+
+The `HEC_NAMESPACE` UUID is stored in Doppler. Any system with the namespace
+can derive tokens locally — no cross-repo secret sharing needed.
+
+### One-time Doppler Setup
+
+```bash
+# Generate a random namespace UUID (this is the ONE secret)
+doppler secrets set HEC_NAMESPACE "$(uuidgen)"
+```
+
+### Adding a New Index + Token
+
+1. Add the index to `splunk_docker_indexes` in `roles/splunk_docker/defaults/main.yml`
+2. Run `doppler run -- ansible-playbook playbooks/site.yml` — token is auto-derived
+3. Senders derive the same token locally:
+
+```bash
+python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('$HEC_NAMESPACE'), 'splunk-hec-<name>'))"
+```
 
 ## MCP Server Integration
 

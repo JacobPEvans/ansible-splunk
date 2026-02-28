@@ -28,3 +28,4 @@ inventory/terraform_inventory.json
 # Private AI assistant instructions (not committed to git)
 .CLAUDE.local.md
 CLAUDE.local.md
+.ansible/
