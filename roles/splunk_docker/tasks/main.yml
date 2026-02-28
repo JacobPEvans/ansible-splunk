@@ -149,7 +149,7 @@
   register: splunk_docker_compose_result
   changed_when: >-
     (splunk_docker_compose_result.actions | default([]))
-    | selectattr('status', 'in', ['Starting', 'Creating', 'Recreating', 'Restarting', 'Pulling', 'Building'])
+    | selectattr('status', 'in', ['Creating', 'Recreating', 'Pulling', 'Building'])
     | list | length > 0
 
 - name: Wait for Splunk to be ready
