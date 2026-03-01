@@ -7,12 +7,13 @@ on:
 permissions:
   contents: read
   actions: read
-  security-events: read
+  security-events: write
 tracker-id: malicious-code-scan
 tools:
   github:
     toolsets: [repos, code_security]
   bash: true
+  noop:
 safe-outputs:
   create-code-scanning-alert:
     driver: "Malicious Code Scanner"
@@ -196,7 +197,7 @@ When suspicious patterns are found, create code-scanning alerts with this struct
 
 ```json
 {
-  "create_code_scanning_alert": [
+  "create-code-scanning-alert": [
     {
       "rule_id": "malicious-code-scanner/[CATEGORY]",
       "message": "[Brief description of the threat]",
@@ -259,7 +260,7 @@ A successful malicious code scan:
 - Scans for secret exfiltration patterns
 - Detects out-of-context code
 - Checks for suspicious system operations
-- **Calls the `create_code_scanning_alert` tool for findings OR calls the `noop` tool if clean**
+- **Calls the `create-code-scanning-alert` tool for findings OR calls the `noop` tool if clean**
 - Provides detailed, actionable alert descriptions
 - Completes within 15-minute timeout
 - Handles repositories with no recent changes gracefully
@@ -269,7 +270,7 @@ A successful malicious code scan:
 Your output MUST:
 
 1. **If suspicious patterns are found**:
-   - **CALL** the `create_code_scanning_alert` tool for each finding
+   - **CALL** the `create-code-scanning-alert` tool for each finding
    - Each alert must include: `rule_id`, `message`, `severity`, `file_path`, `start_line`, `description`
    - Provide detailed descriptions explaining the threat and recommended remediation
 
