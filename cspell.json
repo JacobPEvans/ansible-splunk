@@ -1,7 +1,7 @@
 {
   "version": "0.2",
   "language": "en",
-  "words": [
+  "words": ["agentic backdoors exfiltration toolsets tinyurl unshallow unsanitized",
     "ai",
     "CIMPlicity",
     "cimplicity",
@@ -30,7 +30,15 @@
     "uuidgen",
     "uuidv4",
     "uuidv5",
-    "VMID"
+    "VMID",
+    "toolsets",
+    "unsanitized",
+    "tinyurl",
+    "agentic",
+    "backdoors",
+    "unshallow",
+    "exfiltration",
+    "Exfiltration"
   ],
   "ignorePaths": [
     ".git",
