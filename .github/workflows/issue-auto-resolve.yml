@@ -3,7 +3,7 @@ name: Issue Auto-Resolve
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled]
   workflow_dispatch:
     inputs:
       issue_number:
