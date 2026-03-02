@@ -72,7 +72,7 @@ The Splunk MCP Server provides these tools for AI agents after deployment:
 | Tool | Description | Example |
 | --- | --- | --- |
 | `run_splunk_query` | Execute SPL searches | `` `\| makeresults \| eval test="ok"` `` |
-| `get_indexes` | List all indexes | Returns 7 custom + system indexes |
+| `get_indexes` | List all indexes | Returns 8 custom + system indexes |
 | `get_sourcetypes` | List sourcetypes | Returns ingested sourcetypes |
 
 Configure the MCP client in `~/git/nix-config/main/modules/home-manager/ai-cli/mcp/default.nix`.
