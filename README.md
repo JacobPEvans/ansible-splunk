@@ -1,8 +1,7 @@
 # Ansible Splunk Enterprise
 
-[![Lint](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/lint.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/lint.yml)
+[![CI](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/ci.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/ci.yml)
 [![Molecule](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/molecule.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/molecule.yml)
-[![Validate](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/validate.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/validate.yml)
 
 Deploy and configure Splunk Enterprise (Docker) on a Proxmox VM.
 
@@ -11,7 +10,7 @@ Deploy and configure Splunk Enterprise (Docker) on a Proxmox VM.
 | Property | Value |
 | --- | --- |
 | **Type** | Ansible role + playbooks |
-| **Target** | Proxmox VM `10.0.1.200` (VMID 200) |
+| **Target** | Proxmox VM `192.168.0.200` (VMID 200) |
 | **Role** | `roles/splunk_docker` |
 | **Entry point** | `playbooks/site.yml` |
 | **Secrets** | Doppler (`iac-conf-mgmt` / `prd`) |
@@ -48,6 +47,7 @@ All indexes: 100 GiB max size, 365-day retention, stored at `/opt/splunk/<index>
 | `firewall` | Palo Alto / Cisco firewall logs |
 | `netflow` | NetFlow / IPFIX flow data |
 | `network` | Network device syslog |
+| `otel` | OpenTelemetry spans and metrics |
 | `os` | Linux / Windows system logs |
 | `unifi` | UniFi network syslog |
 
