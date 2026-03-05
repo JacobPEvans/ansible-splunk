@@ -78,7 +78,7 @@ for idx in pipeline_indexes:
         )
     tokens[idx] = token
 
-if not errors or all("collision" not in e for e in errors):
+if not any("collision" in e for e in errors):
     print(f"PASS: all {len(pipeline_indexes)} pipeline indexes produce unique tokens")
 
 # Test 7: Invalid namespace UUID raises ValueError
