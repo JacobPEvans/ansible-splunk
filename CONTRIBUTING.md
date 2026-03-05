@@ -119,9 +119,9 @@ Use conventional branch naming:
 
 - `feature/<description>` - New functionality
 - `bugfix/<description>` - Resolve identified issues
-- `hotfix/<description>` - Critical urgent patches
+- `hotfix/<description>` - Critical or urgent patches
 - `release/<description>` - Prepare version releases
-- `chore/<description>` - Maintenance tasks (docs, refactoring, tests)
+- `chore/<description>` - Maintenance tasks (build process, dependencies, tooling)
 
 ### Commit Messages
 
