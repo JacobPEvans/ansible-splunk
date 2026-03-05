@@ -117,11 +117,11 @@ For testing against a real Proxmox VM:
 
 Use conventional branch naming:
 
-- `feat/<description>` - New features
-- `fix/<description>` - Bug fixes
-- `docs/<description>` - Documentation updates
-- `refactor/<description>` - Code refactoring
-- `test/<description>` - Test additions/changes
+- `feature/<description>` - New functionality
+- `bugfix/<description>` - Resolve identified issues
+- `hotfix/<description>` - Critical urgent patches
+- `release/<description>` - Prepare version releases
+- `chore/<description>` - Maintenance tasks (docs, refactoring, tests)
 
 ### Commit Messages
 
