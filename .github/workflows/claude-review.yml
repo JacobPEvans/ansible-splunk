@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   review:
+    if: github.actor != 'claude[bot]'
     uses: JacobPEvans/ai-workflows/.github/workflows/claude-review.yml@v0.7.0
     with:
       review_prompt: "Focus on Ansible best practices, Splunk deployment patterns, molecule test coverage, and idempotency"
