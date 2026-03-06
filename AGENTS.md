@@ -18,7 +18,7 @@ This repository is the **single source of truth** for Splunk configuration.
 
 ### External Services
 
-- **Doppler**: Secrets for `SPLUNK_PASSWORD`, `SPLUNK_HEC_TOKEN`, `SPLUNK_MCP_TOKEN`
+- **Doppler**: Secrets for `SPLUNK_PASSWORD`, `HEC_NAMESPACE`, `SPLUNK_HEC_TOKEN`, `SPLUNK_MCP_TOKEN`
 
 ## Key Files
 
@@ -49,7 +49,7 @@ doppler run -- ansible-playbook playbooks/validate.yml
 
 - **Health check fails**: Check container logs with `docker logs splunk`
 - **Apps not visible**: Verify ownership is UID 41812
-- **HEC not working**: Confirm `SPLUNK_HEC_TOKEN` in Doppler
+- **HEC not working**: Confirm `HEC_NAMESPACE` in Doppler (primary); `SPLUNK_HEC_TOKEN` is the legacy fallback
 - **MCP Server not responding**: Confirm `SPLUNK_MCP_TOKEN` in Doppler,
   check port 8089 is accessible from your machine
 
