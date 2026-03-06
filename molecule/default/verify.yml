@@ -109,6 +109,9 @@
           - "'[os]' in (indexes_content.content | b64decode)"
           - "'[ai]' in (indexes_content.content | b64decode)"
           - "'[claude]' in (indexes_content.content | b64decode)"
+          - "'[gemini]' in (indexes_content.content | b64decode)"
+          - "'[openai]' in (indexes_content.content | b64decode)"
+          - "'[vscode]' in (indexes_content.content | b64decode)"
         fail_msg: "One or more pipeline indexes missing from indexes.conf"
 
     - name: Read docker-compose.yml content
