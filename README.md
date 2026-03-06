@@ -27,14 +27,24 @@ Cribl Edge (181/182) ──HEC :8088──> Splunk (200)
                                     netflow, network, os, otel, unifi
 ```
 
+## Setup
+
+This repo uses a [Nix dev shell][nix-develop] to provide all tools
+(`ansible-playbook`, `ansible-lint`, `molecule`, etc.). Activate it once per worktree:
+
+```bash
+direnv allow   # if using direnv (recommended)
+# or: nix develop
+```
+
 ## Quick Start
 
 ```bash
 # 1. Deploy Splunk
-doppler run -- pipx run ansible-playbook playbooks/site.yml
+doppler run -- ansible-playbook playbooks/site.yml
 
 # 2. Validate deployment
-doppler run -- pipx run ansible-playbook playbooks/validate.yml
+doppler run -- ansible-playbook playbooks/validate.yml
 ```
 
 ## Custom Indexes
@@ -124,23 +134,23 @@ All secrets via Doppler (`iac-conf-mgmt` / `prd`):
 
 ```bash
 # Run any playbook with secrets injected
-doppler run -- pipx run ansible-playbook playbooks/site.yml
+doppler run -- ansible-playbook playbooks/site.yml
 ```
 
 ## Testing
 
 ```bash
 # Lint
-pipx run ansible-lint
+ansible-lint
 
 # Syntax check
-doppler run -- pipx run ansible-playbook playbooks/site.yml --syntax-check
+doppler run -- ansible-playbook playbooks/site.yml --syntax-check
 
 # Molecule (syntax-only CI test)
-pipx run molecule test
+molecule test
 
 # Post-deploy validation
-doppler run -- pipx run ansible-playbook playbooks/validate.yml
+doppler run -- ansible-playbook playbooks/validate.yml
 ```
 
 ## Dependencies
@@ -155,7 +165,7 @@ doppler run -- pipx run ansible-playbook playbooks/validate.yml
 | `cloud.terraform` | `>=4.0.0,<5.0.0` |
 
 ```bash
-pipx run ansible-galaxy collection install -r requirements.yml
+ansible-galaxy collection install -r requirements.yml
 ```
 
 ### External Services
@@ -170,3 +180,5 @@ pipx run ansible-galaxy collection install -r requirements.yml
 - [Contributing](CONTRIBUTING.md)
 - [Splunk Docker image](https://hub.docker.com/r/splunk/splunk)
 - [ansible-proxmox-apps](https://github.com/JacobPEvans/ansible-proxmox-apps) — Cribl Edge (upstream sender)
+
+[nix-develop]: https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-develop.html
