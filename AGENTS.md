@@ -84,7 +84,8 @@ All secrets retrieved from Doppler at runtime. Required secrets:
 | Secret | Purpose |
 | --- | --- |
 | `SPLUNK_PASSWORD` | Admin password |
-| `SPLUNK_HEC_TOKEN` | HTTP Event Collector token |
+| `HEC_NAMESPACE` | UUID namespace for HEC token derivation (primary) |
+| `SPLUNK_HEC_TOKEN` | Legacy HEC token UUID (fallback if no `HEC_NAMESPACE`) |
 | `SPLUNK_MCP_TOKEN` | MCP Server authentication token |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
