@@ -11,6 +11,7 @@
     "colddb",
     "Cribl",
     "dedup",
+    "direnv",
     "DNAT",
     "DSDL",
     "exfiltration",
@@ -37,7 +38,8 @@
     "uuidgen",
     "uuidv4",
     "uuidv5",
-    "VMID"
+    "VMID",
+    "worktree"
   ],
   "ignorePaths": [
     ".git",
