@@ -23,8 +23,9 @@ Deploy and configure Splunk Enterprise (Docker) on a Proxmox VM.
 Cribl Edge (181/182) ──HEC :8088──> Splunk (200)
                                       │
                                   Splunk indexes:
-                                    ai, claude, firewall,
-                                    netflow, network, os, otel, unifi
+                                    ai, claude, firewall, gemini,
+                                    netflow, network, openai,
+                                    os, otel, unifi, vscode
 ```
 
 ## Setup
@@ -56,11 +57,14 @@ All indexes: 100 GiB max size, 365-day retention, stored at `/opt/splunk/<index>
 | `ai` | AI assistant activity and tool calls |
 | `claude` | Claude-specific events |
 | `firewall` | Palo Alto / Cisco firewall logs |
+| `gemini` | Gemini-specific events |
 | `netflow` | NetFlow / IPFIX flow data |
 | `network` | Network device syslog |
+| `openai` | OpenAI-specific events |
 | `os` | Linux / Windows system logs |
 | `otel` | OpenTelemetry spans / metrics |
 | `unifi` | UniFi network syslog |
+| `vscode` | VS Code extension events |
 
 ## Technology Add-ons
 
