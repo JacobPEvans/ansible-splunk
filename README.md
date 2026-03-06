@@ -11,7 +11,7 @@ Deploy and configure Splunk Enterprise (Docker) on a Proxmox VM.
 | Property | Value |
 | --- | --- |
 | **Type** | Ansible role + playbooks |
-| **Target** | Proxmox VM `10.0.1.200` (VMID 200) |
+| **Target** | Proxmox VM `192.168.0.200` (VMID 200) |
 | **Role** | `roles/splunk_docker` |
 | **Entry point** | `playbooks/site.yml` |
 | **Secrets** | Doppler (`iac-conf-mgmt` / `prd`) |
@@ -24,7 +24,7 @@ Cribl Edge (181/182) ──HEC :8088──> Splunk (200)
                                       │
                                   Splunk indexes:
                                     ai, claude, firewall,
-                                    netflow, network, os, unifi
+                                    netflow, network, os, otel, unifi
 ```
 
 ## Quick Start
@@ -49,6 +49,7 @@ All indexes: 100 GiB max size, 365-day retention, stored at `/opt/splunk/<index>
 | `netflow` | NetFlow / IPFIX flow data |
 | `network` | Network device syslog |
 | `os` | Linux / Windows system logs |
+| `otel` | OpenTelemetry spans / metrics |
 | `unifi` | UniFi network syslog |
 
 ## Technology Add-ons
@@ -116,7 +117,9 @@ All secrets via Doppler (`iac-conf-mgmt` / `prd`):
 | Doppler Secret | Ansible Variable | Purpose |
 | --- | --- | --- |
 | `SPLUNK_PASSWORD` | `splunk_docker_password` | Splunk admin password |
-| `SPLUNK_HEC_TOKEN` | `splunk_docker_hec_token` | HEC token UUID |
+| `HEC_NAMESPACE` | `splunk_docker_hec_namespace` | UUID namespace for HEC token derivation (primary) |
+| `SPLUNK_HEC_TOKEN` | `splunk_docker_hec_token` | Legacy HEC token UUID (fallback if no `HEC_NAMESPACE`) |
+| `SPLUNK_MCP_TOKEN` | — | MCP Server authentication token |
 | `PROXMOX_SSH_KEY_PATH` | — | SSH key for VM access |
 
 ```bash
