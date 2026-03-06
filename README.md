@@ -27,6 +27,16 @@ Cribl Edge (181/182) ──HEC :8088──> Splunk (200)
                                     netflow, network, os, unifi
 ```
 
+## Setup
+
+This repo uses a [Nix dev shell][nix-develop] to provide all tools
+(`ansible-playbook`, `ansible-lint`, `molecule`, etc.). Activate it once per worktree:
+
+```bash
+direnv allow   # if using direnv (recommended)
+# or: nix develop
+```
+
 ## Quick Start
 
 ```bash
@@ -167,3 +177,5 @@ ansible-galaxy collection install -r requirements.yml
 - [Contributing](CONTRIBUTING.md)
 - [Splunk Docker image](https://hub.docker.com/r/splunk/splunk)
 - [ansible-proxmox-apps](https://github.com/JacobPEvans/ansible-proxmox-apps) — Cribl Edge (upstream sender)
+
+[nix-develop]: https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-develop.html
