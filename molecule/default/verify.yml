@@ -107,12 +107,24 @@
           - "'[firewall]' in (indexes_content.content | b64decode)"
           - "'[network]' in (indexes_content.content | b64decode)"
           - "'[os]' in (indexes_content.content | b64decode)"
+          - "'[otel]' in (indexes_content.content | b64decode)"
           - "'[ai]' in (indexes_content.content | b64decode)"
           - "'[claude]' in (indexes_content.content | b64decode)"
           - "'[gemini]' in (indexes_content.content | b64decode)"
           - "'[openai]' in (indexes_content.content | b64decode)"
           - "'[vscode]' in (indexes_content.content | b64decode)"
         fail_msg: "One or more pipeline indexes missing from indexes.conf"
+
+    - name: Check inputs.conf exists
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_etc_dir }}/system/local/inputs.conf"
+      register: inputs_conf
+
+    - name: Assert inputs.conf configured
+      ansible.builtin.assert:
+        that:
+          - inputs_conf.stat.exists
+        fail_msg: "inputs.conf not found - HEC not configured"
 
     - name: Read docker-compose.yml content
       ansible.builtin.slurp:

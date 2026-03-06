@@ -99,6 +99,10 @@ jobs:
         run: |
           ansible-playbook playbooks/site.yml --syntax-check
 
+      - name: Run template unit tests
+        run: |
+          python3 tests/templates/test_inputs_conf.py
+
   verify-inventory:
     name: Verify Inventory Load
     runs-on: ubuntu-latest
