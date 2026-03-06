@@ -67,7 +67,7 @@ else:
     print(f"PASS: output is a valid UUID v5 string")
 
 # Test 6: All pipeline indexes produce unique tokens (no collisions)
-pipeline_indexes = ["ai", "claude", "firewall", "netflow", "network", "otel", "os", "unifi"]
+pipeline_indexes = ["ai", "claude", "firewall", "gemini", "netflow", "network", "openai", "otel", "os", "unifi", "vscode"]
 tokens = {}
 for idx in pipeline_indexes:
     token = FilterModule._uuidv5(f"splunk-hec-{idx}", NAMESPACE)
