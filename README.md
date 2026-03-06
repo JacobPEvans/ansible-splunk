@@ -64,7 +64,7 @@ All indexes: 100 GiB max size, 365-day retention, stored at `/opt/splunk/<index>
 | `os` | Linux / Windows system logs |
 | `otel` | OpenTelemetry spans / metrics |
 | `unifi` | UniFi network syslog |
-| `vscode` | VS Code extension events |
+| `vscode` | VS Code / Copilot events |
 
 ## Technology Add-ons
 
