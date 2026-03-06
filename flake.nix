@@ -39,13 +39,14 @@
         { pkgs }:
         {
           default = pkgs.mkShell {
-            buildInputs = with pkgs; [
+            packages = with pkgs; [
               # === Configuration Management ===
               ansible
               ansible-lint
               molecule
 
               # === Secrets Management ===
+              doppler
               sops
               age
 
