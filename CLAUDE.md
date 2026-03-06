@@ -32,11 +32,14 @@ Cribl Edge is configured to send to `http://splunk:8088`.
 | ai | AI assistant activity | 100GB | 365 days |
 | claude | Claude-specific events | 100GB | 365 days |
 | firewall | Palo Alto/Cisco | 100GB | 365 days |
+| gemini | Gemini-specific events | 100GB | 365 days |
 | netflow | NetFlow/IPFIX | 100GB | 365 days |
 | network | Network devices | 100GB | 365 days |
+| openai | OpenAI-specific events | 100GB | 365 days |
 | otel | OpenTelemetry spans/metrics | 100GB | 365 days |
 | os | Linux/Windows | 100GB | 365 days |
 | unifi | UniFi syslog | 100GB | 365 days |
+| vscode | VS Code / Copilot events | 100GB | 365 days |
 
 ## Inventory
 
