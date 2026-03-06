@@ -7,8 +7,7 @@ provides guidelines and information for contributors.
 
 ### Prerequisites
 
-- Python 3.11 or later
-- [uv](https://docs.astral.sh/uv/) package manager
+- [Nix](https://nixos.org/) with flakes enabled (provides all tools via `flake.nix`)
 - Docker (for molecule tests)
 - Access to Doppler secrets (for integration testing)
 
@@ -21,16 +20,23 @@ provides guidelines and information for contributors.
    cd ansible-splunk
    ```
 
-2. Install pre-commit hooks:
+2. Activate the nix dev shell (provides `ansible-playbook`, `ansible-lint`, `molecule`, etc.):
+
+   ```bash
+   direnv allow   # if using direnv (recommended)
+   # or: nix develop
+   ```
+
+3. Install pre-commit hooks:
 
    ```bash
    pre-commit install
    ```
 
-3. Install Ansible collections:
+4. Install Ansible collections:
 
    ```bash
-   uv run ansible-galaxy collection install -r requirements.yml
+   ansible-galaxy collection install -r requirements.yml
    ```
 
 ## Testing
@@ -38,16 +44,16 @@ provides guidelines and information for contributors.
 ### Syntax Validation
 
 ```bash
-uv run ansible-playbook playbooks/deploy.yml --syntax-check
-uv run ansible-playbook playbooks/configure_indexes.yml --syntax-check
-uv run ansible-playbook playbooks/validate.yml --syntax-check
+ansible-playbook playbooks/deploy.yml --syntax-check
+ansible-playbook playbooks/configure_indexes.yml --syntax-check
+ansible-playbook playbooks/validate.yml --syntax-check
 ```
 
 ### Linting
 
 ```bash
-uv run yamllint .
-uv run ansible-lint playbooks/ roles/
+yamllint .
+ansible-lint playbooks/ roles/
 ```
 
 ### Molecule Tests
@@ -55,15 +61,15 @@ uv run ansible-lint playbooks/ roles/
 Run the full molecule test suite:
 
 ```bash
-uv run molecule test
+molecule test
 ```
 
 Run individual test stages:
 
 ```bash
-uv run molecule converge  # Create container and run role
-uv run molecule verify    # Run verification tests
-uv run molecule destroy   # Clean up test container
+molecule converge  # Create container and run role
+molecule verify    # Run verification tests
+molecule destroy   # Clean up test container
 ```
 
 ### Integration Testing
@@ -79,9 +85,9 @@ For testing against a real Proxmox VM:
 2. Run playbooks with Doppler:
 
    ```bash
-   doppler run -- uv run ansible-playbook playbooks/deploy.yml
-   doppler run -- uv run ansible-playbook playbooks/configure_indexes.yml
-   doppler run -- uv run ansible-playbook playbooks/validate.yml
+   doppler run -- ansible-playbook playbooks/deploy.yml
+   doppler run -- ansible-playbook playbooks/configure_indexes.yml
+   doppler run -- ansible-playbook playbooks/validate.yml
    ```
 
 ## Code Style
