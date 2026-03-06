@@ -31,10 +31,10 @@ Cribl Edge (181/182) ──HEC :8088──> Splunk (200)
 
 ```bash
 # 1. Deploy Splunk
-doppler run -- pipx run ansible-playbook playbooks/site.yml
+doppler run -- ansible-playbook playbooks/site.yml
 
 # 2. Validate deployment
-doppler run -- pipx run ansible-playbook playbooks/validate.yml
+doppler run -- ansible-playbook playbooks/validate.yml
 ```
 
 ## Custom Indexes
@@ -121,23 +121,23 @@ All secrets via Doppler (`iac-conf-mgmt` / `prd`):
 
 ```bash
 # Run any playbook with secrets injected
-doppler run -- pipx run ansible-playbook playbooks/site.yml
+doppler run -- ansible-playbook playbooks/site.yml
 ```
 
 ## Testing
 
 ```bash
 # Lint
-pipx run ansible-lint
+ansible-lint
 
 # Syntax check
-doppler run -- pipx run ansible-playbook playbooks/site.yml --syntax-check
+doppler run -- ansible-playbook playbooks/site.yml --syntax-check
 
 # Molecule (syntax-only CI test)
-pipx run molecule test
+molecule test
 
 # Post-deploy validation
-doppler run -- pipx run ansible-playbook playbooks/validate.yml
+doppler run -- ansible-playbook playbooks/validate.yml
 ```
 
 ## Dependencies
@@ -152,7 +152,7 @@ doppler run -- pipx run ansible-playbook playbooks/validate.yml
 | `cloud.terraform` | `>=4.0.0,<5.0.0` |
 
 ```bash
-pipx run ansible-galaxy collection install -r requirements.yml
+ansible-galaxy collection install -r requirements.yml
 ```
 
 ### External Services

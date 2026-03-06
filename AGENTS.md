@@ -39,10 +39,10 @@ This repository is the **single source of truth** for Splunk configuration.
 
 ```bash
 # Full deployment
-doppler run -- pipx run ansible-playbook playbooks/site.yml
+doppler run -- ansible-playbook playbooks/site.yml
 
 # Post-deploy validation
-doppler run -- pipx run ansible-playbook playbooks/validate.yml
+doppler run -- ansible-playbook playbooks/validate.yml
 ```
 
 ### Troubleshooting
@@ -57,13 +57,13 @@ doppler run -- pipx run ansible-playbook playbooks/validate.yml
 
 1. Edit `roles/splunk_docker/vars/splunkbase_apps.yml` - add entry or set `enabled: true`
 2. Download archive from Splunkbase and place in `roles/splunk_docker/files/`
-3. Re-run `doppler run -- pipx run ansible-playbook playbooks/site.yml`
+3. Re-run `doppler run -- ansible-playbook playbooks/site.yml`
 
 ### Adding Custom Add-ons
 
 1. Place `.tar` or `.tgz` in `roles/splunk_docker/files/`
 2. Add entry to `roles/splunk_docker/vars/custom_addons.yml`
-3. Re-run `doppler run -- pipx run ansible-playbook playbooks/site.yml`
+3. Re-run `doppler run -- ansible-playbook playbooks/site.yml`
 
 ## MCP Server Tools
 
@@ -89,7 +89,7 @@ All secrets retrieved from Doppler at runtime. Required secrets:
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
 ```bash
-doppler run -- pipx run ansible-playbook playbooks/site.yml
+doppler run -- ansible-playbook playbooks/site.yml
 ```
 
 ## Related Repositories

@@ -105,7 +105,7 @@ via the Model Context Protocol (MCP). Configure the MCP client in
 
 ```bash
 # Check MCP Server app is installed and REST API responds
-doppler run -- pipx run ansible-playbook playbooks/validate.yml
+doppler run -- ansible-playbook playbooks/validate.yml
 
 # Direct REST API test
 curl -sk https://<SPLUNK_HOST_IP>:8089/services/apps/local/splunk-mcp-server \
@@ -116,15 +116,15 @@ curl -sk https://<SPLUNK_HOST_IP>:8089/services/apps/local/splunk-mcp-server \
 
 ```bash
 # Full deployment
-doppler run -- pipx run ansible-playbook \
+doppler run -- ansible-playbook \
   playbooks/site.yml
 
 # Validate deployment
-doppler run -- pipx run ansible-playbook \
+doppler run -- ansible-playbook \
   playbooks/validate.yml
 
 # Lint
-pipx run ansible-lint
+ansible-lint
 ```
 
 ## Firewall
