@@ -61,7 +61,17 @@ if stanza_errors:
 else:
     print(f"PASS: all {len(TOKENS)} per-index stanzas rendered with correct tokens")
 
-# Test 3: Empty string token → stanza is skipped entirely
+# Test 3: Each per-index stanza routes to the correct index
+routing_errors = []
+for idx_name in TOKENS:
+    if f"index = {idx_name}" not in result:
+        routing_errors.append(f"  'index = {idx_name}' routing not found")
+if routing_errors:
+    errors.append("FAIL: per-index routing errors:\n" + "\n".join(routing_errors))
+else:
+    print(f"PASS: all {len(TOKENS)} per-index stanzas have correct index routing")
+
+# Test 4: Empty string token → stanza is skipped entirely
 partial_tokens = dict(TOKENS)
 partial_tokens["claude"] = ""  # empty → must be skipped
 result_partial = template.render(
@@ -72,13 +82,13 @@ if "[http://claude]" in result_partial:
 else:
     print("PASS: empty token → stanza is skipped")
 
-# Test 4: No 'legacy' key → no [http://legacy] stanza
+# Test 5: No 'legacy' key → no [http://legacy] stanza
 if "[http://legacy]" in result:
     errors.append("FAIL: legacy stanza rendered when 'legacy' key is absent from token dict")
 else:
     print("PASS: no legacy stanza when 'legacy' token is absent")
 
-# Test 5: Legacy token present → legacy stanza includes 'main' and all index names
+# Test 6: Legacy token present → legacy stanza includes 'main' and all index names
 legacy_token = "eeeeeeee-0000-5000-8000-000000000005"
 tokens_with_legacy = dict(TOKENS)
 tokens_with_legacy["legacy"] = legacy_token
@@ -106,7 +116,7 @@ else:
         else:
             print("PASS: legacy stanza rendered with 'main' and all index names in indexes line")
 
-# Test 6: No token values at all → no per-index stanzas, global [http] still present
+# Test 7: No token values at all → no per-index stanzas, global [http] still present
 result_empty = template.render(
     splunk_docker_indexes=INDEXES, splunk_docker_hec_token_values={}
 )
