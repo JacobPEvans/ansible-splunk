@@ -16,7 +16,7 @@ splunk_docker_custom_addons:
     filename: "splunk-db-connect_{{ splunk_docker_dbconnect_version }}.tar"
 
   - name: VisiCore TA for AI Observability
-    filename: "VisiCore_TA_AI_Observability-{{ splunk_docker_visicore_ai_version }}.tar.gz"
+    filename: "VisiCore_TA_AI_Observability-{{ splunk_docker_visicore_ai_ta_version }}.tar.gz"
 
   - name: VisiCore App for AI Observability
-    filename: "VisiCore_App_for_AI_Observability-{{ splunk_docker_visicore_ai_version }}.tar.gz"
+    filename: "VisiCore_App_for_AI_Observability-{{ splunk_docker_visicore_ai_app_version }}.tar.gz"

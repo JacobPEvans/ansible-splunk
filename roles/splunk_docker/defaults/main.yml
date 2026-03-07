@@ -131,9 +131,11 @@ splunk_docker_mssql_driver_enabled: false
 splunk_docker_mssql_driver_version: "12.8.1.jre11"
 
 # Custom add-on version pins (used by vars/custom_addons.yml)
-# TAs must be placed in roles/splunk_docker/files/ as .tar, .tgz, or .spl files
+# TAs must be placed in roles/splunk_docker/files/ as .tar, .tar.gz, .tgz, or .spl files
 splunk_docker_unifi_ta_version: 1.0.2+00b9ecb
 splunk_docker_duck_yeah_version: 234
 # Splunkbase strips dots from version strings in filenames: 4.2.1 -> 421
 splunk_docker_dbconnect_version: "421"
-splunk_docker_visicore_ai_version: "1.0.0"
+# VisiCore TA and App are separate release artifacts with independent version cycles
+splunk_docker_visicore_ai_ta_version: "1.0.0"
+splunk_docker_visicore_ai_app_version: "1.0.0"
