@@ -41,17 +41,21 @@ Internal or third-party TAs not managed via the Splunkbase app registry.
 | `TA-unifi-cloud-{version}.tar` | UniFi Cloud syslog parsing | Internal build |
 | `duck-yeah_{version}.tgz` | Splunk app packaging utilities | Internal |
 | `splunk-db-connect_{version}.tar` | Database connectivity | Splunkbase [#2686](https://splunkbase.splunk.com/app/2686) |
+| `VisiCore_TA_AI_Observability-{version}.tar.gz` | VisiCore TA for AI Observability | VisiCore |
+| `VisiCore_App_for_AI_Observability-{version}.tar.gz` | VisiCore App for AI Observability | VisiCore |
 
 Current expected filenames (from `defaults/main.yml`):
 
 - `TA-unifi-cloud-1.0.2+00b9ecb.tar`
 - `duck-yeah_234.tgz`
 - `splunk-db-connect_421.tar`
+- `VisiCore_TA_AI_Observability-1.0.0.tar.gz`
+- `VisiCore_App_for_AI_Observability-1.0.0.tar.gz`
 
 ## Verification
 
 After placing files, verify with:
 
 ```bash
-ls -la roles/splunk_docker/files/*.{tar,tgz,spl} 2>/dev/null
+ls -la roles/splunk_docker/files/*.{tar,tar.gz,tgz,spl} 2>/dev/null
 ```
