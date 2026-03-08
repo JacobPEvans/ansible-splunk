@@ -1,7 +1,11 @@
+---
 # README validator configuration for ansible-splunk
 # Each README in this repo serves a distinct purpose (role docs, file placement
 # guides, etc.) so no universal required sections apply across all of them.
-required_sections: []
+# required_sections uses YAML list syntax (not inline [] which is unsupported):
+required_sections:
+  - Installation
+  - Usage
 optional_sections:
   - Contributing
   - License

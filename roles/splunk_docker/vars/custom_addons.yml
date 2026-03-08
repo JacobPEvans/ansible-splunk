@@ -2,7 +2,8 @@
 # Custom (non-Splunkbase) Add-ons
 #
 # Internal or third-party TAs not distributed via Splunkbase.
-# Archives must be placed in roles/splunk_docker/files/.
+# Add-ons with 'github_repo' are downloaded automatically from GitHub Releases.
+# All others must be placed manually in roles/splunk_docker/files/.
 # See roles/splunk_docker/files/README.md for details.
 
 splunk_docker_custom_addons:
@@ -16,7 +17,9 @@ splunk_docker_custom_addons:
     filename: "splunk-db-connect_{{ splunk_docker_dbconnect_version }}.tar"
 
   - name: VisiCore TA for AI Observability
-    filename: "VisiCore_TA_AI_Observability-{{ splunk_docker_visicore_ai_ta_version }}.tar.gz"
+    filename: "VisiCore_TA_AI_Observability.spl"
+    github_repo: "JacobPEvans/VisiCore_TA_AI_Observability"
 
   - name: VisiCore App for AI Observability
-    filename: "VisiCore_App_for_AI_Observability-{{ splunk_docker_visicore_ai_app_version }}.tar.gz"
+    filename: "VisiCore_App_for_AI_Observability.spl"
+    github_repo: "JacobPEvans/VisiCore_App_for_AI_Observability"

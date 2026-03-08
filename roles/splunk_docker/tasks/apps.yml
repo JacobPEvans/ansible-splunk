@@ -21,6 +21,20 @@
     group: "{{ splunk_docker_group }}"
     mode: '0755'
 
+# Download custom add-ons that have a github_repo defined.
+# Runs on localhost (the Ansible controller), once per playbook run.
+# get_url is idempotent: skips download if the file already exists.
+- name: Download custom add-ons from GitHub Releases
+  ansible.builtin.get_url:
+    url: "https://github.com/{{ item.github_repo }}/releases/latest/download/{{ item.filename }}"
+    dest: "{{ role_path }}/files/{{ item.filename }}"
+    mode: "0644"
+  loop: "{{ splunk_docker_custom_addons | selectattr('github_repo', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+  run_once: true
+
 # Validate all enabled Splunkbase app archives and custom add-on archives exist
 - name: Set combined list of all apps to validate
   ansible.builtin.set_fact:
