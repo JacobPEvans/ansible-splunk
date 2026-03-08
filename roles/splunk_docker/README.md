@@ -12,6 +12,12 @@ This role:
 - Installs Technology Add-ons (TAs)
 - Applies firewall rules (optional)
 
+## Installation
+
+```bash
+ansible-galaxy collection install -r requirements.yml
+```
+
 ## Requirements
 
 - Debian-based target host
@@ -47,7 +53,7 @@ splunk_docker_addons:
     description: UniFi Cloud Add-on
 ```
 
-## Example Playbook
+## Usage
 
 ```yaml
 - hosts: splunk
