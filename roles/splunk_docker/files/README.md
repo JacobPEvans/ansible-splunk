@@ -3,7 +3,13 @@
 This directory contains Splunk Technology Add-ons (TAs) and apps deployed
 by the `splunk_docker` role. Files are gitignored due to size and licensing.
 
-## Splunkbase Apps (`vars/splunkbase_apps.yml`)
+## Installation
+
+Place app archives in this directory before running the playbook. Add-ons with
+a `github_repo` in `vars/custom_addons.yml` are **downloaded automatically** from
+GitHub Releases — no manual placement needed for those.
+
+### Splunkbase Apps (`vars/splunkbase_apps.yml`)
 
 Download from Splunkbase and place in this directory.
 
@@ -17,14 +23,10 @@ Download from Splunkbase and place in this directory.
 | `ta-ollama_100.tgz` | TA-Ollama | [8024](https://splunkbase.splunk.com/app/8024) | No |
 | `cimplicity-ai_100.tgz` | CIMPlicity AI | [7945](https://splunkbase.splunk.com/app/7945) | No |
 
-### Enabling/Disabling Apps
-
 To enable or disable a Splunkbase app, edit `roles/splunk_docker/vars/splunkbase_apps.yml`
 and set `enabled: true` or `enabled: false` for the relevant entry.
 
 Disabled apps are skipped at install time but remain documented in the registry.
-
-### DSDL Limitations
 
 The Deep Learning Toolkit (DSDL) is deployed **without Docker features**:
 
@@ -32,29 +34,27 @@ The Deep Learning Toolkit (DSDL) is deployed **without Docker features**:
 - TensorFlow/PyTorch container-based workloads are **not available**
 - Enabling container workloads requires Docker-in-Docker on the VM (deferred)
 
-## Custom Add-ons (`vars/custom_addons.yml`)
+### Custom Add-ons (`vars/custom_addons.yml`)
 
 Internal or third-party TAs not managed via the Splunkbase app registry.
 
-| File | Description | Source |
-| ---- | ----------- | ------ |
-| `TA-unifi-cloud-{version}.tar` | UniFi Cloud syslog parsing | Internal build |
-| `duck-yeah_{version}.tgz` | Splunk app packaging utilities | Internal |
-| `splunk-db-connect_{version}.tar` | Database connectivity | Splunkbase [#2686](https://splunkbase.splunk.com/app/2686) |
-| `VisiCore_TA_AI_Observability-{version}.tar.gz` | VisiCore TA for AI Observability | VisiCore |
-| `VisiCore_App_for_AI_Observability-{version}.tar.gz` | VisiCore App for AI Observability | VisiCore |
+| File | Description | Source | Auto-download |
+| ---- | ----------- | ------ | ------------- |
+| `TA-unifi-cloud-{version}.tar` | UniFi Cloud syslog parsing | Internal build | No — place manually |
+| `duck-yeah_{version}.tgz` | Splunk app packaging utilities | Internal | No — place manually |
+| `splunk-db-connect_{version}.tar` | Database connectivity | Splunkbase [#2686](https://splunkbase.splunk.com/app/2686) | No — place manually |
+| `VisiCore_TA_AI_Observability.spl` | VisiCore TA for AI Observability | GitHub Releases (latest) | Yes |
+| `VisiCore_App_for_AI_Observability.spl` | VisiCore App for AI Observability | GitHub Releases (latest) | Yes |
 
-Current expected filenames (from `defaults/main.yml`):
+Manual files (from `defaults/main.yml`):
 
 - `TA-unifi-cloud-1.0.2+00b9ecb.tar`
 - `duck-yeah_234.tgz`
 - `splunk-db-connect_421.tar`
-- `VisiCore_TA_AI_Observability-1.0.0.tar.gz`
-- `VisiCore_App_for_AI_Observability-1.0.0.tar.gz`
 
-## Verification
+## Usage
 
-After placing files, verify with:
+After running the playbook, verify all archives are present:
 
 ```bash
 ls -la roles/splunk_docker/files/*.{tar,tar.gz,tgz,spl} 2>/dev/null

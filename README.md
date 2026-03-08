@@ -28,7 +28,7 @@ Cribl Edge (181/182) ──HEC :8088──> Splunk (200)
                                     os, otel, unifi, vscode
 ```
 
-## Setup
+## Installation
 
 This repo uses a [Nix dev shell][nix-develop] to provide all tools
 (`ansible-playbook`, `ansible-lint`, `molecule`, etc.). Activate it once per worktree:
@@ -38,7 +38,7 @@ direnv allow   # if using direnv (recommended)
 # or: nix develop
 ```
 
-## Quick Start
+## Usage
 
 ```bash
 # 1. Deploy Splunk

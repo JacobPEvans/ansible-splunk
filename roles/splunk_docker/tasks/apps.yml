@@ -21,7 +21,24 @@
     group: "{{ splunk_docker_group }}"
     mode: '0755'
 
-# Validate all enabled Splunkbase app archives and custom add-on archives exist
+# Download custom add-ons that have a github_repo defined.
+# Runs on localhost (the Ansible controller), once per playbook run.
+# get_url is idempotent: skips download if the file already exists.
+- name: Download custom add-ons from GitHub Releases
+  ansible.builtin.get_url:
+    url: "https://github.com/{{ item.github_repo }}/releases/latest/download/{{ item.filename }}"
+    dest: "{{ role_path }}/files/{{ item.filename }}"
+    mode: "0644"
+  loop: "{{ splunk_docker_custom_addons | selectattr('github_repo') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+# Validate all enabled Splunkbase app archives and custom add-on archives exist.
+# Runs on localhost (controller) because archives live in role_path/files/ on
+# the controller, not on the managed host.
 - name: Set combined list of all apps to validate
   ansible.builtin.set_fact:
     splunk_docker_all_apps_to_validate: >-
@@ -35,6 +52,8 @@
   loop_control:
     label: "{{ item.name }}"
   register: splunk_docker_archive_stat
+  delegate_to: localhost
+  run_once: true
 
 - name: Fail if any app archive is missing
   ansible.builtin.fail:
@@ -44,6 +63,11 @@
       Download app '{{ item.item.name }}' (Splunkbase ID: {{ item.item.splunkbase_id }})
       and place it in roles/splunk_docker/files/.
       See roles/splunk_docker/files/README.md for download instructions.
+      {%- elif item.item.github_repo is defined -%}
+      Missing add-on archive: {{ item.item.filename }}
+      Auto-download from github.com/{{ item.item.github_repo }} failed.
+      Check controller internet access and verify the GitHub Release asset exists.
+      See roles/splunk_docker/files/README.md for details.
       {%- else -%}
       Missing add-on archive: {{ item.item.filename }}
       Place it in roles/splunk_docker/files/.
