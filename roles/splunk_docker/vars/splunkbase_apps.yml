@@ -13,7 +13,11 @@
 #   splunkbase_id: Splunkbase app ID (for reference / download URL)
 #   version:       Version string (for documentation)
 #   filename:      Archive filename in roles/splunk_docker/files/
+#                  NOTE: Verify exact filename from Splunkbase at download time --
+#                  naming conventions vary between apps.
 #   enabled:       true to install, false to skip
+#   required:      true = deployment fails if archive missing or app disabled
+#                  false = skip with warning if archive missing (default)
 #   depends_on:    List of app names that must be installed first
 
 splunk_docker_apps:
@@ -24,6 +28,49 @@ splunk_docker_apps:
     version: "1.0.1"
     filename: "splunk-mcp-server_101.tgz"
     enabled: true
+    required: true
+    depends_on: []
+
+  # --- Core: Common Information Model (CIM) ---
+  # Provides the schema for CIM-compliant data models.
+  # Required by MLTK and many other apps.
+  - name: Splunk_SA_CIM
+    splunkbase_id: 1621
+    version: "5.3.2"
+    filename: "splunk-common-information-model-cim_532.tgz"
+    enabled: true
+    required: true
+    depends_on: []
+
+  # --- Core: Splunk AI Assistant for SPL ---
+  # AI-assisted SPL authoring inside Search. Requires cloud connectivity
+  # for AI inference at runtime; the app itself is installed locally.
+  - name: splunk_ai_assistant_for_spl
+    splunkbase_id: 7245
+    version: "2.0.0"
+    filename: "splunk-ai-assistant-for-spl_200.tgz"
+    enabled: true
+    required: true
+    depends_on: []
+
+  # --- Core: Alerts for Splunk Admins ---
+  # Operational health checks and alerts for Splunk administrators.
+  - name: SplunkAdmins
+    splunkbase_id: 3796
+    version: "3.7.0"
+    filename: "alerts-for-splunk-admins_370.tgz"
+    enabled: true
+    required: true
+    depends_on: []
+
+  # --- Core: TA for Splunk Admins ---
+  # Companion TA for the Alerts for Splunk Admins app.
+  - name: TA-SplunkAdmins
+    splunkbase_id: 6518
+    version: "2.0.0"
+    filename: "ta-for-splunk-admins_200.tgz"
+    enabled: true
+    required: true
     depends_on: []
 
   # --- ML Foundation: Python for Scientific Computing ---
@@ -32,6 +79,7 @@ splunk_docker_apps:
     version: "4.3.0"
     filename: "python-for-scientific-computing-for-linux-64-bit_430.tgz"
     enabled: true
+    required: true
     depends_on: []
 
   # --- ML Toolkit (requires PSC) ---
@@ -40,6 +88,7 @@ splunk_docker_apps:
     version: "5.5.0"
     filename: "splunk-machine-learning-toolkit_550.tgz"
     enabled: true
+    required: true
     depends_on:
       - python_for_scientific_computing
 
@@ -52,6 +101,7 @@ splunk_docker_apps:
     version: "5.1.0"
     filename: "splunk-app-for-data-science-and-deep-learning_510.tgz"
     enabled: true
+    required: true
     depends_on:
       - python_for_scientific_computing
 
@@ -61,6 +111,7 @@ splunk_docker_apps:
     version: "1.0.0"
     filename: "local-ai-assistant_100.tgz"
     enabled: false
+    required: false
     depends_on: []
 
   # --- Optional: TA-Ollama (disabled - requires Ollama network access) ---
@@ -69,6 +120,7 @@ splunk_docker_apps:
     version: "1.0.0"
     filename: "ta-ollama_100.tgz"
     enabled: false
+    required: false
     depends_on: []
 
   # --- Optional: CIMPlicity AI (disabled - low priority) ---
@@ -77,4 +129,5 @@ splunk_docker_apps:
     version: "1.0.0"
     filename: "cimplicity-ai_100.tgz"
     enabled: false
+    required: false
     depends_on: []

@@ -36,34 +36,102 @@
   become: false
   run_once: true
 
-# Validate all enabled Splunkbase app archives and custom add-on archives exist.
-# Runs on localhost (controller) because archives live in role_path/files/ on
-# the controller, not on the managed host.
-- name: Set combined list of all apps to validate
-  ansible.builtin.set_fact:
-    splunk_docker_all_apps_to_validate: >-
-      {{ (splunk_docker_apps | selectattr('enabled', 'equalto', true) | list)
-         + splunk_docker_custom_addons }}
-
-- name: Validate app archives exist
-  ansible.builtin.stat:
-    path: "{{ role_path }}/files/{{ item.filename }}"
-  loop: "{{ splunk_docker_all_apps_to_validate }}"
+# Guard: required apps cannot be disabled.
+# An app marked required: true must also be enabled: true.
+# Apps without a required field default to false (not required).
+- name: Guard - required apps must not be disabled
+  ansible.builtin.fail:
+    msg: >-
+      App '{{ item.name }}' (Splunkbase ID: {{ item.splunkbase_id | default('N/A') }})
+      is marked required: true but enabled: false.
+      Required apps cannot be disabled.
+      Either set enabled: true or change required: false.
+  loop: >-
+    {{ splunk_docker_apps
+       | selectattr('required', 'equalto', true)
+       | selectattr('enabled', 'equalto', false)
+       | list }}
   loop_control:
     label: "{{ item.name }}"
-  register: splunk_docker_archive_stat
+
+# Validate required app archives exist on the controller.
+# Hard fail if any required app's archive is missing -- provides an actionable
+# error with the Splunkbase download URL.
+- name: Check required app archives exist
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/{{ item.filename }}"
+  loop: "{{ splunk_docker_apps | selectattr('required', 'equalto', true) | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: splunk_docker_required_archive_stat
   delegate_to: localhost
   run_once: true
 
-- name: Fail if any app archive is missing
+- name: Fail if required app archive is missing
   ansible.builtin.fail:
-    msg: >
-      {% if item.item.splunkbase_id is defined -%}
-      Missing app archive: {{ item.item.filename }}
+    msg: >-
+      Missing required app archive: {{ item.item.filename }}
       Download app '{{ item.item.name }}' (Splunkbase ID: {{ item.item.splunkbase_id }})
+      from https://splunkbase.splunk.com/app/{{ item.item.splunkbase_id }}
       and place it in roles/splunk_docker/files/.
       See roles/splunk_docker/files/README.md for download instructions.
-      {%- elif item.item.github_repo is defined -%}
+  loop: "{{ splunk_docker_required_archive_stat.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists
+
+# Validate optional (enabled, non-required) app archives.
+# Warn when missing -- those apps are skipped at install time.
+- name: Check optional app archives exist
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/{{ item.filename }}"
+  loop: >-
+    {{ splunk_docker_apps
+       | selectattr('enabled', 'equalto', true)
+       | rejectattr('required', 'equalto', true)
+       | list }}
+  loop_control:
+    label: "{{ item.name }}"
+  register: splunk_docker_optional_archive_stat
+  delegate_to: localhost
+  run_once: true
+
+- name: Warn if optional app archive is missing (will be skipped)
+  ansible.builtin.debug:
+    msg: >-
+      Optional app archive missing: {{ item.item.filename }}.
+      App '{{ item.item.name }}' (Splunkbase ID: {{ item.item.splunkbase_id | default('N/A') }}) will be skipped.
+      To install, download from https://splunkbase.splunk.com/app/{{ item.item.splunkbase_id | default('N/A') }}
+      and place it in roles/splunk_docker/files/.
+  loop: "{{ splunk_docker_optional_archive_stat.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists
+
+- name: Build list of installable optional apps
+  ansible.builtin.set_fact:
+    splunk_docker_optional_apps_present: >-
+      {{ splunk_docker_optional_archive_stat.results | default([])
+         | selectattr('stat.exists', 'equalto', true)
+         | map(attribute='item')
+         | list }}
+
+# Validate custom add-on archives exist on the controller.
+# Runs on localhost (controller) because archives live in role_path/files/.
+- name: Check custom add-on archives exist
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/{{ item.filename }}"
+  loop: "{{ splunk_docker_custom_addons }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: splunk_docker_custom_addon_stat
+  delegate_to: localhost
+  run_once: true
+
+- name: Fail if custom add-on archive is missing
+  ansible.builtin.fail:
+    msg: >-
+      {% if item.item.github_repo is defined -%}
       Missing add-on archive: {{ item.item.filename }}
       Auto-download from github.com/{{ item.item.github_repo }} failed.
       Check controller internet access and verify the GitHub Release asset exists.
@@ -73,26 +141,27 @@
       Place it in roles/splunk_docker/files/.
       See roles/splunk_docker/files/README.md for details.
       {%- endif %}
-  loop: "{{ splunk_docker_archive_stat.results }}"
+  loop: "{{ splunk_docker_custom_addon_stat.results }}"
   loop_control:
     label: "{{ item.item.name }}"
   when: not item.stat.exists
 
-# Install all enabled apps in dependency order using a two-pass approach:
-# pass 1 - no-dep apps (depends_on: []) and custom add-ons
-# pass 2 - apps with dependencies (after their deps are installed)
-# NOTE: Only single-level dependencies are supported. Transitive deps
-# (A -> B -> C) are not handled; all current apps use direct deps only.
-- name: Install all enabled apps and add-ons in order
+# Install all apps in a single flat loop:
+#   1. required apps (all archives validated above)
+#   2. optional apps where archive is present
+#   3. custom add-ons (all archives validated above)
+# All archives are extracted before the container restart; Splunk resolves
+# app dependencies at runtime.
+- name: Install apps and add-ons
   ansible.builtin.unarchive:
     src: "{{ role_path }}/files/{{ item.filename }}"
     dest: "{{ splunk_docker_etc_dir }}/apps/"
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
   loop: >-
-    {{ (splunk_docker_apps | selectattr('enabled', 'equalto', true) | selectattr('depends_on', 'equalto', []) | list)
-       + splunk_docker_custom_addons
-       + (splunk_docker_apps | selectattr('enabled', 'equalto', true) | rejectattr('depends_on', 'equalto', []) | list) }}
+    {{ (splunk_docker_apps | selectattr('required', 'equalto', true) | list)
+       + splunk_docker_optional_apps_present
+       + splunk_docker_custom_addons }}
   loop_control:
     label: "{{ item.name }}"
   notify: Restart Splunk container

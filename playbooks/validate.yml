@@ -15,6 +15,7 @@
 
   vars_files:
     - ../roles/splunk_docker/defaults/main.yml
+    - ../roles/splunk_docker/vars/splunkbase_apps.yml
 
   vars:
     validation_results: []
@@ -178,38 +179,32 @@
         validation_results: "{{ validation_results + [{'check': 'Firewall configured', 'passed': firewall_script.stat.exists}] }}"
       when: splunk_docker_firewall_enabled | default(false)
 
-    - name: Check Splunk ML apps are installed
+    - name: Check required Splunk apps are installed
       ansible.builtin.stat:
-        path: "{{ splunk_docker_etc_dir }}/apps/{{ item.dir }}"
-      loop:
-        - {name: PSC, dir: python_for_scientific_computing, check: 'PSC app installed'}
-        - {name: MLTK, dir: Splunk_ML_Toolkit, check: 'MLTK app installed'}
-        - {name: DSDL, dir: Splunk_DSDL, check: 'DSDL app installed'}
+        path: "{{ splunk_docker_etc_dir }}/apps/{{ item.name }}"
+      loop: "{{ splunk_docker_apps | selectattr('required', 'equalto', true) | list }}"
       loop_control:
         label: "{{ item.name }}"
-      register: splunk_docker_ml_app_checks
+      register: splunk_docker_required_app_checks
 
-    - name: Record Splunk ML app installation status
+    - name: Record required app installation status
       ansible.builtin.set_fact:
         validation_results: >-
-          {{ validation_results + [{'check': item.item.check, 'passed': item.stat.exists}] }}
-      loop: "{{ splunk_docker_ml_app_checks.results }}"
+          {{ validation_results + [{'check': item.item.name + ' app installed', 'passed': item.stat.exists}] }}
+      loop: "{{ splunk_docker_required_app_checks.results }}"
       loop_control:
         label: "{{ item.item.name }}"
 
-    - name: Check MCP Server app is installed
-      ansible.builtin.stat:
-        path: "{{ splunk_docker_etc_dir }}/apps/splunk-mcp-server"
-      register: splunk_docker_mcp_app_check
-
-    - name: Record MCP Server app status
+    - name: Set MCP Server app existence flag
       ansible.builtin.set_fact:
-        validation_results: >-
-          {{ validation_results + [{'check': 'MCP Server app installed', 'passed': splunk_docker_mcp_app_check.stat.exists}] }}
+        splunk_docker_mcp_app_exists: >-
+          {{ (splunk_docker_required_app_checks.results
+              | selectattr('item.name', 'equalto', 'splunk-mcp-server')
+              | list | first | default({'stat': {'exists': false}})).stat.exists }}
 
     - name: Validate MCP Server REST API
       when:
-        - splunk_docker_mcp_app_check.stat.exists
+        - splunk_docker_mcp_app_exists
         - lookup('env', 'SPLUNK_PASSWORD') | length > 0
       block:
         - name: Check MCP Server REST API responds

@@ -27,6 +27,8 @@
     "Plicity",
     "sourcetypes",
     "Sourcetype",
+    "SplunkAdmins",
+    "splunkadmins",
     "Splunkbase",
     "Splunkd",
     "thaweddb",
