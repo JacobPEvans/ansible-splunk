@@ -142,7 +142,7 @@
       Place it in roles/splunk_docker/files/.
       See roles/splunk_docker/files/README.md for details.
       {%- endif %}
-  loop: "{{ splunk_docker_custom_addon_stat.results }}"
+  loop: "{{ splunk_docker_custom_addon_stat.results | default([]) }}"
   loop_control:
     label: "{{ item.item.name }}"
   when: not item.stat.exists
@@ -153,6 +153,10 @@
 #   3. custom add-ons (all archives validated above)
 # All archives are extracted before the container restart; Splunk resolves
 # app dependencies at runtime.
+# NOTE: The registry entries may carry a `depends_on` field. That field is
+# informational only -- this loop installs all apps in a single pass and does
+# not consult depends_on. Splunk handles inter-app dependency resolution at
+# startup.
 - name: Install apps and add-ons
   ansible.builtin.unarchive:
     src: "{{ role_path }}/files/{{ item.filename }}"
