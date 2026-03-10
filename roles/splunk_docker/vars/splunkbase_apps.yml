@@ -18,7 +18,6 @@
 #   enabled:       true to install, false to skip
 #   required:      true = deployment fails if archive missing or app disabled
 #                  false = skip with warning if archive missing (default)
-#   depends_on:    List of app names that must be installed first
 
 splunk_docker_apps:
 
@@ -29,7 +28,6 @@ splunk_docker_apps:
     filename: "splunk-mcp-server_101.tgz"
     enabled: true
     required: true
-    depends_on: []
 
   # --- Core: Common Information Model (CIM) ---
   # Provides the schema for CIM-compliant data models.
@@ -40,7 +38,6 @@ splunk_docker_apps:
     filename: "splunk-common-information-model-cim_532.tgz"
     enabled: true
     required: true
-    depends_on: []
 
   # --- Core: Splunk AI Assistant for SPL ---
   # AI-assisted SPL authoring inside Search. Requires cloud connectivity
@@ -51,7 +48,6 @@ splunk_docker_apps:
     filename: "splunk-ai-assistant-for-spl_200.tgz"
     enabled: true
     required: true
-    depends_on: []
 
   # --- Core: Alerts for Splunk Admins ---
   # Operational health checks and alerts for Splunk administrators.
@@ -61,7 +57,6 @@ splunk_docker_apps:
     filename: "alerts-for-splunk-admins_370.tgz"
     enabled: true
     required: true
-    depends_on: []
 
   # --- Core: TA for Splunk Admins ---
   # Companion TA for the Alerts for Splunk Admins app.
@@ -71,7 +66,6 @@ splunk_docker_apps:
     filename: "ta-for-splunk-admins_200.tgz"
     enabled: true
     required: true
-    depends_on: []
 
   # --- ML Foundation: Python for Scientific Computing ---
   - name: python_for_scientific_computing
@@ -80,19 +74,16 @@ splunk_docker_apps:
     filename: "python-for-scientific-computing-for-linux-64-bit_430.tgz"
     enabled: true
     required: true
-    depends_on: []
 
-  # --- ML Toolkit (requires PSC) ---
+  # --- ML Toolkit ---
   - name: Splunk_ML_Toolkit
     splunkbase_id: 2890
     version: "5.5.0"
     filename: "splunk-machine-learning-toolkit_550.tgz"
     enabled: true
     required: true
-    depends_on:
-      - python_for_scientific_computing
 
-  # --- Deep Learning Toolkit (requires PSC) ---
+  # --- Deep Learning Toolkit ---
   # Deployed WITHOUT Docker features (no Docker socket passthrough).
   # Jupyter Lab notebooks work; TensorFlow/PyTorch container workloads
   # are deferred until Docker-in-Docker is configured on the VM.
@@ -102,8 +93,6 @@ splunk_docker_apps:
     filename: "splunk-app-for-data-science-and-deep-learning_510.tgz"
     enabled: true
     required: true
-    depends_on:
-      - python_for_scientific_computing
 
   # --- Optional: Local AI (disabled - requires Ollama network access) ---
   - name: local_ai_assistant
@@ -112,7 +101,6 @@ splunk_docker_apps:
     filename: "local-ai-assistant_100.tgz"
     enabled: false
     required: false
-    depends_on: []
 
   # --- Optional: TA-Ollama (disabled - requires Ollama network access) ---
   - name: TA-ollama
@@ -121,7 +109,6 @@ splunk_docker_apps:
     filename: "ta-ollama_100.tgz"
     enabled: false
     required: false
-    depends_on: []
 
   # --- Optional: CIMPlicity AI (disabled - low priority) ---
   - name: CIMPlicity
@@ -130,4 +117,3 @@ splunk_docker_apps:
     filename: "cimplicity-ai_100.tgz"
     enabled: false
     required: false
-    depends_on: []
