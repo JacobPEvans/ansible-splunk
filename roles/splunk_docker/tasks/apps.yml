@@ -53,6 +53,7 @@
        | list }}
   loop_control:
     label: "{{ item.name }}"
+  run_once: true
 
 # Validate required app archives exist on the controller.
 # Hard fail if any required app's archive is missing -- provides an actionable
