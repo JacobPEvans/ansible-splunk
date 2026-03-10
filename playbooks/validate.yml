@@ -15,7 +15,6 @@
 
   vars_files:
     - ../roles/splunk_docker/defaults/main.yml
-    - ../roles/splunk_docker/vars/splunkbase_apps.yml
 
   vars:
     validation_results: []
@@ -179,6 +178,11 @@
         validation_results: "{{ validation_results + [{'check': 'Firewall configured', 'passed': firewall_script.stat.exists}] }}"
       when: splunk_docker_firewall_enabled | default(false)
 
+    - name: Load Splunkbase app registry
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../roles/splunk_docker/vars/splunkbase_apps.yml"
+      when: splunk_docker_apps is not defined
+
     - name: Check required Splunk apps are installed
       ansible.builtin.stat:
         path: "{{ splunk_docker_etc_dir }}/apps/{{ item.name }}"
@@ -200,7 +204,7 @@
         splunk_docker_mcp_app_exists: >-
           {{ (splunk_docker_required_app_checks.results
               | selectattr('item.name', 'equalto', 'splunk-mcp-server')
-              | list | first | default({'stat': {'exists': false}})).stat.exists }}
+              | list | first | default({'stat': {'exists': false}})).stat.exists | bool }}
 
     - name: Validate MCP Server REST API
       when:
