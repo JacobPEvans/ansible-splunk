@@ -13,20 +13,29 @@ GitHub Releases — no manual placement needed for those.
 
 Download from Splunkbase and place in this directory.
 
-| File | App | Splunkbase ID | Enabled |
-| ---- | --- | ------------- | ------- |
-| `splunk-mcp-server_101.tgz` | Splunk MCP Server | [7931](https://splunkbase.splunk.com/app/7931) | Yes |
-| `python-for-scientific-computing-for-linux-64-bit_430.tgz` | Python for Scientific Computing | [2882](https://splunkbase.splunk.com/app/2882) | Yes |
-| `splunk-machine-learning-toolkit_550.tgz` | Machine Learning Toolkit | [2890](https://splunkbase.splunk.com/app/2890) | Yes |
-| `splunk-app-for-data-science-and-deep-learning_510.tgz` | Deep Learning Toolkit (DSDL) | [4607](https://splunkbase.splunk.com/app/4607) | Yes |
-| `local-ai-assistant_100.tgz` | Local AI Assistant | [8374](https://splunkbase.splunk.com/app/8374) | No |
-| `ta-ollama_100.tgz` | TA-Ollama | [8024](https://splunkbase.splunk.com/app/8024) | No |
-| `cimplicity-ai_100.tgz` | CIMPlicity AI | [7945](https://splunkbase.splunk.com/app/7945) | No |
+**Required apps** (marked `required: true`) cause deployment to fail if their archive is missing.
+Verify the exact filename from Splunkbase at download time — naming conventions vary between apps.
+
+| File | App | Splunkbase ID | Required | Enabled |
+| ---- | --- | ------------- | -------- | ------- |
+| `splunk-mcp-server_101.tgz` | Splunk MCP Server | [7931](https://splunkbase.splunk.com/app/7931) | Yes | Yes |
+| `splunk-common-information-model-cim_532.tgz` | Common Information Model (CIM) | [1621](https://splunkbase.splunk.com/app/1621) | Yes | Yes |
+| `splunk-ai-assistant-for-spl_200.tgz` | Splunk AI Assistant for SPL | [7245](https://splunkbase.splunk.com/app/7245) | Yes | Yes |
+| `alerts-for-splunk-admins_370.tgz` | Alerts for Splunk Admins (SplunkAdmins) | [3796](https://splunkbase.splunk.com/app/3796) | Yes | Yes |
+| `ta-for-splunk-admins_200.tgz` | TA for Splunk Admins (TA-SplunkAdmins) | [6518](https://splunkbase.splunk.com/app/6518) | Yes | Yes |
+| `python-for-scientific-computing-for-linux-64-bit_430.tgz` | Python for Scientific Computing | [2882](https://splunkbase.splunk.com/app/2882) | Yes | Yes |
+| `splunk-machine-learning-toolkit_550.tgz` | Machine Learning Toolkit | [2890](https://splunkbase.splunk.com/app/2890) | Yes | Yes |
+| `splunk-app-for-data-science-and-deep-learning_510.tgz` | Deep Learning Toolkit (DSDL) | [4607](https://splunkbase.splunk.com/app/4607) | Yes | Yes |
+| `local-ai-assistant_100.tgz` | Local AI Assistant | [8374](https://splunkbase.splunk.com/app/8374) | No | No |
+| `ta-ollama_100.tgz` | TA-Ollama | [8024](https://splunkbase.splunk.com/app/8024) | No | No |
+| `cimplicity-ai_100.tgz` | CIMPlicity AI | [7945](https://splunkbase.splunk.com/app/7945) | No | No |
 
 To enable or disable a Splunkbase app, edit `roles/splunk_docker/vars/splunkbase_apps.yml`
 and set `enabled: true` or `enabled: false` for the relevant entry.
 
-Disabled apps are skipped at install time but remain documented in the registry.
+Required apps (`required: true`) cannot be disabled — deployment will fail with an actionable
+error if the archive is missing or the app is disabled. Optional apps are skipped with a
+warning if their archive is not present.
 
 The Deep Learning Toolkit (DSDL) is deployed **without Docker features**:
 
