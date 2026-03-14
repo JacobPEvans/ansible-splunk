@@ -63,9 +63,11 @@ jobs:
               - '.ansible-lint'
               - '.yamllint'
               - 'requirements.yml'
+              - '.github/workflows/_ci.yml'
             molecule:
               - 'molecule/**'
               - 'roles/**'
+              - '.github/workflows/_molecule.yml'
 
   # ==========================================================================
   # CONDITIONAL CHECKS (call reusable workflows)
