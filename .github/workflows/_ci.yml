@@ -2,10 +2,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
@@ -106,7 +103,6 @@ jobs:
   verify-inventory:
     name: Verify Inventory Load
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
