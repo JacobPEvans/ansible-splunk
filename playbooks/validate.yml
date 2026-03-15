@@ -121,7 +121,8 @@
 
     - name: Test HEC endpoint per index token
       ansible.builtin.uri:
-        url: "http://localhost:{{ splunk_docker_hec_port }}/services/collector/event"
+        url: "https://localhost:{{ splunk_docker_hec_port }}/services/collector/event"
+        validate_certs: false
         method: POST
         headers:
           Authorization: "Splunk {{ splunk_docker_hec_token_values[item.name] }}"

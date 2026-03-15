@@ -46,11 +46,10 @@ splunk_docker_wait_enabled: true
 # which otherwise cause ~80-second DNS timeout delays on every page load.
 splunk_docker_allow_internet_access: false
 
-# NOTE: HEC SSL is managed by the Splunk Docker image itself.
-# This deployment intentionally uses HTTP for HEC (port 8088) because:
-# - Internal network only (Cribl Edge -> Splunk communication)
-# - SSL adds overhead with no security benefit in this trusted segment
-# The Splunk Docker image defaults to HTTP unless explicitly configured for SSL.
+# NOTE: HEC uses HTTPS by default (the Splunk Docker image enables SSL).
+# Clients (Cribl Edge, Cribl Stream) must send to https://<host>:<hec_port>.
+# The inputs.conf template does not set enableSSL, so the image default
+# (SSL enabled) applies. Do not change this without updating all HEC senders.
 
 # Splunk data directories
 splunk_docker_data_dir: /opt/splunk
