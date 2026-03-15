@@ -47,7 +47,7 @@ splunk_docker_wait_enabled: true
 splunk_docker_allow_internet_access: false
 
 # NOTE: HEC uses HTTPS by default (the Splunk Docker image enables SSL).
-# Clients (Cribl Edge, Cribl Stream) must send to https://<host>:8088.
+# Clients (Cribl Edge, Cribl Stream) must send to https://<host>:<hec_port>.
 # The inputs.conf template does not set enableSSL, so the image default
 # (SSL enabled) applies. Do not change this without updating all HEC senders.
 
