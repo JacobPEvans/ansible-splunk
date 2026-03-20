@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.5.0...v0.6.0) (2026-03-19)
 
-
 ### Features
 
 * add daily repo health audit agentic workflow ([#91](https://github.com/JacobPEvans/ansible-splunk/issues/91)) ([d7e0880](https://github.com/JacobPEvans/ansible-splunk/commit/d7e08806a03481984477c529b8a1da68b9e80c88))
@@ -26,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * per-index HEC tokens via UUID v5 derivation ([8baabc3](https://github.com/JacobPEvans/ansible-splunk/commit/8baabc3288fa4f3ebcdbf09b2d98a2a5e72cc702))
 * **renovate:** extend shared preset, remove duplicated rules ([7a21afb](https://github.com/JacobPEvans/ansible-splunk/commit/7a21afb124a8c96e1f7f3670dfedcdd349521560))
 
-
 ### Bug Fixes
 
 * **ci:** add pull-requests: write for release-please auto-approval ([#97](https://github.com/JacobPEvans/ansible-splunk/issues/97)) ([c2112c1](https://github.com/JacobPEvans/ansible-splunk/commit/c2112c1878dd6502c8fd029c5b0607334c13e135))
@@ -38,7 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * migrate release-please config to packages format ([4090064](https://github.com/JacobPEvans/ansible-splunk/commit/4090064b5895eafd967198f7979c9ec33be3d37a))
 * use packages attr, add doppler, gitignore .direnv ([#78](https://github.com/JacobPEvans/ansible-splunk/issues/78)) ([2a05c4f](https://github.com/JacobPEvans/ansible-splunk/commit/2a05c4f0f8bf50281e9c2e9bb13774bebb7bea1c))
 
-
 ### Performance
 
 * **ci:** cut Molecule runtime from ~30min to ~8min ([#56](https://github.com/JacobPEvans/ansible-splunk/issues/56)) ([ef179a4](https://github.com/JacobPEvans/ansible-splunk/commit/ef179a40513e328f3feb59cfb3d18e9f80a2901a))
@@ -49,55 +46,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Configure HEC token via inputs.conf template (#31)
-- Add JRE-21 and Splunk DB Connect support (#30)
-- Add `ai` and `claude` Splunk indexes (#24)
-- Add `netflow` index for NetFlow/IPFIX data (#16)
-- Pipeline sync: standardize env vars, fix HEC config (#19)
+* Configure HEC token via inputs.conf template (#31)
+* Add JRE-21 and Splunk DB Connect support (#30)
+* Add `ai` and `claude` Splunk indexes (#24)
+* Add `netflow` index for NetFlow/IPFIX data (#16)
+* Pipeline sync: standardize env vars, fix HEC config (#19)
 
 ### Fixed
 
-- Use `include_role` in post_tasks so role defaults are available (#35)
-- Remove quotes from inputs.conf values and add post-restart health check (#34)
-- Use `ansible_facts` dict to avoid `INJECT_FACTS_AS_VARS` deprecation (#33)
-- Allow all custom indexes in HEC token (#32)
-- Correct `splunk_vm` key path in `load_terraform.yml` (#25)
-- Disable internet access checks for air-gapped Splunk VM (#23)
-- Complete pipeline sync: license, inventory paths, HEC config (#20)
-- Disable guest iptables in favor of Proxmox firewall (#14)
+* Use `include_role` in post_tasks so role defaults are available (#35)
+* Remove quotes from inputs.conf values and add post-restart health check (#34)
+* Use `ansible_facts` dict to avoid `INJECT_FACTS_AS_VARS` deprecation (#33)
+* Allow all custom indexes in HEC token (#32)
+* Correct `splunk_vm` key path in `load_terraform.yml` (#25)
+* Disable internet access checks for air-gapped Splunk VM (#23)
+* Complete pipeline sync: license, inventory paths, HEC config (#20)
+* Disable guest iptables in favor of Proxmox firewall (#14)
 
 ### Changed
 
-- Rewrite README for accuracy and AI-agent readability (fixes role name,
+* Rewrite README for accuracy and AI-agent readability (fixes role name,
   retention values, variable names, and missing indexes)
-- Config standardization and CI dedup (#37)
-- Consolidated to single `splunk_docker` role (previously multiple roles)
-- All variable names prefixed with `splunk_docker_` for ansible-lint compliance
+* Config standardization and CI dedup (#37)
+* Consolidated to single `splunk_docker` role (previously multiple roles)
+* All variable names prefixed with `splunk_docker_` for ansible-lint compliance
 
 ## [0.2.0] - 2026-01-18
 
 ### Fixed
 
-- **BREAKING**: Fixed Doppler secret retrieval - now correctly uses
+* **BREAKING**: Fixed Doppler secret retrieval - now correctly uses
   `SPLUNK_PASSWORD` and `SPLUNK_HEC_TOKEN` environment variables instead
   of incorrectly using `DOPPLER_TOKEN` value as credentials
-- Improved error message for missing environment variables with usage hint
+* Improved error message for missing environment variables with usage hint
 
 ### Added
 
-- Dynamic Terraform inventory integration via `load_terraform.yml` playbook
-- `scripts/sync-terraform-inventory.sh` script to export Terraform outputs
-- Validation playbook (`playbooks/validate.yml`) for deployed Splunk instances
-- Molecule test framework with Docker driver for automated testing
-- GitHub Actions workflows for linting, molecule tests, and syntax validation
-- CONTRIBUTING.md with development guidelines
-- CHANGELOG.md for version tracking
+* Dynamic Terraform inventory integration via `load_terraform.yml` playbook
+* `scripts/sync-terraform-inventory.sh` script to export Terraform outputs
+* Validation playbook (`playbooks/validate.yml`) for deployed Splunk instances
+* Molecule test framework with Docker driver for automated testing
+* GitHub Actions workflows for linting, molecule tests, and syntax validation
+* CONTRIBUTING.md with development guidelines
+* CHANGELOG.md for version tracking
 
 ### Changed
 
-- `playbooks/site.yml` now imports dynamic inventory before deployment
-- `inventory/hosts.yml` updated to support both static and dynamic inventory
-- README.md enhanced with testing, CI/CD, and Doppler setup documentation
+* `playbooks/site.yml` now imports dynamic inventory before deployment
+* `inventory/hosts.yml` updated to support both static and dynamic inventory
+* README.md enhanced with testing, CI/CD, and Doppler setup documentation
 
 ## [0.1.0] - 2026-01-17
 
@@ -105,13 +102,13 @@ Initial release with core Splunk Enterprise deployment automation.
 
 **Features:**
 
-- Splunk Enterprise 9.1.1 deployment automation
-- Data disk mounting and formatting for persistent storage
-- Index configuration (main, `_internal`, `_audit`)
-- HTTP Event Collector (HEC) input setup
-- Syslog input configuration on port 1514
-- Systemd service management with boot-start
-- Admin password and HEC token from Doppler
-- Comprehensive README documentation
-- Pre-commit hooks for YAML and markdown linting
-- ansible-lint configuration
+* Splunk Enterprise 9.1.1 deployment automation
+* Data disk mounting and formatting for persistent storage
+* Index configuration (main, `_internal`, `_audit`)
+* HTTP Event Collector (HEC) input setup
+* Syslog input configuration on port 1514
+* Systemd service management with boot-start
+* Admin password and HEC token from Doppler
+* Comprehensive README documentation
+* Pre-commit hooks for YAML and markdown linting
+* ansible-lint configuration
