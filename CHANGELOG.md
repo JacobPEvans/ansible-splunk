@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2](https://github.com/JacobPEvans/ansible-splunk/compare/v0.6.1...v0.6.2) (2026-03-25)
+
+
+### Bug Fixes
+
+* add Nix dev shell tool execution rule ([#106](https://github.com/JacobPEvans/ansible-splunk/issues/106)) ([3e3b08f](https://github.com/JacobPEvans/ansible-splunk/commit/3e3b08f8e3236db17e3a230e2dc7c4278531a74b))
+* update stale nix-config references to nix-ai ([#105](https://github.com/JacobPEvans/ansible-splunk/issues/105)) ([a657710](https://github.com/JacobPEvans/ansible-splunk/commit/a657710ca9d6589333be699bf32a11b3919c1e1f))
+
 ## [0.6.1](https://github.com/JacobPEvans/ansible-splunk/compare/v0.6.0...v0.6.1) (2026-03-20)
 
 ### Bug Fixes
