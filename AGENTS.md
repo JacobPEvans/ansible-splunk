@@ -75,7 +75,7 @@ The Splunk MCP Server provides these tools for AI agents after deployment:
 | `get_indexes` | List all indexes | Returns 11 custom + system indexes |
 | `get_sourcetypes` | List sourcetypes | Returns ingested sourcetypes |
 
-Configure the MCP client in `~/git/nix-config/main/modules/home-manager/ai-cli/mcp/default.nix`.
+Configure the MCP client in `~/git/nix-ai/main/modules/mcp/default.nix`.
 
 ## Secrets Management
 
@@ -97,4 +97,4 @@ doppler run -- ansible-playbook playbooks/site.yml
 
 - **terraform-proxmox**: VM provisioning and networking
 - **ansible-proxmox-apps**: Other Proxmox applications (Cribl, HAProxy)
-- **nix-config**: MCP client configuration (`modules/home-manager/ai-cli/mcp/`)
+- **nix-ai**: MCP client configuration (`modules/mcp/`)

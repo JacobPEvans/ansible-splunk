@@ -91,7 +91,7 @@ python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('$HEC_NAMESPACE'), 'splunk-h
 
 The Splunk MCP Server (app 7931) enables AI agents to query Splunk directly
 via the Model Context Protocol (MCP). Configure the MCP client in
-`~/git/nix-config/main/modules/home-manager/ai-cli/mcp/default.nix`.
+`~/git/nix-ai/main/modules/mcp/default.nix`.
 
 ### Available MCP Tools
 
