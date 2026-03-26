@@ -78,3 +78,17 @@
       ansible.builtin.include_role:
         name: splunk_docker
         tasks_from: wait_for_splunk
+
+- name: Apply systemd restart policies
+  hosts: splunk
+  become: true
+  gather_facts: false
+  tags:
+    - restart-policy
+    - hardening
+
+  roles:
+    - role: systemd_restart_policy
+      vars:
+        systemd_restart_policy_services:
+          - docker

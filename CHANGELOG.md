@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.2](https://github.com/JacobPEvans/ansible-splunk/compare/v0.6.1...v0.6.2) (2026-03-25)
 
-
 ### Bug Fixes
 
 * add Nix dev shell tool execution rule ([#106](https://github.com/JacobPEvans/ansible-splunk/issues/106)) ([3e3b08f](https://github.com/JacobPEvans/ansible-splunk/commit/3e3b08f8e3236db17e3a230e2dc7c4278531a74b))
