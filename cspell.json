@@ -16,6 +16,7 @@
     "DSDL",
     "exfiltration",
     "Exfiltration",
+    "FQCN",
     "IPFIX",
     "journalctl",
     "makeresults",

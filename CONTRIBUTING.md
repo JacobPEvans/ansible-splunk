@@ -7,7 +7,8 @@ provides guidelines and information for contributors.
 
 ### Prerequisites
 
-- [Nix](https://nixos.org/) with flakes enabled (provides all tools via `flake.nix`)
+- [Nix](https://nixos.org/) with flakes enabled
+- [direnv](https://direnv.net/) (recommended — activates the dev shell automatically)
 - Docker (for molecule tests)
 - Access to Doppler secrets (for integration testing)
 
@@ -23,8 +24,8 @@ provides guidelines and information for contributors.
 2. Activate the nix dev shell (provides `ansible-playbook`, `ansible-lint`, `molecule`, etc.):
 
    ```bash
-   direnv allow   # if using direnv (recommended)
-   # or: nix develop
+   direnv allow   # if using direnv (recommended) — activates nix-devenv#ansible-apps automatically
+   # or: nix develop github:JacobPEvans/nix-devenv#ansible-apps
    ```
 
 3. Install pre-commit hooks:

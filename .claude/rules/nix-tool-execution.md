@@ -1,11 +1,11 @@
 # Tool Execution — Nix Dev Shell
 
-This repo provides all tools via a Nix dev shell (flake.nix + .envrc).
+This repo provides all tools via a Nix dev shell sourced from [nix-devenv](https://github.com/JacobPEvans/nix-devenv) (`.envrc` activates it automatically via direnv).
 
 ## Rules
 
 - Run `ansible`, `ansible-lint`, `molecule`, and other dev shell tools as bare commands
-- If a tool is not found on PATH, it must be added to `flake.nix` — never install globally
+- If a tool is not found on PATH, it must be added to the `ansible-apps` shell in `nix-devenv` — never install globally
 - NEVER use `pipx`, `pip install`, or `uv pip install` to install tools
 - NEVER prefix commands with `uv run` — tools are on PATH from the dev shell
 
