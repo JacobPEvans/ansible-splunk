@@ -30,12 +30,13 @@ Cribl Edge (181/182) ──HEC :8088──> Splunk (200)
 
 ## Installation
 
-This repo uses a [Nix dev shell][nix-develop] to provide all tools
+This repo uses a [Nix dev shell][nix-develop] from
+[nix-devenv](https://github.com/JacobPEvans/nix-devenv) to provide all tools
 (`ansible-playbook`, `ansible-lint`, `molecule`, etc.). Activate it once per worktree:
 
 ```bash
-direnv allow   # if using direnv (recommended)
-# or: nix develop
+direnv allow   # if using direnv (recommended) — activates nix-devenv#ansible-apps automatically
+# or: nix develop github:JacobPEvans/nix-devenv#ansible-apps
 ```
 
 ## Usage
