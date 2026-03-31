@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4](https://github.com/JacobPEvans/ansible-splunk/compare/v0.6.3...v0.6.4) (2026-03-31)
+
+
+### Bug Fixes
+
+* use nix-devenv ansible-apps shell instead of local flake.nix ([#110](https://github.com/JacobPEvans/ansible-splunk/issues/110)) ([d18a3ca](https://github.com/JacobPEvans/ansible-splunk/commit/d18a3ca7e65f6fa028e3f36413ecba376b607323))
+
 ## [0.6.3](https://github.com/JacobPEvans/ansible-splunk/compare/v0.6.2...v0.6.3) (2026-03-26)
 
 ### Bug Fixes
