@@ -24,8 +24,8 @@ provides guidelines and information for contributors.
 2. Activate the nix dev shell (provides `ansible-playbook`, `ansible-lint`, `molecule`, etc.):
 
    ```bash
-   direnv allow   # if using direnv (recommended) — activates nix-devenv#ansible-apps automatically
-   # or: nix develop github:JacobPEvans/nix-devenv#ansible-apps
+   direnv allow   # if using direnv (recommended) — activates nix-devenv?dir=shells/ansible automatically
+   # or: nix develop github:JacobPEvans/nix-devenv?dir=shells/ansible
    ```
 
 3. Install pre-commit hooks:

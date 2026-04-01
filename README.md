@@ -35,8 +35,8 @@ This repo uses a [Nix dev shell][nix-develop] from
 (`ansible-playbook`, `ansible-lint`, `molecule`, etc.). Activate it once per worktree:
 
 ```bash
-direnv allow   # if using direnv (recommended) — activates nix-devenv#ansible-apps automatically
-# or: nix develop github:JacobPEvans/nix-devenv#ansible-apps
+direnv allow   # if using direnv (recommended) — activates nix-devenv?dir=shells/ansible automatically
+# or: nix develop github:JacobPEvans/nix-devenv?dir=shells/ansible
 ```
 
 ## Usage
