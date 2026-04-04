@@ -5,13 +5,19 @@ by the `splunk_docker` role. Files are gitignored due to size and licensing.
 
 ## Installation
 
-Place app archives in this directory before running the playbook. Add-ons with
-a `github_repo` in `vars/custom_addons.yml` are **downloaded automatically** from
-GitHub Releases — no manual placement needed for those.
+Splunkbase apps are **downloaded automatically** via the Splunkbase REST API. Add-ons with
+`github_repo` in `vars/custom_addons.yml` are auto-downloaded from GitHub Releases. Only
+custom add-ons without a download source need manual placement.
 
 ### Splunkbase Apps (`vars/splunkbase_apps.yml`)
 
-Download from Splunkbase and place in this directory.
+Downloaded automatically by `scripts/download-splunkbase-apps.sh`:
+
+```bash
+doppler run -- ./scripts/download-splunkbase-apps.sh
+```
+
+Requires `SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD` in Doppler (iac-conf-mgmt/prd).
 
 **Required apps** (marked `required: true`) cause deployment to fail if their archive is missing.
 Verify the exact filename from Splunkbase at download time — naming conventions vary between apps.
