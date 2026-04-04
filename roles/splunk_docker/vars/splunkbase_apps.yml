@@ -4,8 +4,8 @@
 # Each entry tracks a Splunkbase app with metadata for install,
 # dependency ordering, and validation.
 #
-# App archives must be manually downloaded and placed in
-# roles/splunk_docker/files/ before running the playbook.
+# App archives must be downloaded before running the playbook using:
+#   doppler run -- ./scripts/download-splunkbase-apps.sh
 # See roles/splunk_docker/files/README.md for download instructions.
 #
 # Fields:
@@ -24,8 +24,8 @@ splunk_docker_apps:
   # --- Core: MCP Server ---
   - name: splunk-mcp-server
     splunkbase_id: 7931
-    version: "1.0.1"
-    filename: "splunk-mcp-server_101.tgz"
+    version: "1.1.0"
+    filename: "splunk-mcp-server_110.tgz"
     enabled: true
     required: true
 
@@ -34,8 +34,8 @@ splunk_docker_apps:
   # Required by MLTK and many other apps.
   - name: Splunk_SA_CIM
     splunkbase_id: 1621
-    version: "5.3.2"
-    filename: "splunk-common-information-model-cim_532.tgz"
+    version: "8.5.0"
+    filename: "splunk-common-information-model-cim_850.tgz"
     enabled: true
     required: true
 
@@ -44,8 +44,8 @@ splunk_docker_apps:
   # for AI inference at runtime; the app itself is installed locally.
   - name: splunk_ai_assistant_for_spl
     splunkbase_id: 7245
-    version: "2.0.0"
-    filename: "splunk-ai-assistant-for-spl_200.tgz"
+    version: "1.5.1"
+    filename: "splunk-ai-assistant-for-spl_151.tgz"
     enabled: true
     required: true
 
@@ -53,8 +53,8 @@ splunk_docker_apps:
   # Operational health checks and alerts for Splunk administrators.
   - name: SplunkAdmins
     splunkbase_id: 3796
-    version: "3.7.0"
-    filename: "alerts-for-splunk-admins_370.tgz"
+    version: "4.0.7"
+    filename: "alerts-for-splunk-admins_407.tgz"
     enabled: true
     required: true
 
@@ -62,24 +62,24 @@ splunk_docker_apps:
   # Companion TA for the Alerts for Splunk Admins app.
   - name: TA-SplunkAdmins
     splunkbase_id: 6518
-    version: "2.0.0"
-    filename: "ta-for-splunk-admins_200.tgz"
+    version: "1.0.8"
+    filename: "ta-alerts-for-splunkadmins_108.tgz"
     enabled: true
     required: true
 
   # --- ML Foundation: Python for Scientific Computing ---
   - name: python_for_scientific_computing
     splunkbase_id: 2882
-    version: "4.3.0"
-    filename: "python-for-scientific-computing-for-linux-64-bit_430.tgz"
+    version: "4.3.1"
+    filename: "python-for-scientific-computing-for-linux-64-bit_431.tgz"
     enabled: true
     required: true
 
-  # --- ML Toolkit ---
+  # --- AI Toolkit (formerly ML Toolkit) ---
   - name: Splunk_ML_Toolkit
     splunkbase_id: 2890
-    version: "5.5.0"
-    filename: "splunk-machine-learning-toolkit_550.tgz"
+    version: "5.7.2"
+    filename: "splunk-ai-toolkit_572.tgz"
     enabled: true
     required: true
 
@@ -89,8 +89,8 @@ splunk_docker_apps:
   # are deferred until Docker-in-Docker is configured on the VM.
   - name: Splunk_DSDL
     splunkbase_id: 4607
-    version: "5.1.0"
-    filename: "splunk-app-for-data-science-and-deep-learning_510.tgz"
+    version: "5.2.3"
+    filename: "splunk-app-for-data-science-and-deep-learning_523.tgz"
     enabled: true
     required: true
 
