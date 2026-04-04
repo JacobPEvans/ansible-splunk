@@ -4,8 +4,8 @@
 # Each entry tracks a Splunkbase app with metadata for install,
 # dependency ordering, and validation.
 #
-# App archives are downloaded automatically by scripts/download-splunkbase-apps.sh
-# Run: doppler run -- ./scripts/download-splunkbase-apps.sh
+# App archives must be downloaded before running the playbook using:
+#   doppler run -- ./scripts/download-splunkbase-apps.sh
 # See roles/splunk_docker/files/README.md for download instructions.
 #
 # Fields:

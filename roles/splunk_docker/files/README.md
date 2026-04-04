@@ -5,9 +5,10 @@ by the `splunk_docker` role. Files are gitignored due to size and licensing.
 
 ## Installation
 
-Splunkbase apps are **downloaded automatically** via the Splunkbase REST API. Add-ons with
-`github_repo` in `vars/custom_addons.yml` are auto-downloaded from GitHub Releases. Only
-custom add-ons without a download source need manual placement.
+Splunkbase apps must be **downloaded before running the playbook** using the helper script
+`scripts/download-splunkbase-apps.sh`. Add-ons with `github_repo` in `vars/custom_addons.yml`
+are auto-downloaded from GitHub Releases during the playbook run. Only custom add-ons without
+a download source need manual placement.
 
 ### Splunkbase Apps (`vars/splunkbase_apps.yml`)
 
@@ -17,21 +18,21 @@ Downloaded automatically by `scripts/download-splunkbase-apps.sh`:
 doppler run -- ./scripts/download-splunkbase-apps.sh
 ```
 
-Requires `SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD` in Doppler (iac-conf-mgmt/prd).
+Requires `SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD` from Doppler.
 
 **Required apps** (marked `required: true`) cause deployment to fail if their archive is missing.
 Verify the exact filename from Splunkbase at download time — naming conventions vary between apps.
 
 | File | App | Splunkbase ID | Required | Enabled |
 | ---- | --- | ------------- | -------- | ------- |
-| `splunk-mcp-server_101.tgz` | Splunk MCP Server | [7931](https://splunkbase.splunk.com/app/7931) | Yes | Yes |
-| `splunk-common-information-model-cim_532.tgz` | Common Information Model (CIM) | [1621](https://splunkbase.splunk.com/app/1621) | Yes | Yes |
-| `splunk-ai-assistant-for-spl_200.tgz` | Splunk AI Assistant for SPL | [7245](https://splunkbase.splunk.com/app/7245) | Yes | Yes |
-| `alerts-for-splunk-admins_370.tgz` | Alerts for Splunk Admins (SplunkAdmins) | [3796](https://splunkbase.splunk.com/app/3796) | Yes | Yes |
-| `ta-for-splunk-admins_200.tgz` | TA for Splunk Admins (TA-SplunkAdmins) | [6518](https://splunkbase.splunk.com/app/6518) | Yes | Yes |
-| `python-for-scientific-computing-for-linux-64-bit_430.tgz` | Python for Scientific Computing | [2882](https://splunkbase.splunk.com/app/2882) | Yes | Yes |
-| `splunk-machine-learning-toolkit_550.tgz` | Machine Learning Toolkit | [2890](https://splunkbase.splunk.com/app/2890) | Yes | Yes |
-| `splunk-app-for-data-science-and-deep-learning_510.tgz` | Deep Learning Toolkit (DSDL) | [4607](https://splunkbase.splunk.com/app/4607) | Yes | Yes |
+| `splunk-mcp-server_110.tgz` | Splunk MCP Server | [7931](https://splunkbase.splunk.com/app/7931) | Yes | Yes |
+| `splunk-common-information-model-cim_850.tgz` | Common Information Model (CIM) | [1621](https://splunkbase.splunk.com/app/1621) | Yes | Yes |
+| `splunk-ai-assistant-for-spl_151.tgz` | Splunk AI Assistant for SPL | [7245](https://splunkbase.splunk.com/app/7245) | Yes | Yes |
+| `alerts-for-splunk-admins_407.tgz` | Alerts for Splunk Admins (SplunkAdmins) | [3796](https://splunkbase.splunk.com/app/3796) | Yes | Yes |
+| `ta-alerts-for-splunkadmins_108.tgz` | TA for Splunk Admins (TA-SplunkAdmins) | [6518](https://splunkbase.splunk.com/app/6518) | Yes | Yes |
+| `python-for-scientific-computing-for-linux-64-bit_431.tgz` | Python for Scientific Computing | [2882](https://splunkbase.splunk.com/app/2882) | Yes | Yes |
+| `splunk-ai-toolkit_572.tgz` | Splunk AI Toolkit | [2890](https://splunkbase.splunk.com/app/2890) | Yes | Yes |
+| `splunk-app-for-data-science-and-deep-learning_523.tgz` | Deep Learning Toolkit (DSDL) | [4607](https://splunkbase.splunk.com/app/4607) | Yes | Yes |
 | `local-ai-assistant_100.tgz` | Local AI Assistant | [8374](https://splunkbase.splunk.com/app/8374) | No | No |
 | `ta-ollama_100.tgz` | TA-Ollama | [8024](https://splunkbase.splunk.com/app/8024) | No | No |
 | `cimplicity-ai_100.tgz` | CIMPlicity AI | [7945](https://splunkbase.splunk.com/app/7945) | No | No |

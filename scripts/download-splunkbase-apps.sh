@@ -17,7 +17,8 @@ fi
 echo "Authenticating to Splunkbase..."
 AUTH_RESPONSE=$(curl -sS -X POST \
     "https://splunkbase.splunk.com/api/account:login/" \
-    -d "username=${SPLUNKBASE_USERNAME}&password=${SPLUNKBASE_PASSWORD}")
+    --data-urlencode "username=${SPLUNKBASE_USERNAME}" \
+    --data-urlencode "password=${SPLUNKBASE_PASSWORD}")
 
 TOKEN=$(echo "$AUTH_RESPONSE" | sed -n 's/.*<id>\([^<]*\)<\/id>.*/\1/p')
 if [[ -z "$TOKEN" ]]; then
@@ -32,12 +33,16 @@ _yaml_val() { echo "$1" | sed 's/^[^:]*: *//; s/^"//; s/"$//; s/ *$//'; }
 DOWNLOAD_COUNT=0
 SKIP_COUNT=0
 FAIL_COUNT=0
+REQUIRED_FAIL=0
 APP_ID="" APP_VERSION="" APP_FILENAME="" APP_ENABLED="" APP_REQUIRED=""
 
 while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ -z "${line// /}" ]] && continue
     case "$line" in
+        *"- name:"*)
+            APP_ID="" APP_VERSION="" APP_FILENAME="" APP_ENABLED="" APP_REQUIRED=""
+            ;;
         *"splunkbase_id:"*)
             APP_ID=$(_yaml_val "$line")
             ;;
@@ -71,7 +76,7 @@ while IFS= read -r line; do
                 -H "X-Auth-Token: ${TOKEN}" \
                 -o "${TARGET}" \
                 -w "%{http_code}" \
-                "https://splunkbase.splunk.com/app/${APP_ID}/release/${APP_VERSION}/download/" 2>&1)
+                "https://splunkbase.splunk.com/app/${APP_ID}/release/${APP_VERSION}/download/")
 
             if [[ "$HTTP_CODE" == "200" ]] && [[ -s "$TARGET" ]]; then
                 FILE_SIZE=$(du -h "$TARGET" | cut -f1)
@@ -84,6 +89,9 @@ while IFS= read -r line; do
                 if [[ "$APP_REQUIRED" == "true" ]]; then
                     echo "  ERROR: Required app failed to download"
                     echo "  Manual download: https://splunkbase.splunk.com/app/${APP_ID}"
+                    REQUIRED_FAIL=$((REQUIRED_FAIL + 1))
+                else
+                    echo "  WARNING: Optional app failed (will be skipped during deployment)"
                 fi
             fi
             ;;
@@ -93,6 +101,7 @@ done < "$APPS_YML"
 echo ""
 echo "Summary: ${DOWNLOAD_COUNT} downloaded, ${SKIP_COUNT} skipped, ${FAIL_COUNT} failed"
 
-if [[ $FAIL_COUNT -gt 0 ]]; then
+if [[ $REQUIRED_FAIL -gt 0 ]]; then
+    echo "ERROR: ${REQUIRED_FAIL} required app(s) failed to download"
     exit 1
 fi
