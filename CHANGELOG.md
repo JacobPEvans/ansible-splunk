@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.6.5...v0.7.0) (2026-04-04)
 
-
 ### Features
 
 * add ai and claude Splunk indexes ([#24](https://github.com/JacobPEvans/ansible-splunk/issues/24)) ([a240deb](https://github.com/JacobPEvans/ansible-splunk/commit/a240deb625a5bdced46de42a30c0013ac63f0290))
@@ -33,7 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * pipeline sync - standardize env vars, fix HEC config ([#19](https://github.com/JacobPEvans/ansible-splunk/issues/19)) ([f54ed53](https://github.com/JacobPEvans/ansible-splunk/commit/f54ed53341ce3e13f4a63c0b5a91630a3560045b))
 * refactor app management with Splunkbase registry and expose management port ([#48](https://github.com/JacobPEvans/ansible-splunk/issues/48)) ([9331708](https://github.com/JacobPEvans/ansible-splunk/commit/93317082f189579620c09a89d41032e0d701c24e))
 * **renovate:** extend shared preset, remove duplicated rules ([7a21afb](https://github.com/JacobPEvans/ansible-splunk/commit/7a21afb124a8c96e1f7f3670dfedcdd349521560))
-
 
 ### Bug Fixes
 
@@ -74,7 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * use packages attr, add doppler, gitignore .direnv ([#78](https://github.com/JacobPEvans/ansible-splunk/issues/78)) ([2a05c4f](https://github.com/JacobPEvans/ansible-splunk/commit/2a05c4f0f8bf50281e9c2e9bb13774bebb7bea1c))
 * use role-prefixed variable names for ansible-lint compliance ([d1f9887](https://github.com/JacobPEvans/ansible-splunk/commit/d1f98872f710e78372935ca7e2c36e4a5c23cbc0))
 * use selectattr 'defined' test for github_repo filter ([#101](https://github.com/JacobPEvans/ansible-splunk/issues/101)) ([409cdea](https://github.com/JacobPEvans/ansible-splunk/commit/409cdeae623b2f2d7789289c98d3bc89c60435ca))
-
 
 ### Performance
 
