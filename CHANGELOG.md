@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.1](https://github.com/JacobPEvans/ansible-splunk/compare/v0.8.0...v0.8.1) (2026-04-07)
 
-
 ### Bug Fixes
 
 * restructure CLAUDE.md from wiki to rulebook ([#120](https://github.com/JacobPEvans/ansible-splunk/issues/120)) ([09c4b5b](https://github.com/JacobPEvans/ansible-splunk/commit/09c4b5b3312f6fc4202b29a7134cc9f29e911f80))

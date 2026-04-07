@@ -129,10 +129,15 @@ splunk_docker_java_container_home: "/opt/java"
 splunk_docker_mssql_driver_enabled: false
 splunk_docker_mssql_driver_version: "12.8.1.jre11"
 
-# Custom add-on version pins (used by vars/custom_addons.yml)
-# TAs must be placed in roles/splunk_docker/files/ as .tar, .tar.gz, .tgz, or .spl files
-splunk_docker_unifi_ta_version: 1.0.2+00b9ecb
-splunk_docker_duck_yeah_version: 234
-# Splunkbase strips dots from version strings in filenames: 4.2.1 -> 421
-splunk_docker_dbconnect_version: "421"
+# Artifact store (MinIO)
+# Custom add-ons with artifact_store: true are downloaded from this URL.
+# MinIO bucket has anonymous read policy on internal network (no auth needed).
+# URL is constructed from terraform inventory — container IP + service port.
+# Override in playbook vars or inventory if needed.
+splunk_docker_artifact_base_url: >-
+  http://{{ terraform_data.containers.minio.ip | default('minio') }}:{{
+  terraform_data.constants.service_ports.minio_api | default(9000) }}/splunk-addons
+
 # VisiCore TA and App are downloaded from GitHub Releases (latest) automatically.
+# MinIO-sourced add-ons use version-free filenames — versions are tracked
+# exclusively via MinIO object tags (bucket versioning enabled).

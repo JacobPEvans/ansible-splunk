@@ -5,10 +5,13 @@ by the `splunk_docker` role. Files are gitignored due to size and licensing.
 
 ## Installation
 
-Splunkbase apps must be **downloaded before running the playbook** using the helper script
-`scripts/download-splunkbase-apps.sh`. Add-ons with `github_repo` in `vars/custom_addons.yml`
-are auto-downloaded from GitHub Releases during the playbook run. Only custom add-ons without
-a download source need manual placement.
+This role uses artifacts from three sources:
+
+1. **Splunkbase apps** — downloaded in advance by `scripts/download-splunkbase-apps.sh` (run before playbook)
+2. **MinIO artifact store** — downloaded during playbook run from self-hosted MinIO (`artifact_store: true`)
+3. **GitHub Releases** — downloaded during playbook run from GitHub (`github_repo` field)
+
+Only custom add-ons without either `artifact_store` or `github_repo` need manual placement.
 
 ### Splunkbase Apps (`vars/splunkbase_apps.yml`)
 
@@ -56,22 +59,42 @@ Internal or third-party TAs not managed via the Splunkbase app registry.
 
 | File | Description | Source | Auto-download |
 | ---- | ----------- | ------ | ------------- |
-| `TA-unifi-cloud-{version}.tar` | UniFi Cloud syslog parsing | Internal build | No — place manually |
-| `duck-yeah_{version}.tgz` | Splunk app packaging utilities | Internal | No — place manually |
-| `splunk-db-connect_{version}.tar` | Database connectivity | Splunkbase [#2686](https://splunkbase.splunk.com/app/2686) | No — place manually |
-| `VisiCore_TA_AI_Observability.spl` | VisiCore TA for AI Observability | GitHub Releases (latest) | Yes |
-| `VisiCore_App_for_AI_Observability.spl` | VisiCore App for AI Observability | GitHub Releases (latest) | Yes |
+| `TA-unifi-cloud.tar` | UniFi Cloud syslog parsing | [Splunkbase #7494](https://splunkbase.splunk.com/app/7494) | Yes — MinIO |
+| `duck-yeah.tar` | Splunk app packaging utilities | [Splunkbase #7015](https://splunkbase.splunk.com/app/7015) | Yes — MinIO |
+| `splunk-db-connect.tar` | Database connectivity | [Splunkbase #2686](https://splunkbase.splunk.com/app/2686) | Yes — MinIO |
+| `Splunk_TA_H3_Unifi.tar` | UniFi network device TA | [Splunkbase #7935](https://splunkbase.splunk.com/app/7935) | Yes — MinIO |
+| `ubiquiti-add-on-for-splunk.tar` | Ubiquiti monitoring add-on | [Splunkbase #4107](https://splunkbase.splunk.com/app/4107) | Yes — MinIO |
+| `VisiCore_TA_AI_Observability.spl` | VisiCore TA for AI Observability | GitHub Releases (latest) | Yes — GitHub |
+| `VisiCore_App_for_AI_Observability.spl` | VisiCore App for AI Observability | GitHub Releases (latest) | Yes — GitHub |
 
-Manual files (from `defaults/main.yml`):
+### MinIO Artifact Store
 
-- `TA-unifi-cloud-1.0.2+00b9ecb.tar`
-- `duck-yeah_234.tgz`
-- `splunk-db-connect_421.tar`
+Custom add-ons marked `artifact_store: true` are served from a self-hosted MinIO
+instance (LXC container `minio`, port 9000). The URL is constructed from the
+terraform inventory at runtime. The bucket has anonymous read on the internal
+network — no authentication is needed for downloads.
+
+Filenames are **version-free** — the same name is reused across all versions.
+MinIO bucket versioning retains old versions automatically on re-upload.
+Object tags track `version` and `splunkbase_id` for auditability.
+
+**Uploading a new or updated add-on:**
+
+```bash
+# One-time: configure mc CLI alias (use the MinIO host's FQDN or IP from inventory)
+mc alias set homelab http://minio.<domain>:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
+
+# Upload (strip version from filename, use the canonical object name)
+mc cp ~/Downloads/splunk-db-connect_425.tar homelab/splunk-addons/splunk-db-connect.tar
+mc tag set homelab/splunk-addons/splunk-db-connect.tar "version=4.2.5&splunkbase_id=2686"
+
+# No Ansible changes needed — next playbook run gets the new version
+```
 
 ## Usage
 
 After running the playbook, verify all archives are present:
 
 ```bash
-ls -la roles/splunk_docker/files/*.{tar,tar.gz,tgz,spl} 2>/dev/null
+ls -la roles/splunk_docker/files/*.{tar,tgz,spl} 2>/dev/null
 ```

@@ -62,10 +62,20 @@ doppler run -- ansible-playbook playbooks/validate.yml
 ansible-lint
 ```
 
+## Artifact Store (MinIO)
+
+Custom add-ons that cannot be downloaded from Splunkbase or GitHub
+are served from a self-hosted MinIO instance (LXC container `minio`).
+
+- Bucket: `splunk-addons` (anonymous read on internal network)
+- Add-ons with `artifact_store: true` in `vars/custom_addons.yml` auto-download
+- Upload new versions via `mc cp` — filenames are version-free, versions tracked via MinIO object tags
+- See `roles/splunk_docker/files/README.md` for upload instructions
+
 ## Related Repositories
 
 | Repo | Relationship |
 | --- | --- |
-| terraform-proxmox | Upstream: provisions Splunk VM |
-| ansible-proxmox-apps | Peer: owns Cribl (sends to HEC) |
+| terraform-proxmox | Upstream: provisions Splunk VM + MinIO LXC |
+| ansible-proxmox-apps | Peer: owns Cribl (sends to HEC), deploys MinIO |
 | ansible-proxmox | Peer: Proxmox host config |
