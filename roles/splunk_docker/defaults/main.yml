@@ -132,11 +132,10 @@ splunk_docker_mssql_driver_version: "12.8.1.jre11"
 # Artifact store (MinIO)
 # Custom add-ons with artifact_store: true are downloaded from this URL.
 # MinIO bucket has anonymous read policy on internal network (no auth needed).
-# URL is constructed from terraform inventory — container IP + service port.
-# Override in playbook vars or inventory if needed.
+# IP and port come from terraform inventory — no hardcoded values.
 splunk_docker_artifact_base_url: >-
-  http://{{ terraform_data.containers.minio.ip | default('minio') }}:{{
-  terraform_data.constants.service_ports.minio_api | default(9000) }}/splunk-addons
+  http://{{ terraform_data.containers.minio.ip }}:{{
+  terraform_data.constants.service_ports.minio_api }}/splunk-addons
 
 # VisiCore TA and App are downloaded from GitHub Releases (latest) automatically.
 # MinIO-sourced add-ons use version-free filenames — versions are tracked
