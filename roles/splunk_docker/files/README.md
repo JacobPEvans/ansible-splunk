@@ -5,9 +5,9 @@ by the `splunk_docker` role. Files are gitignored due to size and licensing.
 
 ## Installation
 
-There are three download sources, all handled automatically:
+This role uses artifacts from three sources:
 
-1. **Splunkbase apps** — downloaded by `scripts/download-splunkbase-apps.sh` (run before playbook)
+1. **Splunkbase apps** — downloaded in advance by `scripts/download-splunkbase-apps.sh` (run before playbook)
 2. **MinIO artifact store** — downloaded during playbook run from self-hosted MinIO (`artifact_store: true`)
 3. **GitHub Releases** — downloaded during playbook run from GitHub (`github_repo` field)
 

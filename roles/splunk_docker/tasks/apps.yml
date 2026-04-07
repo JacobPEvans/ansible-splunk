@@ -30,7 +30,7 @@
     url: "{{ splunk_docker_artifact_base_url }}/{{ item.filename }}"
     dest: "{{ role_path }}/files/{{ item.filename }}"
     mode: "0644"
-  loop: "{{ splunk_docker_custom_addons | selectattr('artifact_store', 'defined') | list }}"
+  loop: "{{ splunk_docker_custom_addons | selectattr('artifact_store', 'equalto', true) | list }}"
   loop_control:
     label: "{{ item.name }}"
   delegate_to: localhost
@@ -153,6 +153,11 @@
       Auto-download from github.com/{{ item.item.github_repo }} failed.
       Check controller internet access and verify the GitHub Release asset exists.
       See roles/splunk_docker/files/README.md for details.
+      {%- elif item.item.artifact_store | default(false) -%}
+      Missing add-on archive: {{ item.item.filename }}
+      Auto-download from MinIO artifact store failed.
+      Verify MinIO is running at {{ splunk_docker_artifact_base_url }}
+      and the file exists in the splunk-addons bucket.
       {%- else -%}
       Missing add-on archive: {{ item.item.filename }}
       Place it in roles/splunk_docker/files/.
