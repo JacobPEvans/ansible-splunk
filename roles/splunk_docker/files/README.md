@@ -70,8 +70,9 @@ Internal or third-party TAs not managed via the Splunkbase app registry.
 ### MinIO Artifact Store
 
 Custom add-ons marked `artifact_store: true` are served from a self-hosted MinIO
-instance at `http://10.0.1.107:9000/splunk-addons/`. The bucket has anonymous read
-on the internal network — no authentication is needed for downloads.
+instance (LXC container `minio`, port 9000). The URL is constructed from the
+terraform inventory at runtime. The bucket has anonymous read on the internal
+network — no authentication is needed for downloads.
 
 Filenames are **version-free** — the same name is reused across all versions.
 MinIO bucket versioning retains old versions automatically on re-upload.
@@ -80,8 +81,8 @@ Object tags track `version` and `splunkbase_id` for auditability.
 **Uploading a new or updated add-on:**
 
 ```bash
-# One-time: configure mc CLI alias
-mc alias set homelab http://10.0.1.107:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
+# One-time: configure mc CLI alias (use the MinIO host's FQDN or IP from inventory)
+mc alias set homelab http://minio.<domain>:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
 
 # Upload (strip version from filename, use the canonical object name)
 mc cp ~/Downloads/splunk-db-connect_425.tar homelab/splunk-addons/splunk-db-connect.tar

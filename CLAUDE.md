@@ -65,7 +65,7 @@ ansible-lint
 ## Artifact Store (MinIO)
 
 Custom add-ons that cannot be downloaded from Splunkbase or GitHub
-are served from a self-hosted MinIO instance (LXC VMID 107, `10.0.1.107:9000`).
+are served from a self-hosted MinIO instance (LXC container `minio`).
 
 - Bucket: `splunk-addons` (anonymous read on internal network)
 - Add-ons with `artifact_store: true` in `vars/custom_addons.yml` auto-download
