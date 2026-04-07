@@ -78,8 +78,9 @@ splunk_docker_addons:
 Token = uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")
 ```
 
-The `HEC_NAMESPACE` UUID is stored in Doppler. Any system with the namespace
-can derive tokens locally — no cross-repo secret sharing needed.
+The `HEC_NAMESPACE` UUID is stored in Doppler. Any system with access to that
+namespace can derive tokens locally, reducing secret sharing to a single
+namespace UUID rather than distributing per-index tokens across repos.
 
 ### One-time Doppler Setup
 
@@ -92,10 +93,11 @@ doppler secrets set HEC_NAMESPACE "$(uuidgen)"
 
 1. Add the index to `splunk_docker_indexes` in `defaults/main.yml`
 2. Run `doppler run -- ansible-playbook playbooks/site.yml` — token is auto-derived
-3. Senders derive the same token locally:
+3. Senders derive the same token locally using the exact Splunk index name
+   from `splunk_docker_indexes` as `<index_name>`:
 
 ```bash
-python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('$HEC_NAMESPACE'), 'splunk-hec-<name>'))"
+python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('$HEC_NAMESPACE'), 'splunk-hec-<index_name>'))"
 ```
 
 ## MCP Server Verification

@@ -8,9 +8,10 @@ Splunk runs in Docker on a dedicated VM (VMID 200) — this is a deliberate
 exception to the global LXC-first rule (see `~/git/CLAUDE.md` Container
 Deployment Rules).
 
-**Why Docker:** Splunk Enterprise's official deployment model is Docker
-(`splunk/splunk` image). There is no supported native install path. The
-`splunk_docker` role manages the container lifecycle via Docker Compose.
+**Why Docker:** This repository standardizes on Splunk Enterprise via the
+official `splunk/splunk` Docker image. Native Linux package and tarball
+installs exist, but they are out of scope here. The `splunk_docker` role
+manages the container lifecycle via Docker Compose.
 
 **Implication:** New features and integrations target Docker Compose on
 the Splunk VM. Do not propose LXC migration or new Docker containers
@@ -29,7 +30,7 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
 - **Firewall disabled**: Guest firewall is off
   (`splunk_docker_firewall_enabled: false`). Docker DNAT conflicts with
   iptables FORWARD chain. Proxmox firewall is sole network security
-  (see `terraform-proxmox/modules/firewall/`).
+  (see `~/git/terraform-proxmox/main/modules/firewall/`).
 - **HEC tokens**: Deterministic via
   `uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")`.
   One index = one token. Namespace UUID stored in Doppler.
