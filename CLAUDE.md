@@ -136,10 +136,20 @@ Proxmox firewall manages all network security
 Docker's DNAT conflicts with guest iptables FORWARD
 chain rules.
 
+## Artifact Store (MinIO)
+
+Custom add-ons that cannot be downloaded from Splunkbase or GitHub
+are served from a self-hosted MinIO instance (LXC VMID 107, `10.0.1.107:9000`).
+
+- Bucket: `splunk-addons` (anonymous read on internal network)
+- Add-ons with `artifact_store: true` in `vars/custom_addons.yml` auto-download
+- Upload new versions via `mc cp` then update version pin in `defaults/main.yml`
+- See `roles/splunk_docker/files/README.md` for upload instructions
+
 ## Related Repositories
 
 | Repo | Relationship |
 | --- | --- |
-| terraform-proxmox | Upstream: provisions Splunk VM |
-| ansible-proxmox-apps | Peer: owns Cribl (sends to HEC) |
+| terraform-proxmox | Upstream: provisions Splunk VM + MinIO LXC |
+| ansible-proxmox-apps | Peer: owns Cribl (sends to HEC), deploys MinIO |
 | ansible-proxmox | Peer: Proxmox host config |

@@ -2,19 +2,34 @@
 # Custom (non-Splunkbase) Add-ons
 #
 # Internal or third-party TAs not distributed via Splunkbase.
-# Add-ons with 'github_repo' are downloaded automatically from GitHub Releases.
-# All others must be placed manually in roles/splunk_docker/files/.
+#
+# Download sources:
+#   artifact_store: true  — downloaded from self-hosted MinIO (splunk_docker_artifact_base_url)
+#   github_repo: <owner/repo> — downloaded from GitHub Releases (latest)
+#   neither — must be placed manually in roles/splunk_docker/files/
+#
 # See roles/splunk_docker/files/README.md for details.
 
 splunk_docker_custom_addons:
   - name: TA-unifi-cloud
     filename: "TA-unifi-cloud-{{ splunk_docker_unifi_ta_version }}.tar"
+    artifact_store: true
 
   - name: Duck Yeah
-    filename: "duck-yeah_{{ splunk_docker_duck_yeah_version }}.tgz"
+    filename: "duck-yeah_{{ splunk_docker_duck_yeah_version }}.tar"
+    artifact_store: true
 
   - name: Splunk DB Connect
     filename: "splunk-db-connect_{{ splunk_docker_dbconnect_version }}.tar"
+    artifact_store: true
+
+  - name: Splunk TA H3 UniFi
+    filename: "Splunk_TA_H3_Unifi.tar"
+    artifact_store: true
+
+  - name: Ubiquiti Add-on for Splunk
+    filename: "ubiquiti-add-on-for-splunk_{{ splunk_docker_ubiquiti_addon_version }}.tar"
+    artifact_store: true
 
   - name: VisiCore TA for AI Observability
     filename: "VisiCore_TA_AI_Observability.spl"

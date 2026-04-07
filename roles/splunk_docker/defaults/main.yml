@@ -129,10 +129,16 @@ splunk_docker_java_container_home: "/opt/java"
 splunk_docker_mssql_driver_enabled: false
 splunk_docker_mssql_driver_version: "12.8.1.jre11"
 
+# Artifact store (MinIO LXC — VMID 107)
+# Custom add-ons with artifact_store: true are downloaded from this URL.
+# MinIO bucket has anonymous read policy on internal network (no auth needed).
+splunk_docker_artifact_base_url: "http://10.0.1.107:9000/splunk-addons"
+
 # Custom add-on version pins (used by vars/custom_addons.yml)
-# TAs must be placed in roles/splunk_docker/files/ as .tar, .tar.gz, .tgz, or .spl files
 splunk_docker_unifi_ta_version: 1.0.2+00b9ecb
 splunk_docker_duck_yeah_version: 234
-# Splunkbase strips dots from version strings in filenames: 4.2.1 -> 421
-splunk_docker_dbconnect_version: "421"
+# Splunkbase strips dots from version strings in filenames: 4.2.3 -> 423
+splunk_docker_dbconnect_version: "423"
+splunk_docker_h3_unifi_version: "1.0.0"
+splunk_docker_ubiquiti_addon_version: "136"
 # VisiCore TA and App are downloaded from GitHub Releases (latest) automatically.

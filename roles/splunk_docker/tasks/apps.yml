@@ -21,6 +21,22 @@
     group: "{{ splunk_docker_group }}"
     mode: '0755'
 
+# Download custom add-ons from self-hosted MinIO artifact store.
+# MinIO bucket 'splunk-addons' has anonymous read on internal network.
+# Runs on localhost (the Ansible controller), once per playbook run.
+# get_url is idempotent: skips download if the file already exists.
+- name: Download custom add-ons from artifact store
+  ansible.builtin.get_url:
+    url: "{{ splunk_docker_artifact_base_url }}/{{ item.filename }}"
+    dest: "{{ role_path }}/files/{{ item.filename }}"
+    mode: "0644"
+  loop: "{{ splunk_docker_custom_addons | selectattr('artifact_store', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
 # Download custom add-ons that have a github_repo defined.
 # Runs on localhost (the Ansible controller), once per playbook run.
 # get_url is idempotent: skips download if the file already exists.
