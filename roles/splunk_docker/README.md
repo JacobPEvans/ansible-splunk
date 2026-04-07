@@ -69,3 +69,58 @@ splunk_docker_addons:
 - community.docker collection
 - terraform-proxmox for VM provisioning
 - Doppler for secrets management
+
+## HEC Token Setup
+
+**1 index = 1 HEC token.** Tokens are derived deterministically via UUID v5:
+
+```text
+Token = uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")
+```
+
+The `HEC_NAMESPACE` UUID is stored in Doppler. Any system with access to that
+namespace can derive tokens locally, reducing secret sharing to a single
+namespace UUID rather than distributing per-index tokens across repos.
+
+### One-time Doppler Setup
+
+```bash
+# Generate a random namespace UUID (this is the ONE secret)
+doppler secrets set HEC_NAMESPACE "$(uuidgen)"
+```
+
+### Adding a New Index + Token
+
+1. Add the index to `splunk_docker_indexes` in `defaults/main.yml`
+2. Run `doppler run -- ansible-playbook playbooks/site.yml` — token is auto-derived
+3. Senders derive the same token locally using the exact Splunk index name
+   from `splunk_docker_indexes` as `<index_name>`:
+
+```bash
+python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('$HEC_NAMESPACE'), 'splunk-hec-<index_name>'))"
+```
+
+## MCP Server Verification
+
+The Splunk MCP Server (app 7931) enables AI agents to query Splunk directly
+via the Model Context Protocol (MCP). Configure the MCP client in
+`~/git/nix-ai/main/modules/mcp/default.nix`.
+
+### Available MCP Tools
+
+| Tool | Description |
+| --- | --- |
+| `run_splunk_query` | Execute SPL search queries |
+| `get_indexes` | List all Splunk indexes |
+| `get_sourcetypes` | List available sourcetypes |
+
+### Verifying MCP Connection
+
+```bash
+# Check MCP Server app is installed and REST API responds
+doppler run -- ansible-playbook playbooks/validate.yml
+
+# Direct REST API test
+curl -sk https://<SPLUNK_HOST_IP>:8089/services/apps/local/splunk-mcp-server \
+  -u "admin:$SPLUNK_PASSWORD" | grep -o '"name">.*<'
+```

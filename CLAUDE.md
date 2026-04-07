@@ -1,140 +1,66 @@
 # Ansible Splunk Enterprise
 
-Deploy and configure Splunk Enterprise (Docker) on Proxmox VM.
+Deploy and configure Splunk Enterprise on a Proxmox VM.
+
+## Container Strategy: Docker (Exception)
+
+Splunk runs in Docker on a dedicated VM (VMID 200) — this is a deliberate
+exception to the global LXC-first rule (see `~/git/CLAUDE.md` Container
+Deployment Rules).
+
+**Why Docker:** This repository standardizes on Splunk Enterprise via the
+official `splunk/splunk` Docker image. Native Linux package and tarball
+installs exist, but they are out of scope here. The `splunk_docker` role
+manages the container lifecycle via Docker Compose.
+
+**Implication:** New features and integrations target Docker Compose on
+the Splunk VM. Do not propose LXC migration or new Docker containers
+for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
 
 ## This Repo Owns
 
-- Splunk Enterprise container deployment
+- Splunk Enterprise container deployment (Docker Compose on Proxmox VM)
 - HEC (HTTP Event Collector) configuration
 - Custom index creation and retention
-- Technology Add-ons (TAs)
+- Technology Add-ons (TAs) and Splunkbase apps
+- MCP Server integration (app 7931)
 
-## Pipeline Role
+## Critical Constraints
 
-This repo is the **destination** for the syslog pipeline:
+- **Firewall disabled**: Guest firewall is off
+  (`splunk_docker_firewall_enabled: false`). Docker DNAT conflicts with
+  iptables FORWARD chain. Proxmox firewall is sole network security
+  (see `~/git/terraform-proxmox/main/modules/firewall/`).
+- **HEC tokens**: Deterministic via
+  `uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")`.
+  One index = one token. Namespace UUID stored in Doppler.
+- **HEC transport**: HTTPS (Splunk Docker image default, SSL enabled).
+- **Secrets**: All via Doppler (`doppler run --`).
 
-```text
-Cribl Edge (ansible-proxmox-apps) -> Splunk HEC :8088
-                                      |
-                                  Splunk indexes:
-                                    unifi, firewall,
-                                    network, os, netflow
-```
+## Sources of Truth
 
-HEC runs on **HTTPS** (SSL enabled by the Splunk Docker image default).
-This role does not explicitly set `enableSSL` in inputs.conf, so the
-image default (SSL on) applies. Cribl Edge/Stream send to `https://<splunk_ip>:<hec_port>`.
-
-## Custom Indexes
-
-| Index | Purpose | Size | Retention |
-| --- | --- | --- | --- |
-| ai | AI assistant activity | 100GB | 365 days |
-| claude | Claude-specific events | 100GB | 365 days |
-| firewall | Palo Alto/Cisco | 100GB | 365 days |
-| gemini | Gemini-specific events | 100GB | 365 days |
-| netflow | NetFlow/IPFIX | 100GB | 365 days |
-| network | Network devices | 100GB | 365 days |
-| openai | OpenAI-specific events | 100GB | 365 days |
-| otel | OpenTelemetry spans/metrics | 100GB | 365 days |
-| os | Linux/Windows | 100GB | 365 days |
-| unifi | UniFi syslog | 100GB | 365 days |
-| vscode | VS Code / Copilot events | 100GB | 365 days |
-
-## Inventory
-
-Loaded from `terraform_inventory.json` via
-`inventory/load_terraform.yml`. Falls back to
-`SPLUNK_VM_HOST` env var if JSON is missing.
-
-### Required Environment Variables
-
-| Variable | Purpose |
+| What | Where |
 | --- | --- |
-| `SPLUNK_PASSWORD` | Splunk admin password |
-| `HEC_NAMESPACE` | UUID namespace for token derivation (primary) |
-| `SPLUNK_HEC_TOKEN` | Legacy fallback token (if no `HEC_NAMESPACE`) |
-| `SPLUNK_MCP_TOKEN` | MCP Server authentication token |
-| `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
-
-All secrets managed via Doppler (`doppler run --`).
-
-## HEC Token Architecture
-
-**1 index = 1 HEC token.** Tokens are derived deterministically via UUID v5:
-
-```text
-Token = uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")
-```
-
-The `HEC_NAMESPACE` UUID is stored in Doppler. Any system with the namespace
-can derive tokens locally — no cross-repo secret sharing needed.
-
-### One-time Doppler Setup
-
-```bash
-# Generate a random namespace UUID (this is the ONE secret)
-doppler secrets set HEC_NAMESPACE "$(uuidgen)"
-```
-
-### Adding a New Index + Token
-
-1. Add the index to `splunk_docker_indexes` in `roles/splunk_docker/defaults/main.yml`
-2. Run `doppler run -- ansible-playbook playbooks/site.yml` — token is auto-derived
-3. Senders derive the same token locally:
-
-```bash
-python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('$HEC_NAMESPACE'), 'splunk-hec-<name>'))"
-```
-
-## MCP Server Integration
-
-The Splunk MCP Server (app 7931) enables AI agents to query Splunk directly
-via the Model Context Protocol (MCP). Configure the MCP client in
-`~/git/nix-ai/main/modules/mcp/default.nix`.
-
-### Available MCP Tools
-
-| Tool | Description |
-| --- | --- |
-| `run_splunk_query` | Execute SPL search queries |
-| `get_indexes` | List all Splunk indexes |
-| `get_sourcetypes` | List available sourcetypes |
-
-### Verifying MCP Connection
-
-```bash
-# Check MCP Server app is installed and REST API responds
-doppler run -- ansible-playbook playbooks/validate.yml
-
-# Direct REST API test
-curl -sk https://<SPLUNK_HOST_IP>:8089/services/apps/local/splunk-mcp-server \
-  -u "admin:$SPLUNK_PASSWORD" | grep -o '"name">.*<'
-```
+| Index definitions | `roles/splunk_docker/defaults/main.yml` |
+| Splunkbase apps | `roles/splunk_docker/vars/splunkbase_apps.yml` |
+| Custom add-ons | `roles/splunk_docker/vars/custom_addons.yml` |
+| Inventory | `inventory/load_terraform.yml` |
+| Pipeline architecture | `~/git/CLAUDE.md` |
+| App files and downloads | `roles/splunk_docker/files/README.md` |
+| HEC setup and MCP verification | `roles/splunk_docker/README.md` |
 
 ## Commands
 
 ```bash
 # Full deployment
-doppler run -- ansible-playbook \
-  playbooks/site.yml
+doppler run -- ansible-playbook playbooks/site.yml
 
 # Validate deployment
-doppler run -- ansible-playbook \
-  playbooks/validate.yml
+doppler run -- ansible-playbook playbooks/validate.yml
 
 # Lint
 ansible-lint
 ```
-
-## Firewall
-
-Guest firewall is **disabled**
-(`splunk_docker_firewall_enabled: false`).
-Proxmox firewall manages all network security
-(see `terraform-proxmox/modules/firewall/`).
-Docker's DNAT conflicts with guest iptables FORWARD
-chain rules.
 
 ## Artifact Store (MinIO)
 
@@ -143,7 +69,7 @@ are served from a self-hosted MinIO instance (LXC VMID 107, `10.0.1.107:9000`).
 
 - Bucket: `splunk-addons` (anonymous read on internal network)
 - Add-ons with `artifact_store: true` in `vars/custom_addons.yml` auto-download
-- Upload new versions via `mc cp` then update version pin in `defaults/main.yml`
+- Upload new versions via `mc cp` — filenames are version-free, versions tracked via MinIO object tags
 - See `roles/splunk_docker/files/README.md` for upload instructions
 
 ## Related Repositories
