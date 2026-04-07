@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.7.0...v0.8.0) (2026-04-07)
 
-
 ### Features
 
 * add AI merge gate and Copilot setup steps ([#119](https://github.com/JacobPEvans/ansible-splunk/issues/119)) ([a6547da](https://github.com/JacobPEvans/ansible-splunk/commit/a6547da10c472819a05e3e0e4161960257f1c62c))
