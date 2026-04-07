@@ -59,11 +59,11 @@ Internal or third-party TAs not managed via the Splunkbase app registry.
 
 | File | Description | Source | Auto-download |
 | ---- | ----------- | ------ | ------------- |
-| `TA-unifi-cloud-{version}.tar` | UniFi Cloud syslog parsing | Internal build | Yes — MinIO |
-| `duck-yeah_{version}.tar` | Splunk app packaging utilities | Internal | Yes — MinIO |
-| `splunk-db-connect_{version}.tar` | Database connectivity | Splunkbase [#2686](https://splunkbase.splunk.com/app/2686) | Yes — MinIO |
-| `Splunk_TA_H3_Unifi.tar` | UniFi network device TA | Third-party | Yes — MinIO |
-| `ubiquiti-add-on-for-splunk_{version}.tar` | Ubiquiti monitoring add-on | Splunkbase [#3504](https://splunkbase.splunk.com/app/3504) | Yes — MinIO |
+| `TA-unifi-cloud.tar` | UniFi Cloud syslog parsing | [Splunkbase #7494](https://splunkbase.splunk.com/app/7494) | Yes — MinIO |
+| `duck-yeah.tar` | Splunk app packaging utilities | [Splunkbase #7015](https://splunkbase.splunk.com/app/7015) | Yes — MinIO |
+| `splunk-db-connect.tar` | Database connectivity | [Splunkbase #2686](https://splunkbase.splunk.com/app/2686) | Yes — MinIO |
+| `Splunk_TA_H3_Unifi.tar` | UniFi network device TA | [Splunkbase #7935](https://splunkbase.splunk.com/app/7935) | Yes — MinIO |
+| `ubiquiti-add-on-for-splunk.tar` | Ubiquiti monitoring add-on | [Splunkbase #4107](https://splunkbase.splunk.com/app/4107) | Yes — MinIO |
 | `VisiCore_TA_AI_Observability.spl` | VisiCore TA for AI Observability | GitHub Releases (latest) | Yes — GitHub |
 | `VisiCore_App_for_AI_Observability.spl` | VisiCore App for AI Observability | GitHub Releases (latest) | Yes — GitHub |
 
@@ -73,16 +73,21 @@ Custom add-ons marked `artifact_store: true` are served from a self-hosted MinIO
 instance at `http://10.0.1.107:9000/splunk-addons/`. The bucket has anonymous read
 on the internal network — no authentication is needed for downloads.
 
-**Uploading a new add-on or version:**
+Filenames are **version-free** — the same name is reused across all versions.
+MinIO bucket versioning retains old versions automatically on re-upload.
+Object tags track `version` and `splunkbase_id` for auditability.
+
+**Uploading a new or updated add-on:**
 
 ```bash
 # One-time: configure mc CLI alias
 mc alias set homelab http://10.0.1.107:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
 
-# Upload
-mc cp ~/Downloads/splunk-db-connect_425.tar homelab/splunk-addons/
+# Upload (strip version from filename, use the canonical object name)
+mc cp ~/Downloads/splunk-db-connect_425.tar homelab/splunk-addons/splunk-db-connect.tar
+mc tag set homelab/splunk-addons/splunk-db-connect.tar "version=4.2.5&splunkbase_id=2686"
 
-# Then update the version pin in defaults/main.yml
+# No Ansible changes needed — next playbook run gets the new version
 ```
 
 ## Usage

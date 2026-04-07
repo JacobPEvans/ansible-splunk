@@ -12,15 +12,15 @@
 
 splunk_docker_custom_addons:
   - name: TA-unifi-cloud
-    filename: "TA-unifi-cloud-{{ splunk_docker_unifi_ta_version }}.tar"
+    filename: "TA-unifi-cloud.tar"
     artifact_store: true
 
   - name: Duck Yeah
-    filename: "duck-yeah_{{ splunk_docker_duck_yeah_version }}.tar"
+    filename: "duck-yeah.tar"
     artifact_store: true
 
   - name: Splunk DB Connect
-    filename: "splunk-db-connect_{{ splunk_docker_dbconnect_version }}.tar"
+    filename: "splunk-db-connect.tar"
     artifact_store: true
 
   - name: Splunk TA H3 UniFi
@@ -28,7 +28,7 @@ splunk_docker_custom_addons:
     artifact_store: true
 
   - name: Ubiquiti Add-on for Splunk
-    filename: "ubiquiti-add-on-for-splunk_{{ splunk_docker_ubiquiti_addon_version }}.tar"
+    filename: "ubiquiti-add-on-for-splunk.tar"
     artifact_store: true
 
   - name: VisiCore TA for AI Observability
