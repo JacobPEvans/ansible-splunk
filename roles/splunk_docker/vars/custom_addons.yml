@@ -1,7 +1,8 @@
 ---
-# Custom (non-Splunkbase) Add-ons
+# Custom Add-ons (not auto-downloadable from Splunkbase REST API)
 #
-# Internal or third-party TAs not distributed via Splunkbase.
+# Add-ons that cannot be fetched directly from Splunkbase (require manual
+# download, are third-party, or have licensing concerns with automated fetch).
 #
 # Download sources:
 #   artifact_store: true  — downloaded from self-hosted MinIO (splunk_docker_artifact_base_url)

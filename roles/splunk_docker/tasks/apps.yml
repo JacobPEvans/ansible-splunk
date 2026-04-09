@@ -30,7 +30,7 @@
     url: "{{ splunk_docker_artifact_base_url }}/{{ item.filename }}"
     dest: "{{ role_path }}/files/{{ item.filename }}"
     mode: "0644"
-  loop: "{{ splunk_docker_custom_addons | selectattr('artifact_store', 'equalto', true) | list }}"
+  loop: "{{ splunk_docker_custom_addons | selectattr('artifact_store', 'defined') | selectattr('artifact_store', 'equalto', true) | list }}"
   loop_control:
     label: "{{ item.name }}"
   delegate_to: localhost
