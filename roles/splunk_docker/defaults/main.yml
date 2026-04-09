@@ -136,7 +136,6 @@ splunk_docker_mssql_driver_version: "12.8.1.jre11"
 splunk_docker_artifact_base_url: >-
   http://{{ terraform_data.containers.minio.ip }}:{{
   terraform_data.constants.service_ports.minio_api }}/splunk-addons
-
 # VisiCore TA and App are downloaded from GitHub Releases (latest) automatically.
 # MinIO-sourced add-ons use version-free filenames — versions are tracked
 # exclusively via MinIO object tags (bucket versioning enabled).
