@@ -62,3 +62,13 @@
         hostname: "{{ terraform_data.splunk_vm.splunk.hostname }}"
         vmid: "{{ terraform_data.splunk_vm.splunk.vmid }}"
       when: terraform_inventory_file.stat.exists and terraform_data.splunk_vm.splunk is defined
+
+    # Push terraform_data onto every dynamically-added host so roles can access
+    # terraform_data.constants.* directly without hostvars['localhost'] indirection.
+    - name: Propagate terraform_data to all inventory hosts
+      ansible.builtin.set_fact:
+        terraform_data: "{{ terraform_data }}"
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ groups['all'] | reject('equalto', 'localhost') | list }}"
+      when: terraform_data is defined
