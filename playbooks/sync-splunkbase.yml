@@ -1,0 +1,242 @@
+---
+# Splunkbase → MinIO sync playbook
+#
+# Authenticates to Splunkbase, downloads every entry in addons.yml that has
+# a `splunkbase_id` + `version`, and mirrors it into the `splunk-addons`
+# MinIO bucket with `version=X.Y.Z&splunkbase_id=NNNN` tags.
+#
+# Idempotent: queries the current `version` tag on each MinIO object and
+# skips entries whose tag already matches the pinned registry version.
+# To rotate an app, bump the `version` field in addons.yml and re-run.
+#
+# Credentials (Doppler):
+#   SPLUNKBASE_USERNAME / SPLUNKBASE_PASSWORD — Splunkbase account
+#   MINIO_ROOT_USER     / MINIO_ROOT_PASSWORD — MinIO bucket write auth
+#
+# Usage:
+#   doppler run -- ansible-playbook playbooks/sync-splunkbase.yml
+#
+# Runs entirely on localhost (the Ansible controller). No target host
+# operations — MinIO is the sink, Splunkbase is the source.
+
+- name: Load Terraform inventory (for MinIO endpoint)
+  ansible.builtin.import_playbook: ../inventory/load_terraform.yml
+
+- name: Mirror Splunkbase add-ons into MinIO
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    splunkbase_sync_tmpdir: /tmp/splunkbase-sync
+    minio_endpoint: >-
+      http://{{ hostvars['localhost']['terraform_data']['containers']['minio']['ip'] }}:{{
+      hostvars['localhost']['terraform_data']['constants']['service_ports']['minio_api'] }}
+    minio_bucket: splunk-addons
+    # mc uses this env var to resolve the `homelab` alias without touching
+    # any persisted alias file — keeps the playbook stateless.
+    mc_env:
+      MC_HOST_homelab: >-
+        http://{{ lookup('env', 'MINIO_ROOT_USER') }}:{{
+        lookup('env', 'MINIO_ROOT_PASSWORD') }}@{{
+        hostvars['localhost']['terraform_data']['containers']['minio']['ip'] }}:{{
+        hostvars['localhost']['terraform_data']['constants']['service_ports']['minio_api'] }}
+
+  tasks:
+    - name: Assert required environment variables are set
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SPLUNKBASE_USERNAME') | length > 0
+          - lookup('env', 'SPLUNKBASE_PASSWORD') | length > 0
+          - lookup('env', 'MINIO_ROOT_USER') | length > 0
+          - lookup('env', 'MINIO_ROOT_PASSWORD') | length > 0
+        fail_msg: >-
+          Missing one of SPLUNKBASE_USERNAME, SPLUNKBASE_PASSWORD,
+          MINIO_ROOT_USER, MINIO_ROOT_PASSWORD. Run via
+          `doppler run -- ansible-playbook …` so Doppler injects secrets.
+
+    - name: Load Splunk add-on registry
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../roles/splunk_docker/vars/addons.yml"
+
+    - name: Validate add-on registry schema
+      ansible.builtin.assert:
+        that:
+          - item.filename is defined
+          - item.app_dir is defined
+          - not (item.splunkbase_id is defined and item.github_repo is defined)
+          - not (item.splunkbase_id is defined) or item.version is defined
+        fail_msg: >-
+          Invalid registry entry {{ item }}: each entry must have filename + app_dir,
+          may have at most one of (splunkbase_id, github_repo), and splunkbase_id
+          requires a paired `version`.
+      loop: "{{ splunk_docker_addons }}"
+      loop_control:
+        label: "{{ item.filename | default('(no filename)') }}"
+
+    - name: Build list of Splunkbase-syncable entries
+      ansible.builtin.set_fact:
+        splunkbase_entries: >-
+          {{ splunk_docker_addons
+             | selectattr('splunkbase_id', 'defined')
+             | selectattr('version', 'defined')
+             | list }}
+
+    - name: Ensure temporary download directory exists
+      ansible.builtin.file:
+        path: "{{ splunkbase_sync_tmpdir }}"
+        state: directory
+        mode: "0700"
+
+    # `mc tag list --json` returns nonzero in two distinct cases. The
+    # validation task below distinguishes them so the playbook fails loud
+    # for everything except "object missing":
+    #   1. Object missing — expected, drives a sync. mc emits
+    #      "Code":"NoSuchKey" in the stdout JSON.
+    #   2. Anything else — auth failure, network down, mc not installed,
+    #      bucket missing — must fail loud, NOT silently re-download every
+    #      archive into a bucket we may not have write access to.
+    # `failed_when` can't reference `rc` directly inside a loop, so we
+    # collect raw results here and validate them in the next task.
+    - name: Query current MinIO version tag for each entry
+      ansible.builtin.command:
+        cmd: "mc tag list --json homelab/{{ minio_bucket }}/{{ item.filename }}"
+      environment: "{{ mc_env }}"
+      loop: "{{ splunkbase_entries }}"
+      loop_control:
+        label: "{{ item.filename }}"
+      register: minio_tag_query
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Validate query errors are only missing-object cases
+      ansible.builtin.assert:
+        that:
+          - item.rc == 0 or 'NoSuchKey' in (item.stdout | default(''))
+        fail_msg: >-
+          mc tag list failed for {{ item.item.filename }} with rc={{ item.rc }}.
+          This is not a "missing object" — check MinIO connectivity,
+          MINIO_ROOT_USER/PASSWORD, and bucket existence.
+        quiet: true
+      loop: "{{ minio_tag_query.results }}"
+      loop_control:
+        label: "{{ item.item.filename }}"
+
+    - name: Compute sync decisions (which entries need (re)download)
+      ansible.builtin.set_fact:
+        splunkbase_plan: >-
+          {{ splunkbase_plan | default([]) + [item.item | combine({
+            'current_version': (
+              (item.stdout | default('{}') | from_json).tagset.version
+              | default('') | trim
+            ) if item.rc == 0 else '',
+            'needs_sync': (
+              item.rc != 0
+              or ((item.stdout | default('{}') | from_json).tagset.version
+                  | default('') | trim) != (item.item.version | string | trim)
+            ),
+          })] }}
+      loop: "{{ minio_tag_query.results }}"
+      loop_control:
+        label: "{{ item.item.filename }}"
+
+    - name: Show sync decisions
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.filename }}: registry={{ item.version }}
+          minio={{ item.current_version or '(none)' }}
+          → {{ 'SYNC' if item.needs_sync else 'skip' }}
+      loop: "{{ splunkbase_plan }}"
+      loop_control:
+        label: "{{ item.filename }}"
+
+    - name: Build list of entries that need sync
+      ansible.builtin.set_fact:
+        splunkbase_to_sync: "{{ splunkbase_plan | selectattr('needs_sync') | list }}"
+
+    - name: Skip remaining tasks when everything is already in sync
+      ansible.builtin.meta: end_play
+      when: splunkbase_to_sync | length == 0
+
+    - name: Authenticate to Splunkbase
+      ansible.builtin.uri:
+        url: https://splunkbase.splunk.com/api/account:login/
+        method: POST
+        body_format: form-urlencoded
+        body:
+          username: "{{ lookup('env', 'SPLUNKBASE_USERNAME') }}"
+          password: "{{ lookup('env', 'SPLUNKBASE_PASSWORD') }}"
+        return_content: true
+        status_code: 200
+      register: splunkbase_login
+      no_log: true
+
+    - name: Extract Splunkbase session token
+      ansible.builtin.set_fact:
+        splunkbase_token: >-
+          {{ splunkbase_login.content
+             | regex_search('<id>([^<]+)</id>', '\1')
+             | first }}
+      no_log: true
+
+    - name: Fail if session token not returned
+      ansible.builtin.assert:
+        that:
+          - splunkbase_token is defined
+          - splunkbase_token | length > 0
+        fail_msg: >-
+          Splunkbase login returned no session token. Check
+          SPLUNKBASE_USERNAME / SPLUNKBASE_PASSWORD in Doppler.
+
+    - name: Download drifted entries from Splunkbase
+      ansible.builtin.get_url:
+        url: >-
+          https://splunkbase.splunk.com/app/{{ item.splunkbase_id }}/release/{{ item.version }}/download/
+        dest: "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
+        headers:
+          X-Auth-Token: "{{ splunkbase_token }}"
+        force: true
+        mode: "0600"
+        timeout: 120
+      loop: "{{ splunkbase_to_sync }}"
+      loop_control:
+        label: "{{ item.filename }} v{{ item.version }}"
+
+    - name: Upload synced archives to MinIO
+      ansible.builtin.command:
+        cmd: >-
+          mc cp
+          {{ splunkbase_sync_tmpdir }}/{{ item.filename }}
+          homelab/{{ minio_bucket }}/{{ item.filename }}
+      environment: "{{ mc_env }}"
+      loop: "{{ splunkbase_to_sync }}"
+      loop_control:
+        label: "{{ item.filename }}"
+      changed_when: true
+
+    - name: Tag MinIO objects with version + splunkbase_id
+      ansible.builtin.command:
+        cmd: >-
+          mc tag set
+          homelab/{{ minio_bucket }}/{{ item.filename }}
+          version={{ item.version }}&splunkbase_id={{ item.splunkbase_id }}
+      environment: "{{ mc_env }}"
+      loop: "{{ splunkbase_to_sync }}"
+      loop_control:
+        label: "{{ item.filename }}"
+      changed_when: true
+
+    - name: Remove downloaded archives from controller tmpdir
+      ansible.builtin.file:
+        path: "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
+        state: absent
+      loop: "{{ splunkbase_to_sync }}"
+      loop_control:
+        label: "{{ item.filename }}"
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: >-
+          Splunkbase sync complete.
+          {{ splunkbase_to_sync | length }} of
+          {{ splunkbase_entries | length }} entries updated.

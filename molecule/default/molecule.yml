@@ -35,11 +35,10 @@ provisioner:
       all:
         # Test values for molecule - override in production
         splunk_docker_password: "molecule-test-password"
-        # App archives are gitignored (placed manually at deploy time).
-        # Setting these here prevents include_vars from loading the registry
-        # and trying to validate missing archive files in CI.
-        splunk_docker_apps: []
-        splunk_docker_custom_addons: []
+        # Empty the add-on registry so molecule never tries to reach MinIO
+        # or GitHub at converge time. apps.yml loops over splunk_docker_addons;
+        # an empty list is a no-op.
+        splunk_docker_addons: []
         # 127.0.0.1:8000 is unreachable from inside the Molecule container
         # (Docker socket mounts expose ports on the HOST, not inside the test container).
         # Skip the wait entirely in CI rather than burning 360s per invocation.

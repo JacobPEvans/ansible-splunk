@@ -1,0 +1,57 @@
+---
+# Splunk Add-on Registry
+#
+# Fields:
+#   filename       — archive name (in MinIO bucket, or github release asset)
+#   app_dir        — extracted directory name under /opt/splunk/etc/apps/
+#   splunkbase_id  — Splunkbase numeric app ID. When present, playbooks/sync-splunkbase.yml
+#                    uses it to mirror the pinned version into MinIO. When absent, the
+#                    entry is skipped by the sync and must be populated manually.
+#   version        — pinned version string. Used both as the Splunkbase download URL
+#                    path segment and as the `version` tag on the MinIO object.
+#   github_repo    — optional. If set, download from github.com/<repo> releases/latest.
+#                    Mutually exclusive with splunkbase_id.
+#   role           — optional. Stable identifier for entries that other playbooks
+#                    look up by purpose rather than filename (e.g. role: mcp_server
+#                    is used by validate.yml + tasks/mcp_server.yml so the filename
+#                    can change without breaking either lookup).
+#
+# Runtime install (roles/splunk_docker/tasks/apps.yml) reads filename + app_dir.
+# Sync automation (playbooks/sync-splunkbase.yml) reads splunkbase_id + version
+# + filename and uses the Doppler-injected SPLUNKBASE_USERNAME / SPLUNKBASE_PASSWORD
+# to fetch archives. Bump `version` here → re-run sync → Splunk VM picks up on next
+# deploy. No manual downloads ever.
+
+splunk_docker_addons:
+  # --- MinIO, Splunkbase-sourced (auto-sync) ---
+  - {filename: TA-unifi-cloud.tar, app_dir: TA-unifi-cloud, splunkbase_id: 7494, version: "1.0.2"}
+  - {filename: duck-yeah.tar, app_dir: DuckYeah, splunkbase_id: 7015, version: "2.3.4"}
+  - {filename: splunk-db-connect.tar, app_dir: splunk_app_db_connect, splunkbase_id: 2686, version: "4.2.3"}
+  - {filename: Splunk_TA_H3_Unifi.tar, app_dir: Splunk_TA_H3_Unifi, splunkbase_id: 7935, version: "1.0.0"}
+  - {filename: ubiquiti-add-on-for-splunk.tar, app_dir: TA-ubiquiti, splunkbase_id: 4107, version: "1.3.6"}
+  - {filename: splunk-mcp-server.tar, app_dir: Splunk_MCP_Server, splunkbase_id: 7931, version: "1.1.0", role: mcp_server}
+  - {filename: python-for-scientific-computing-for-linux-64-bit.tar, app_dir: Splunk_SA_Scientific_Python_linux_x86_64, splunkbase_id: 2882, version: "4.3.1"}
+  - {filename: splunk-ai-toolkit.tar, app_dir: Splunk_ML_Toolkit, splunkbase_id: 2890, version: "5.7.2"}
+  - {filename: mltk-container.tar, app_dir: mltk-container, splunkbase_id: 4607, version: "5.2.3"}
+  - {filename: splunk-ai-assistant.tar, app_dir: Splunk_AI_Assistant_Cloud, splunkbase_id: 7245, version: "2.0.0"}
+  - {filename: alerts-for-splunk-admins.tar, app_dir: SplunkAdmins, splunkbase_id: 3796, version: "4.0.7"}
+  - {filename: admin-ninja-app.tar, app_dir: admin_ninja_app, splunkbase_id: 6664, version: "1.0.4"}
+  - {filename: admin-ninja-ta.tar, app_dir: TA_admin_ninja, splunkbase_id: 6665, version: "1.0.3"}
+  - {filename: admin-pilot-for-splunk-ap4s.tar, app_dir: insights_app_splunk, splunkbase_id: 6489, version: "1.1.13"}
+  - {filename: splunk-app-for-chargeback.tar, app_dir: chargeback_app_splunk_cloud, splunkbase_id: 5688, version: "2.0.59"}
+  - {filename: sa-littlehelper.spl, app_dir: sa-littlehelper, splunkbase_id: 6368, version: "1.6.1"}
+  - {filename: Splunk_TA_paloalto_networks.tar, app_dir: Splunk_TA_paloalto_networks, splunkbase_id: 7523, version: "3.0.0"}
+  - {filename: splunk-add-on-for-microsoft-office-365.spl, app_dir: splunk_ta_o365, splunkbase_id: 4055, version: "6.0.0"}
+  - {filename: splunk-add-on-for-servicenow.spl, app_dir: Splunk_TA_snow, splunkbase_id: 1928, version: "10.0.0"}
+  - {filename: hurricane-labs-app-for-shodan.tar, app_dir: Hurricane_Labs_App_for_Shodan, splunkbase_id: 1767, version: "2.2.6"}
+  - {filename: hurricane-labs-add-on-for-windows-powershell-transcript.tar, app_dir: TA-powershell_transcript, splunkbase_id: 4984, version: "0.1.3"}
+
+  # --- MinIO, no Splunkbase match (manual upload; sync skips) ---
+  # Hurricane Labs' Automox add-on was removed from Splunkbase. The archive is
+  # still served from MinIO but must be re-uploaded manually with `mc cp` when
+  # a new version is needed.
+  - {filename: hurricane-labs-add-on-for-automox.tar, app_dir: TA-automox}
+
+  # --- GitHub Releases: JacobPEvans/<repo>/releases/latest ---
+  - {filename: VisiCore_TA_AI_Observability.spl, app_dir: VisiCore_TA_AI_Observability, github_repo: JacobPEvans/VisiCore_TA_AI_Observability}
+  - {filename: VisiCore_App_for_AI_Observability.spl, app_dir: VisiCore_App_for_AI_Observability, github_repo: JacobPEvans/VisiCore_App_for_AI_Observability}

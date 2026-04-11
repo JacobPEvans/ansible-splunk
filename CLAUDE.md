@@ -42,18 +42,19 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
 | What | Where |
 | --- | --- |
 | Index definitions | `roles/splunk_docker/defaults/main.yml` |
-| Splunkbase apps | `roles/splunk_docker/vars/splunkbase_apps.yml` |
-| Custom add-ons | `roles/splunk_docker/vars/custom_addons.yml` |
+| Add-on registry (single source) | `roles/splunk_docker/vars/addons.yml` |
 | Inventory | `inventory/load_terraform.yml` |
 | Pipeline architecture | `~/git/CLAUDE.md` |
-| App files and downloads | `roles/splunk_docker/files/README.md` |
 | HEC setup and MCP verification | `roles/splunk_docker/README.md` |
 
 ## Commands
 
 ```bash
-# Full deployment
+# Full deployment (MinIO → Splunk VM, direct target-side pull)
 doppler run -- ansible-playbook playbooks/site.yml
+
+# Sync Splunkbase → MinIO (run before site.yml when a version has been bumped)
+doppler run -- ansible-playbook playbooks/sync-splunkbase.yml
 
 # Validate deployment
 doppler run -- ansible-playbook playbooks/validate.yml
