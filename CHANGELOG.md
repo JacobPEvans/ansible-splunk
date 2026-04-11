@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.9.0...v0.10.0) (2026-04-11)
+
+
+### Features
+
+* **splunk:** MinIO add-on registry + Splunkbase auto-sync ([7364448](https://github.com/JacobPEvans/ansible-splunk/commit/736444891f658d374e85329b5fecb47cc5612a9d))
+
 ## [0.9.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.8.1...v0.9.0) (2026-04-09)
 
 ### Features
