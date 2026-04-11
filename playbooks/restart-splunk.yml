@@ -1,0 +1,29 @@
+---
+# Ad-hoc: restart Splunk container on the splunk VM after app updates.
+# Handlers in site.yml only fire when the task reports changed; use this
+# playbook to force a restart when you've bypassed the normal install path.
+
+- name: Load Terraform inventory
+  ansible.builtin.import_playbook: ../inventory/load_terraform.yml
+
+- name: Restart Splunk container
+  hosts: splunk
+  become: true
+  gather_facts: false
+  vars_files:
+    # Pull splunk_docker_config_dir so this matches the role handler exactly
+    # (handlers/main.yml: community.docker.docker_compose_v2 with project_src).
+    - ../roles/splunk_docker/defaults/main.yml
+
+  tasks:
+    - name: Restart Splunk via docker-compose
+      community.docker.docker_compose_v2:
+        project_src: "{{ splunk_docker_config_dir }}"
+        state: restarted
+
+    - name: Wait for Splunk management port
+      ansible.builtin.wait_for:
+        port: 8089
+        host: 127.0.0.1
+        timeout: 300
+        delay: 10

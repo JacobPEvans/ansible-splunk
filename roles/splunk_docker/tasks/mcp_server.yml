@@ -6,15 +6,28 @@
 - name: Load MCP Server configuration vars
   ansible.builtin.include_vars:
     file: "{{ role_path }}/vars/mcp.yml"
-  when: splunk_docker_mcp_token is not defined
+
+- name: Load Splunk add-on registry for MCP filename lookup
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/vars/addons.yml"
+  when: splunk_docker_addons is not defined
 
 - name: Configure MCP Server if enabled
   when:
     - splunk_docker_mcp_server_enabled | bool
+  vars:
+    # Find the MCP server entry by its stable `role` key. Filename / version /
+    # splunkbase_id can change without breaking this lookup; addons.yml stays
+    # the single source of truth for the extracted app directory.
+    mcp_app_dir: >-
+      {{ (splunk_docker_addons
+          | selectattr('role', 'defined')
+          | selectattr('role', 'equalto', 'mcp_server')
+          | list | first).app_dir }}
   block:
     - name: Create MCP Server local config directory
       ansible.builtin.file:
-        path: "{{ splunk_docker_etc_dir }}/apps/splunk-mcp-server/local"
+        path: "{{ splunk_docker_etc_dir }}/apps/{{ mcp_app_dir }}/local"
         state: directory
         owner: "{{ splunk_docker_user }}"
         group: "{{ splunk_docker_group }}"
@@ -25,7 +38,7 @@
     - name: Configure MCP Server authentication token
       ansible.builtin.template:
         src: mcp_server_app.conf.j2
-        dest: "{{ splunk_docker_etc_dir }}/apps/splunk-mcp-server/local/app.conf"
+        dest: "{{ splunk_docker_etc_dir }}/apps/{{ mcp_app_dir }}/local/app.conf"
         owner: "{{ splunk_docker_user }}"
         group: "{{ splunk_docker_group }}"
         mode: '0600'
