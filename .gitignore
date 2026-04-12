@@ -28,6 +28,12 @@ inventory/terraform_inventory.json
 # Nix direnv cache
 .direnv/
 
+# Nix build output symlinks — `nix build` and some dev-shell refreshes
+# leave `result` (and multi-output variants like `result-1`, `result-bin`,
+# `result-dev`) at the repo root pointing into /nix/store. Never commit
+# them; re-created on every build.
+/result*
+
 # Private AI assistant instructions (not committed to git)
 .CLAUDE.local.md
 CLAUDE.local.md

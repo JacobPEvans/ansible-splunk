@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.9.0...v0.10.0) (2026-04-11)
 
-
 ### Features
 
 * **splunk:** MinIO add-on registry + Splunkbase auto-sync ([7364448](https://github.com/JacobPEvans/ansible-splunk/commit/736444891f658d374e85329b5fecb47cc5612a9d))
