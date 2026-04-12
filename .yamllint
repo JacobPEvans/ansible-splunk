@@ -4,6 +4,9 @@ extends: default
 ignore: |
   .venv/
   .git/
+  .github/aw/
+  .github/workflows/*.lock.yml
+  .github/workflows/agentics-maintenance.yml
 
 rules:
   line-length:

@@ -6,6 +6,8 @@
     "https://raw.githubusercontent.com/JacobPEvans/.github/main/cspell/base.json"
   ],
   "words": [
+    "agentics",
+    "githubnext",
     "adoptium",
     "automox",
     "cgroupns",
@@ -49,6 +51,7 @@
   ],
   "ignorePaths": [
     ".git",
+    ".github/aw/**",
     "node_modules",
     "*.lock"
   ]

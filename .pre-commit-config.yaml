@@ -4,9 +4,12 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^\.github/(aw/|workflows/(.*\.lock\.yml|agentics-maintenance\.yml))
       - id: end-of-file-fixer
+        exclude: ^\.github/(aw/|workflows/(.*\.lock\.yml|agentics-maintenance\.yml))
       - id: check-yaml
         args: [--unsafe]
+        exclude: ^\.github/(aw/|workflows/(.*\.lock\.yml|agentics-maintenance\.yml))
       - id: check-added-large-files
         args: [--maxkb=1024]
 
@@ -15,6 +18,7 @@ repos:
     hooks:
       - id: yamllint
         args: [-c, .yamllint]
+        exclude: ^\.github/(aw/|workflows/(.*\.lock\.yml|agentics-maintenance\.yml))
 
   - repo: local
     hooks:
@@ -31,6 +35,7 @@ repos:
     hooks:
       - id: cspell
         name: Check spelling
+        exclude: ^\.github/(aw/|workflows/(.*\.lock\.yml|agentics-maintenance\.yml))
         additional_dependencies:
           - "@cspell/dict-aws@4.0.17"
           - "@cspell/dict-bash@4.2.2"
@@ -55,3 +60,4 @@ repos:
     hooks:
       - id: markdownlint
         args: [--config, .markdownlint.json, --fix]
+        exclude: ^\.github/(aw/|workflows/(.*\.lock\.yml|agentics-maintenance\.yml))
