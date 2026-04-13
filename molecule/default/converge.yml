@@ -17,11 +17,14 @@
       ai: "molecule-test-token-ai"
       claude: "molecule-test-token-claude"
       firewall: "molecule-test-token-firewall"
+      gemini: "molecule-test-token-gemini"
       netflow: "molecule-test-token-netflow"
       network: "molecule-test-token-network"
+      openai: "molecule-test-token-openai"
       otel: "molecule-test-token-otel"
       os: "molecule-test-token-os"
       unifi: "molecule-test-token-unifi"
+      vscode: "molecule-test-token-vscode"
       legacy: "molecule-test-token-legacy"
     # Use test image
     splunk_docker_image: splunk/splunk:latest

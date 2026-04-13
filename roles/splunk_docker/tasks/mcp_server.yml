@@ -1,56 +1,61 @@
 ---
 # MCP Server post-install configuration
 # Called from tasks/main.yml after apps.yml installs the app archive.
-# Configures authentication token so AI agents can connect immediately.
+#
+# Deploys optional local/mcp.conf settings (ssl_verify, rate limits).
+# Token management is handled entirely by the Splunk UI — this role
+# does NOT manage MCP authentication tokens.
 
 - name: Load MCP Server configuration vars
   ansible.builtin.include_vars:
     file: "{{ role_path }}/vars/mcp.yml"
 
-- name: Load Splunk add-on registry for MCP filename lookup
+- name: Load Splunk add-on registry for MCP app directory lookup
   ansible.builtin.include_vars:
     file: "{{ role_path }}/vars/addons.yml"
   when: splunk_docker_addons is not defined
 
-- name: Configure MCP Server if enabled
+- name: Configure MCP Server settings
   when:
     - splunk_docker_mcp_server_enabled | bool
-  vars:
-    # Find the MCP server entry by its stable `role` key. Filename / version /
-    # splunkbase_id can change without breaking this lookup; addons.yml stays
-    # the single source of truth for the extracted app directory.
-    mcp_app_dir: >-
-      {{ (splunk_docker_addons
-          | selectattr('role', 'defined')
-          | selectattr('role', 'equalto', 'mcp_server')
-          | list | first).app_dir }}
   block:
-    - name: Create MCP Server local config directory
-      ansible.builtin.file:
-        path: "{{ splunk_docker_etc_dir }}/apps/{{ mcp_app_dir }}/local"
-        state: directory
-        owner: "{{ splunk_docker_user }}"
-        group: "{{ splunk_docker_group }}"
-        mode: '0755'
-      when:
-        - splunk_docker_mcp_token | length > 0
+    - name: Look up MCP Server app directory
+      ansible.builtin.set_fact:
+        splunk_docker_mcp_app_entry: >-
+          {{ splunk_docker_addons
+             | selectattr('role', 'defined')
+             | selectattr('role', 'equalto', 'mcp_server')
+             | list | first | default(none) }}
 
-    - name: Configure MCP Server authentication token
-      ansible.builtin.template:
-        src: mcp_server_app.conf.j2
-        dest: "{{ splunk_docker_etc_dir }}/apps/{{ mcp_app_dir }}/local/app.conf"
-        owner: "{{ splunk_docker_user }}"
-        group: "{{ splunk_docker_group }}"
-        mode: '0600'
-      no_log: true
-      notify: Restart Splunk container
-      when:
-        - splunk_docker_mcp_token | length > 0
+    - name: Check MCP Server app is installed
+      ansible.builtin.stat:
+        path: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_mcp_app_entry.app_dir }}"
+      register: splunk_docker_mcp_app_dir
+      when: splunk_docker_mcp_app_entry is not none
 
-    - name: Warn when MCP token is not configured
+    - name: Deploy MCP Server local configuration
+      when:
+        - splunk_docker_mcp_app_entry is not none
+        - splunk_docker_mcp_app_dir.stat.exists | default(false)
+      block:
+        - name: Ensure MCP Server local directory exists
+          ansible.builtin.file:
+            path: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_mcp_app_entry.app_dir }}/local"
+            state: directory
+            owner: "{{ splunk_docker_user }}"
+            group: "{{ splunk_docker_group }}"
+            mode: '0750'
+
+        - name: Deploy MCP Server mcp.conf overrides
+          ansible.builtin.template:
+            src: mcp.conf.j2
+            dest: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_mcp_app_entry.app_dir }}/local/mcp.conf"
+            owner: "{{ splunk_docker_user }}"
+            group: "{{ splunk_docker_group }}"
+            mode: '0644'
+          notify: Restart Splunk container
+
+    - name: Skip MCP configuration (app not installed)
       ansible.builtin.debug:
-        msg: >
-          SPLUNK_MCP_TOKEN is not set - MCP Server installed but not authenticated.
-          Add SPLUNK_MCP_TOKEN to Doppler (iac-conf-mgmt / prd) and re-run.
-      when:
-        - splunk_docker_mcp_token | length == 0
+        msg: "MCP Server app not found — skipping configuration. Install the app first via Splunkbase."
+      when: splunk_docker_mcp_app_entry is none or not (splunk_docker_mcp_app_dir.stat.exists | default(false))

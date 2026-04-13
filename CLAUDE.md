@@ -31,9 +31,9 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
   (`splunk_docker_firewall_enabled: false`). Docker DNAT conflicts with
   iptables FORWARD chain. Proxmox firewall is sole network security
   (see `~/git/terraform-proxmox/main/modules/firewall/`).
-- **HEC tokens**: Deterministic via
-  `uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")`.
-  One index = one token. Namespace UUID stored in Doppler.
+- **HEC tokens**: Per-index tokens derived via
+  `uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")` when `HEC_NAMESPACE`
+  is set. `SPLUNK_HEC_TOKEN` is the shared legacy fallback (always required).
 - **HEC transport**: HTTPS (Splunk Docker image default, SSL enabled).
 - **Secrets**: All via Doppler (`doppler run --`).
 

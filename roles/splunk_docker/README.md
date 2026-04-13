@@ -72,29 +72,31 @@ splunk_docker_addons:
 
 ## HEC Token Setup
 
-**1 index = 1 HEC token.** Tokens are derived deterministically via UUID v5:
+**Per-index tokens** are derived deterministically via UUID v5:
 
 ```text
 Token = uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")
 ```
 
 The `HEC_NAMESPACE` UUID is stored in Doppler. Any system with access to that
-namespace can derive tokens locally, reducing secret sharing to a single
-namespace UUID rather than distributing per-index tokens across repos.
+namespace can derive tokens locally. `SPLUNK_HEC_TOKEN` is the shared legacy
+fallback that grants access to all indexes.
 
 ### One-time Doppler Setup
 
 ```bash
-# Generate a random namespace UUID (this is the ONE secret)
-doppler secrets set HEC_NAMESPACE "$(uuidgen)"
+# Generate a random namespace UUID (enables per-index tokens)
+doppler secrets set HEC_NAMESPACE "$(uuidgen)" -p iac-conf-mgmt -c prd
+
+# Set the shared legacy token (always required)
+doppler secrets set SPLUNK_HEC_TOKEN "$(uuidgen)" -p iac-conf-mgmt -c prd
 ```
 
 ### Adding a New Index + Token
 
 1. Add the index to `splunk_docker_indexes` in `defaults/main.yml`
 2. Run `doppler run -- ansible-playbook playbooks/site.yml` — token is auto-derived
-3. Senders derive the same token locally using the exact Splunk index name
-   from `splunk_docker_indexes` as `<index_name>`:
+3. Senders derive the same token locally:
 
 ```bash
 python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('$HEC_NAMESPACE'), 'splunk-hec-<index_name>'))"
