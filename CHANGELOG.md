@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.11.2](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.1...v0.11.2) (2026-04-13)
 
-
 ### Bug Fixes
 
 * **gh-aw:** recompile agentic workflow lock files with v0.68.1 ([d83f93c](https://github.com/JacobPEvans/ansible-splunk/commit/d83f93c7509937fa3ea53b308cfc7b8728601aae))
