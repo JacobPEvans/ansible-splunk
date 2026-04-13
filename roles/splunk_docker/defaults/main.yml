@@ -15,10 +15,14 @@ splunk_docker_container_name: splunk
 # Splunk credentials (from Doppler) - set in playbook vars
 splunk_docker_password: ""
 
-# HEC token values — dict with at least a 'legacy' key.
-# Set from SPLUNK_HEC_TOKEN env var in site.yml.
-# The legacy token has access to all indexes.
+# HEC token values — dict of { index_name: token_uuid }.
+# When HEC_NAMESPACE is set, per-index tokens are derived via uuidv5.
+# SPLUNK_HEC_TOKEN provides the shared legacy fallback.
 splunk_docker_hec_token_values: {}
+
+# HEC namespace UUID for per-index token derivation (from Doppler HEC_NAMESPACE).
+# Used by the uuidv5 filter: 'splunk-hec-<index>' | uuidv5(namespace)
+splunk_docker_hec_namespace: ""
 
 # Splunk ports
 splunk_docker_web_port: 8000

@@ -72,16 +72,35 @@ splunk_docker_addons:
 
 ## HEC Token Setup
 
-A single shared HEC token (`SPLUNK_HEC_TOKEN`) is stored in Doppler and grants
-access to all configured indexes. The token is set in `inputs.conf` as the
-`[http://legacy]` stanza with access to every index.
+**Per-index tokens** are derived deterministically via UUID v5:
+
+```text
+Token = uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")
+```
+
+The `HEC_NAMESPACE` UUID is stored in Doppler. Any system with access to that
+namespace can derive tokens locally. `SPLUNK_HEC_TOKEN` is the shared legacy
+fallback that grants access to all indexes.
+
+### One-time Doppler Setup
 
 ```bash
-# Set the HEC token in Doppler (one-time)
+# Generate a random namespace UUID (enables per-index tokens)
+doppler secrets set HEC_NAMESPACE "$(uuidgen)" -p iac-conf-mgmt -c prd
+
+# Set the shared legacy token (always required)
 doppler secrets set SPLUNK_HEC_TOKEN "$(uuidgen)" -p iac-conf-mgmt -c prd
 ```
 
-Senders (Cribl Edge, Cribl Stream, etc.) use this token to send events to any index.
+### Adding a New Index + Token
+
+1. Add the index to `splunk_docker_indexes` in `defaults/main.yml`
+2. Run `doppler run -- ansible-playbook playbooks/site.yml` — token is auto-derived
+3. Senders derive the same token locally:
+
+```bash
+python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('$HEC_NAMESPACE'), 'splunk-hec-<index_name>'))"
+```
 
 ## MCP Server Verification
 
