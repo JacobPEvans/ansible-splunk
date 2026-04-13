@@ -132,9 +132,8 @@ All secrets via Doppler (`iac-conf-mgmt` / `prd`):
 | Doppler Secret | Ansible Variable | Purpose |
 | --- | --- | --- |
 | `SPLUNK_PASSWORD` | `splunk_docker_password` | Splunk admin password |
-| `HEC_NAMESPACE` | `splunk_docker_hec_namespace` | UUID namespace for HEC token derivation (primary) |
-| `SPLUNK_HEC_TOKEN` | `splunk_docker_hec_token_values.legacy` | Legacy HEC token UUID (fallback if no `HEC_NAMESPACE`) |
-| `SPLUNK_MCP_TOKEN` | `splunk_docker_mcp_token` | MCP Server authentication token |
+| `SPLUNK_HEC_TOKEN` | `splunk_docker_hec_token_values.legacy` | HEC token UUID (shared across all indexes) |
+| `SPLUNK_MCP_TOKEN` | — | MCP Server Bearer token (client-side, created via Splunk UI) |
 | `PROXMOX_SSH_KEY_PATH` | — | SSH key for VM access |
 
 ```bash

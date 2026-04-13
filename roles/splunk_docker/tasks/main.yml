@@ -169,7 +169,7 @@
 - name: Install apps and add-ons
   ansible.builtin.include_tasks: apps.yml
 
-# Configure MCP Server post-install (token auth, app settings)
+# Configure MCP Server post-install (server settings, not token auth)
 - name: Configure MCP Server
   ansible.builtin.include_tasks: mcp_server.yml
 

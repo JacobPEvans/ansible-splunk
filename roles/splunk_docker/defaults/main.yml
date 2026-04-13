@@ -15,14 +15,10 @@ splunk_docker_container_name: splunk
 # Splunk credentials (from Doppler) - set in playbook vars
 splunk_docker_password: ""
 
-# HEC token values — dict of { index_name: token_uuid }.
-# Populated in playbook from terraform_inventory.json or Doppler derivation.
-# Keys must match index names in splunk_docker_indexes.
+# HEC token values — dict with at least a 'legacy' key.
+# Set from SPLUNK_HEC_TOKEN env var in site.yml.
+# The legacy token has access to all indexes.
 splunk_docker_hec_token_values: {}
-
-# HEC namespace UUID for token derivation (from Doppler HEC_NAMESPACE).
-# Used by the uuidv5 filter: 'splunk-hec-<index>' | uuidv5(namespace)
-splunk_docker_hec_namespace: ""
 
 # Splunk ports
 splunk_docker_web_port: 8000

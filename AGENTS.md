@@ -18,7 +18,7 @@ This repository is the **single source of truth** for Splunk configuration.
 
 ### External Services
 
-- **Doppler**: Secrets for `SPLUNK_PASSWORD`, `HEC_NAMESPACE`, `SPLUNK_HEC_TOKEN`, `SPLUNK_MCP_TOKEN`
+- **Doppler**: Secrets for `SPLUNK_PASSWORD`, `SPLUNK_HEC_TOKEN`, `SPLUNK_MCP_TOKEN`
 
 ## Key Files
 
@@ -49,9 +49,8 @@ doppler run -- ansible-playbook playbooks/validate.yml
 
 - **Health check fails**: Check container logs with `docker logs splunk`
 - **Apps not visible**: Verify ownership is UID 41812
-- **HEC not working**: Confirm `HEC_NAMESPACE` in Doppler (primary); `SPLUNK_HEC_TOKEN` is the legacy fallback
-- **MCP Server not responding**: Confirm `SPLUNK_MCP_TOKEN` in Doppler,
-  check port 8089 is accessible from your machine
+- **HEC not working**: Confirm `SPLUNK_HEC_TOKEN` in Doppler
+- **MCP Server not responding**: Create token via Splunk MCP Server config page (Settings > MCP Server), check port 8089 is accessible
 
 ### Adding Splunkbase Apps
 
@@ -84,9 +83,8 @@ All secrets retrieved from Doppler at runtime. Required secrets:
 | Secret | Purpose |
 | --- | --- |
 | `SPLUNK_PASSWORD` | Admin password |
-| `HEC_NAMESPACE` | UUID namespace for HEC token derivation (primary) |
-| `SPLUNK_HEC_TOKEN` | Legacy HEC token UUID (fallback if no `HEC_NAMESPACE`) |
-| `SPLUNK_MCP_TOKEN` | MCP Server authentication token |
+| `SPLUNK_HEC_TOKEN` | HEC token UUID (shared across all indexes) |
+| `SPLUNK_MCP_TOKEN` | MCP Server Bearer token (client-side, created via Splunk UI) |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
 ```bash

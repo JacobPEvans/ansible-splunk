@@ -3,7 +3,7 @@
 # Run this after deploy.yml to verify success
 #
 # Usage:
-#   doppler run -- uv run ansible-playbook playbooks/validate.yml
+#   doppler run -- ansible-playbook playbooks/validate.yml
 
 - name: Load Terraform inventory
   ansible.builtin.import_playbook: ../inventory/load_terraform.yml
@@ -20,31 +20,10 @@
     validation_results: []
 
   tasks:
-    - name: Set HEC namespace from environment
+    - name: Set HEC token from environment
       ansible.builtin.set_fact:
-        splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') }}"
-      no_log: true
-
-    - name: Derive HEC token values from namespace
-      vars:
-        index_names: "{{ splunk_docker_indexes | map(attribute='name') | list }}"
-      ansible.builtin.set_fact:
-        splunk_docker_hec_token_values: >-
-          {{
-            dict(index_names | zip(
-              index_names | map('regex_replace', '^', 'splunk-hec-') | map('uuidv5', splunk_docker_hec_namespace)
-            )) | combine({'legacy': 'splunk-hec-legacy' | uuidv5(splunk_docker_hec_namespace)})
-          }}
-      when: splunk_docker_hec_namespace | length > 0
-      no_log: true
-
-    - name: Fallback to SPLUNK_HEC_TOKEN if no namespace
-      ansible.builtin.set_fact:
-        splunk_docker_hec_token_values: >-
-          {{ {'legacy': lookup('env', 'SPLUNK_HEC_TOKEN')} }}
-      when:
-        - splunk_docker_hec_namespace | length == 0
-        - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+        splunk_docker_hec_token_values:
+          legacy: "{{ lookup('env', 'SPLUNK_HEC_TOKEN') | default('', true) }}"
       no_log: true
 
     - name: Check Docker service is running
@@ -118,37 +97,30 @@
         validation_results: >-
           {{ validation_results + [{'check': mgmt_check, 'passed': mgmt_port.failed is false}] }}
 
-
-    - name: Test HEC endpoint per index token
+    - name: Test HEC endpoint with legacy token
       ansible.builtin.uri:
         url: "https://localhost:{{ splunk_docker_hec_port }}/services/collector/event"
         validate_certs: false
         method: POST
         headers:
-          Authorization: "Splunk {{ splunk_docker_hec_token_values[item.name] }}"
+          Authorization: "Splunk {{ splunk_docker_hec_token_values.legacy }}"
         body_format: json
         body:
-          event: "ansible-validation-test-{{ item.name }}"
+          event: "ansible-validation-test"
           sourcetype: "_json"
-          index: "{{ item.name }}"
+          index: "main"
         status_code: 200
       register: splunk_docker_hec_test
       failed_when: false
-      loop: "{{ splunk_docker_indexes }}"
-      loop_control:
-        label: "{{ item.name }}"
-      when: splunk_docker_hec_token_values[item.name] is defined
+      when: splunk_docker_hec_token_values.legacy | default('') | length > 0
       no_log: true
 
-    - name: Record HEC POST test results
+    - name: Record HEC POST test result
       ansible.builtin.set_fact:
         validation_results: >-
-          {{ validation_results + [{'check': 'HEC POST (' + item.item.name + ')',
-             'passed': (item.status | default(0)) == 200}] }}
-      loop: "{{ splunk_docker_hec_test.results | default([]) }}"
-      loop_control:
-        label: "{{ item.item.name }}"
-      when: splunk_docker_hec_test is defined and (item.skipped is not defined or not item.skipped)
+          {{ validation_results + [{'check': 'HEC POST (legacy token)',
+             'passed': (splunk_docker_hec_test.status | default(0)) == 200}] }}
+      when: splunk_docker_hec_token_values.legacy | default('') | length > 0
 
     - name: Check web.conf exists
       ansible.builtin.stat:
