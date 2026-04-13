@@ -1,8 +1,7 @@
 # Ansible Splunk Enterprise
 
-[![Lint](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/lint.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/lint.yml)
-[![Molecule](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/molecule.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/molecule.yml)
-[![Validate](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/validate.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/validate.yml)
+[![Lint](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/_ci.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/_ci.yml)
+[![Molecule](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/_molecule.yml/badge.svg)](https://github.com/JacobPEvans/ansible-splunk/actions/workflows/_molecule.yml)
 
 Deploy and configure Splunk Enterprise (Docker) on a Proxmox VM.
 
