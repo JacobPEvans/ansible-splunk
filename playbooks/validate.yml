@@ -122,6 +122,13 @@
              'passed': (splunk_docker_hec_test.status | default(0)) == 200}] }}
       when: splunk_docker_hec_token_values.legacy | default('') | length > 0
 
+    - name: Record missing HEC token
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'HEC POST (legacy token)',
+             'passed': false}] }}
+      when: splunk_docker_hec_token_values.legacy | default('') | length == 0
+
     - name: Check web.conf exists
       ansible.builtin.stat:
         path: "{{ splunk_docker_etc_dir }}/system/local/web.conf"

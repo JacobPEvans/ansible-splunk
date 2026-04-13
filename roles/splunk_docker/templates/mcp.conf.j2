@@ -7,4 +7,4 @@
 [server]
 # Self-signed certs on internal network — skip SSL verification for
 # Splunk REST API calls made by the MCP server internally.
-ssl_verify = {{ splunk_docker_mcp_ssl_verify | default('false') }}
+ssl_verify = {{ splunk_docker_mcp_ssl_verify | default(false) | lower }}
