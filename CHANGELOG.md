@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.0...v0.11.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* correct MCP Server config and restore per-index HEC tokens ([#140](https://github.com/JacobPEvans/ansible-splunk/issues/140)) ([24614d8](https://github.com/JacobPEvans/ansible-splunk/commit/24614d8159f31385ccb793bc27a26ebb8fe4bced))
+
 ## [0.11.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.10.0...v0.11.0) (2026-04-12)
 
 ### Features
