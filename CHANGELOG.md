@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.4](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.3...v0.11.4) (2026-04-21)
+
+
+### Bug Fixes
+
+* **ci:** add gh-aw-pin-refresh workflow and recompile lock files ([af66071](https://github.com/JacobPEvans/ansible-splunk/commit/af6607151e1b8516e23a0301336a408ab069005b))
+
 ## [0.11.3](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.2...v0.11.3) (2026-04-13)
 
 ### Bug Fixes
