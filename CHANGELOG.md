@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.11.3](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.2...v0.11.3) (2026-04-13)
 
-
 ### Bug Fixes
 
 * add automation bots to AI Moderator skip-bots ([#152](https://github.com/JacobPEvans/ansible-splunk/issues/152)) ([7bbd048](https://github.com/JacobPEvans/ansible-splunk/commit/7bbd0482ab672e0efab0f6e1db14e09a579d2ffc))
