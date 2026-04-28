@@ -62,6 +62,31 @@
   ansible.builtin.include_tasks: java.yml
   when: splunk_docker_java_enabled
 
+# Create a host-side splunk group and user matching the in-container UID (41812)
+# so that `ls /opt/splunk` shows a friendly name instead of the raw UID.
+# Cosmetic only — the container still owns the bind mounts via UID, not name.
+- name: Create splunk group on host (matches container UID)
+  ansible.builtin.group:
+    name: splunk
+    gid: "{{ splunk_docker_group }}"
+    system: true
+    state: present
+
+- name: Create splunk user on host (matches container UID)
+  ansible.builtin.user:
+    name: splunk
+    uid: "{{ splunk_docker_user }}"
+    group: splunk
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    home: "{{ splunk_docker_data_dir }}"
+    comment: Splunk container service account (host-side mirror of UID 41812)
+    state: present
+  # If the host UID changes, the container must restart so its
+  # SPLUNK_HOME_OWNERSHIP_ENFORCEMENT entrypoint re-chowns volumes recursively.
+  notify: Restart Splunk container
+
 - name: Create Splunk data directories
   ansible.builtin.file:
     path: "{{ item }}"
