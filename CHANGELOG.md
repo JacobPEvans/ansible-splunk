@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.8](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.7...v0.11.8) (2026-04-28)
+
+
+### Bug Fixes
+
+* **deps:** refresh gh-aw action SHA pins ([#179](https://github.com/JacobPEvans/ansible-splunk/issues/179)) ([9a3f9b8](https://github.com/JacobPEvans/ansible-splunk/commit/9a3f9b8221bcd00efd5da693f0e503b3aa3b428f))
+
 ## [0.11.7](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.6...v0.11.7) (2026-04-26)
 
 
