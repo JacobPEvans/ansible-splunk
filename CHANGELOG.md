@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.9](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.8...v0.11.9) (2026-04-29)
+
+
+### Bug Fixes
+
+* **splunk_docker:** create host splunk user/group matching container UID ([#182](https://github.com/JacobPEvans/ansible-splunk/issues/182)) ([446056d](https://github.com/JacobPEvans/ansible-splunk/commit/446056de2fe85387b338b8b799f1813a29e408dc))
+
 ## [0.11.8](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.7...v0.11.8) (2026-04-28)
 
 ### Bug Fixes
