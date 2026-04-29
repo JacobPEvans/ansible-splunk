@@ -111,6 +111,7 @@
           - "'[ai]' in (indexes_content.content | b64decode)"
           - "'[claude]' in (indexes_content.content | b64decode)"
           - "'[gemini]' in (indexes_content.content | b64decode)"
+          - "'[mac_perf]' in (indexes_content.content | b64decode)"
           - "'[openai]' in (indexes_content.content | b64decode)"
           - "'[vscode]' in (indexes_content.content | b64decode)"
         fail_msg: "One or more pipeline indexes missing from indexes.conf"
