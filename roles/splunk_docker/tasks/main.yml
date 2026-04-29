@@ -62,6 +62,27 @@
   ansible.builtin.include_tasks: java.yml
   when: splunk_docker_java_enabled
 
+# Cosmetic host-side mirror of the in-container splunk UID/GID (41812).
+# The container owns bind mounts via UID, not name — this is display-only.
+- name: Create splunk group on host (matches container UID/GID)
+  ansible.builtin.group:
+    name: splunk
+    gid: "{{ splunk_docker_group }}"
+    system: true
+    state: present
+
+- name: Create splunk user on host (matches container UID/GID)
+  ansible.builtin.user:
+    name: splunk
+    uid: "{{ splunk_docker_user }}"
+    group: splunk
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    home: "{{ splunk_docker_data_dir }}"
+    comment: "Splunk container service account (host-side mirror of UID {{ splunk_docker_user }})"
+    state: present
+
 - name: Create Splunk data directories
   ansible.builtin.file:
     path: "{{ item }}"
