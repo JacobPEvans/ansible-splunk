@@ -70,8 +70,6 @@
     gid: "{{ splunk_docker_group }}"
     system: true
     state: present
-  # If UID/GID changes, restart so SPLUNK_HOME_OWNERSHIP_ENFORCEMENT re-chowns volumes.
-  notify: Restart Splunk container
 
 - name: Create splunk user on host (matches container UID/GID)
   ansible.builtin.user:
@@ -84,7 +82,6 @@
     home: "{{ splunk_docker_data_dir }}"
     comment: "Splunk container service account (host-side mirror of UID {{ splunk_docker_user }})"
     state: present
-  notify: Restart Splunk container
 
 - name: Create Splunk data directories
   ansible.builtin.file:
