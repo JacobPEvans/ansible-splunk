@@ -52,6 +52,17 @@ splunk_docker_addons:
   # a new version is needed.
   - {filename: hurricane-labs-add-on-for-automox.tar, app_dir: TA-automox}
 
+  # Slack Add-on for Splunk (TA-slack-add-on-for-splunk). Vendor distributes
+  # only via direct download (not Splunkbase, no GitHub release). To rotate
+  # versions, repackage `~/git/splunk/TA-slack-add-on-for-splunk/` as an
+  # uncompressed .tar archive (not .tar.gz — install uses the registry filename
+  # directly via ansible.builtin.unarchive) and upload to MinIO with the
+  # version-free filename:
+  #   tar -cf slack-add-on-for-splunk.tar -C ~/git/splunk TA-slack-add-on-for-splunk
+  #   mc cp slack-add-on-for-splunk.tar homelab/splunk-addons/slack-add-on-for-splunk.tar
+  #   mc tag set homelab/splunk-addons/slack-add-on-for-splunk.tar "version=3.0.0"
+  - {filename: slack-add-on-for-splunk.tar, app_dir: TA-slack-add-on-for-splunk}
+
   # --- GitHub Releases: JacobPEvans/<repo>/releases/latest ---
   - {filename: VisiCore_TA_AI_Observability.spl, app_dir: VisiCore_TA_AI_Observability, github_repo: JacobPEvans/VisiCore_TA_AI_Observability}
   - {filename: VisiCore_App_for_AI_Observability.spl, app_dir: VisiCore_App_for_AI_Observability, github_repo: JacobPEvans/VisiCore_App_for_AI_Observability}
