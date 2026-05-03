@@ -7,19 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.12.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.9...v0.12.0) (2026-05-03)
 
-
 ### Features
 
 * **splunk_docker:** add mac_perf index ([#184](https://github.com/JacobPEvans/ansible-splunk/issues/184)) ([6acc906](https://github.com/JacobPEvans/ansible-splunk/commit/6acc9069266771e24050f79f2eedb2e1aaa3303c))
 * **splunk_docker:** wire TA-slack-add-on-for-splunk into addons registry ([#186](https://github.com/JacobPEvans/ansible-splunk/issues/186)) ([f93e5e0](https://github.com/JacobPEvans/ansible-splunk/commit/f93e5e01b8d2f1c763d1740c9454e61a0e7fa05b))
-
 
 ### Bug Fixes
 
 * **deps:** refresh gh-aw action SHA pins ([#188](https://github.com/JacobPEvans/ansible-splunk/issues/188)) ([a884904](https://github.com/JacobPEvans/ansible-splunk/commit/a884904cd6cf006d5e8437b44fb65e7c2e8e65fa))
 
 ## [0.11.9](https://github.com/JacobPEvans/ansible-splunk/compare/v0.11.8...v0.11.9) (2026-04-29)
-
 
 ### Bug Fixes
 
