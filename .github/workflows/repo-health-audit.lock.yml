@@ -28,8 +28,8 @@
 #   Imports:
 #     - JacobPEvans/.github/.github/workflows/shared/repo-health-audit-config.md@main
 #   Includes:
-#     - /tmp/gh-aw-include-1602879257.md
-#     - /tmp/gh-aw-include-2873062013.md
+#     - /tmp/gh-aw-include-117888921.md
+#     - /tmp/gh-aw-include-1425187191.md
 #
 # Secrets used:
 #   - COPILOT_GITHUB_TOKEN
