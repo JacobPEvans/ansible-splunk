@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0](https://github.com/dryvist/ansible-splunk/compare/v0.22.5...v0.23.0) (2026-07-03)
+
+
+### Features
+
+* add AI PR care caller (dep review + release highlights) ([#292](https://github.com/dryvist/ansible-splunk/issues/292)) ([60e647d](https://github.com/dryvist/ansible-splunk/commit/60e647ddfa0c4aa639a995771c2fc0eecbbf8045))
+
 ## [0.22.5](https://github.com/dryvist/ansible-splunk/compare/v0.22.4...v0.22.5) (2026-07-02)
 
 
