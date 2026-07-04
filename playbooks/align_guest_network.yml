@@ -52,6 +52,11 @@
         qm guest exec {{ splunk_guest.vmid }} -- ip -4 -o addr show eth0
       delegate_to: splunk-pve-node
       register: guest_addr
+      # qm guest exec exits 0 on the host even when the in-guest command
+      # fails; the real status is the exitcode field of its JSON output.
+      failed_when: >-
+        guest_addr.rc != 0
+        or (guest_addr.stdout | from_json).exitcode != 0
       changed_when: false
 
     - name: Write the netplan overlay and apply it in the guest
@@ -70,9 +75,15 @@
             > /etc/netplan/60-tofu-address.yaml &&
             netplan apply && echo NETPLAN_OK
       delegate_to: splunk-pve-node
-      when: (splunk_guest.ip ~ '/') not in guest_addr.stdout
+      when: >-
+        (splunk_guest.ip ~ '/')
+        not in (guest_addr.stdout | from_json).get('out-data', '')
       register: netplan_write
-      failed_when: "'NETPLAN_OK' not in netplan_write.stdout"
+      failed_when: >-
+        netplan_write.rc != 0
+        or (netplan_write.stdout | from_json).exitcode != 0
+        or 'NETPLAN_OK' not in
+           (netplan_write.stdout | from_json).get('out-data', '')
       changed_when: true
 
     - name: Wait for SSH on the declared address
