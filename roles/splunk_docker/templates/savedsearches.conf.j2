@@ -47,6 +47,9 @@ disabled = 0
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 120m
+# Scope suppression per host: without this, the first silent host suppresses
+# the alert globally and a second host failing inside the window goes unseen.
+alert.suppress.fields = host
 alert.track = 1
 counttype = number of events
 relation = greater than
@@ -96,7 +99,10 @@ action.email.message.alert = A model-server manager panic reached the llm index.
 --------------------------------------------------------------------------- #}
 [llm_router_silence_detector]
 description = Alerts when the LiteLLM router stops recording requests in index=ai for more than 15 minutes. The router is the single endpoint every LLM consumer resolves, so its silence means the whole fabric is unreachable even if individual model servers are healthy. Assumes router request events land as index=ai sourcetype=litellm (see comment above).
-search = | tstats latest(_time) as last_seen WHERE index=ai sourcetype=litellm | eval minutes_silent = (now() - last_seen) / 60 | where minutes_silent > 15
+# coalesce: with zero events in the whole lookback window, tstats yields a
+# null last_seen; without the fallback the where clause filters the row out
+# and the alert goes quiet exactly when the router has been dead longest.
+search = | tstats latest(_time) as last_seen WHERE index=ai sourcetype=litellm | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
 dispatch.earliest_time = -24h
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
@@ -162,6 +168,9 @@ disabled = 0
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 6h
+# Models/suites are independent: scope suppression so one regression cannot
+# mask another model+suite regressing inside the window.
+alert.suppress.fields = model,suite
 alert.track = 1
 counttype = number of events
 relation = greater than
