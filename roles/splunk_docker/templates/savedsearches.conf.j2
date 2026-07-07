@@ -198,7 +198,11 @@ action.email.message.alert = A promptfoo eval suite regressed: the latest score 
 {% for det in splunk_docker_silence_detectors | default([]) %}
 [{{ det.name }}_silence_detector]
 description = Alerts when the {{ det.index }} index has received no events for more than {{ det.threshold_minutes }} minutes{% if det.sourcetype is defined %} (sourcetype={{ det.sourcetype }}){% endif %}{% if det.by_host | default(false) %}, detected per-host so a healthy emitter cannot mask a dead one{% endif %}. Catches the emitter, its Cribl pipeline, and Splunk HEC ingestion failing with a single signal.
-search = | tstats latest(_time) as last_seen WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host{% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {{ det.threshold_minutes }}
+{# The appendpipe guard covers the by_host blind spot: tstats ... by host over
+   a fully-empty index returns ZERO rows (not a null-last_seen row), so without
+   it the alert goes quiet exactly when every host is dead. stats count on the
+   empty set yields one count=0 row, which synthesizes a sentinel result. #}
+search = | tstats latest(_time) as last_seen WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0 | fields - _rows ]{% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {{ det.threshold_minutes }}
 # Lookback must exceed the worst-case silence the alert needs to detect;
 # tstats reads only indexed metadata, so a wide window is cheap.
 dispatch.earliest_time = -7d
