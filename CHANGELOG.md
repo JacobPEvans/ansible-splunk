@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0](https://github.com/dryvist/ansible-splunk/compare/v0.26.0...v0.27.0) (2026-07-07)
+
+
+### Features
+
+* **hec:** allow per-token extra target indexes via extra_hec_indexes ([#302](https://github.com/dryvist/ansible-splunk/issues/302)) ([3193361](https://github.com/dryvist/ansible-splunk/commit/31933615be8556425e47c803df864aa4d884f61a))
+
 ## [0.26.0](https://github.com/dryvist/ansible-splunk/compare/v0.25.0...v0.26.0) (2026-07-07)
 
 
