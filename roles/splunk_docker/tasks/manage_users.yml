@@ -1,0 +1,41 @@
+---
+# Manage additional Splunk users + mint per-user authorization tokens.
+#
+# Gives service accounts (e.g. the Hermes AI agent) their own scoped REST/search
+# identity instead of sharing the admin password. Included from tasks/main.yml
+# AFTER wait_for_splunk so the splunkd REST API is live.
+#
+# Auth model: the Splunk MCP Server (Splunkbase 7931, see vars/mcp.yml) lets MCP
+# clients authenticate with a Bearer token, NOT a username/password. So for each
+# managed user we (1) create the user with its roles, (2) enable token auth on
+# the deployment, and (3) mint a Splunk authorization token (JWT) that the client
+# uses as SPLUNK_MCP_TOKEN. The token inherits the user's roles/capabilities.
+
+- name: Manage Splunk service users and tokens
+  when:
+    - splunk_docker_manage_users | bool
+    - splunk_docker_users | length > 0
+  block:
+    # Token authentication must be enabled deployment-wide before any token can
+    # be minted. Idempotent — POSTing disabled=false when already enabled is a
+    # no-op 200.
+    - name: Enable Splunk token authentication
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/admin/token-auth/tokens_auth"
+        method: POST
+        user: "{{ splunk_admin_user | default('admin') }}"
+        password: "{{ splunk_docker_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        body_format: form-urlencoded
+        body:
+          disabled: "false"
+        status_code: [200, 201]
+      no_log: true
+
+    - name: Reconcile each managed user and its token
+      ansible.builtin.include_tasks: manage_one_user.yml
+      loop: "{{ splunk_docker_users }}"
+      loop_control:
+        loop_var: splunk_user
+        label: "{{ splunk_user.name }}"

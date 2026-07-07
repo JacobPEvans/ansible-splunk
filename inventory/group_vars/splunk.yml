@@ -15,3 +15,13 @@ splunk_docker_mssql_driver_enabled: true
 # Data disk configuration
 splunk_data_disk_device: /dev/sdb1
 splunk_data_disk_mount_path: /opt/splunk/var/lib/splunk
+
+# Managed service users. The Hermes AI agent gets its own Splunk identity so it
+# can search/read the environment via the Splunk MCP Server (Bearer token =
+# SPLUNK_MCP_TOKEN, minted per-user). Admin role for now — narrow to a custom
+# read/search role once the access pattern is known.
+splunk_docker_manage_users: true
+splunk_docker_users:
+  - name: hermes
+    roles:
+      - admin

@@ -1,0 +1,138 @@
+---
+# Create/reconcile ONE Splunk user and (when a delivery path exists) ensure it
+# has a live authorization token. Included per-item from manage_users.yml with
+# loop_var: splunk_user ({ name, roles: [..] }).
+
+- name: "Look up Splunk user {{ splunk_user.name }}"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authentication/users/{{ splunk_user.name }}?output_mode=json"
+    method: GET
+    user: "{{ splunk_admin_user | default('admin') }}"
+    password: "{{ splunk_docker_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: [200, 404]
+  register: splunk_docker_user_lookup
+  no_log: true
+
+# Password is a fresh random string used ONLY at creation — the token is the
+# credential clients use, so the password is never stored or rotated here.
+- name: "Create Splunk user {{ splunk_user.name }}"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authentication/users"
+    method: POST
+    user: "{{ splunk_admin_user | default('admin') }}"
+    password: "{{ splunk_docker_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: form-urlencoded
+    body:
+      name: "{{ splunk_user.name }}"
+      password: "{{ lookup('ansible.builtin.password', '/dev/null chars=ascii_letters,digits length=40') }}"
+      roles: "{{ splunk_user.roles }}"
+    status_code: [200, 201]
+  when: splunk_docker_user_lookup.status == 404
+  no_log: true
+
+- name: "Reconcile roles for Splunk user {{ splunk_user.name }}"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authentication/users/{{ splunk_user.name }}"
+    method: POST
+    user: "{{ splunk_admin_user | default('admin') }}"
+    password: "{{ splunk_docker_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: form-urlencoded
+    body:
+      roles: "{{ splunk_user.roles }}"
+    status_code: [200]
+  when: splunk_docker_user_lookup.status == 200
+  no_log: true
+
+# A Splunk auth-token JWT is returned exactly once, at creation. So we only mint
+# when a delivery path exists (OpenBao publish on) — otherwise a minted token
+# would be un-deliverable and the audience check would suppress re-minting later.
+- name: "Ensure a live token for {{ splunk_user.name }}"
+  when: splunk_docker_token_publish_openbao | bool
+  block:
+    - name: "List existing tokens for {{ splunk_user.name }}"
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json"
+        method: GET
+        user: "{{ splunk_admin_user | default('admin') }}"
+        password: "{{ splunk_docker_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      register: splunk_docker_token_list
+      no_log: true
+
+    - name: "Detect a live token for {{ splunk_user.name }} / {{ splunk_docker_token_audience }}"
+      ansible.builtin.set_fact:
+        splunk_docker_user_token_exists: >-
+          {{ (splunk_docker_token_list.json.entry | default([]))
+             | map(attribute='content.claims') | select('defined')
+             | selectattr('sub', 'defined') | selectattr('sub', 'equalto', splunk_user.name)
+             | selectattr('aud', 'defined') | selectattr('aud', 'equalto', splunk_docker_token_audience)
+             | list | length > 0 }}
+
+    - name: "Mint authorization token for {{ splunk_user.name }}"
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json"
+        method: POST
+        user: "{{ splunk_admin_user | default('admin') }}"
+        password: "{{ splunk_docker_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        body_format: form-urlencoded
+        body:
+          name: "{{ splunk_user.name }}"
+          audience: "{{ splunk_docker_token_audience }}"
+          expires_on: "{{ splunk_docker_token_expires_on | default(omit) if (splunk_docker_token_expires_on | length > 0) else omit }}"
+        status_code: [200, 201]
+      register: splunk_docker_token_mint
+      when: not splunk_docker_user_token_exists
+      no_log: true
+
+    - name: "Read current OpenBao secret at {{ splunk_docker_token_openbao_path }}"
+      ansible.builtin.uri:
+        url: "{{ splunk_docker_token_openbao_addr }}/v1/{{ splunk_docker_token_openbao_mount }}/data/{{ splunk_docker_token_openbao_path }}"
+        method: GET
+        headers:
+          X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
+        validate_certs: false
+        status_code: [200, 404]
+      register: splunk_docker_bao_current
+      when:
+        - not splunk_docker_user_token_exists
+        - splunk_docker_token_mint is not skipped
+      no_log: true
+
+    # KV v2 write replaces the whole secret, so merge the new key over the
+    # current data to avoid clobbering sibling keys (e.g. HERMES_GITHUB_APP_*).
+    - name: "Publish {{ splunk_user.name }} token to OpenBao ({{ splunk_docker_token_openbao_key }})"
+      ansible.builtin.uri:
+        url: "{{ splunk_docker_token_openbao_addr }}/v1/{{ splunk_docker_token_openbao_mount }}/data/{{ splunk_docker_token_openbao_path }}"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
+        body_format: json
+        body:
+          data: >-
+            {{ (splunk_docker_bao_current.json.data.data | default({}))
+               | combine({splunk_docker_token_openbao_key: splunk_docker_token_mint.json.entry[0].content.token}) }}
+        validate_certs: false
+        status_code: [200, 204]
+      when:
+        - not splunk_docker_user_token_exists
+        - splunk_docker_token_mint is not skipped
+      no_log: true
+
+- name: "Token delivery deferred for {{ splunk_user.name }}"
+  ansible.builtin.debug:
+    msg: >-
+      User '{{ splunk_user.name }}' ensured (roles {{ splunk_user.roles | join(',') }}).
+      Token minting is deferred because splunk_docker_token_publish_openbao is off —
+      wire a write-capable OpenBao AppRole (BAO_ADDR/BAO_TOKEN) to mint + publish
+      {{ splunk_docker_token_openbao_key }} to {{ splunk_docker_token_openbao_mount }}/{{ splunk_docker_token_openbao_path }}.
+  when: not (splunk_docker_token_publish_openbao | bool)

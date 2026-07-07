@@ -47,6 +47,40 @@ splunk_docker_hec_port: 8088
 splunk_docker_mgmt_port: 8089
 splunk_docker_mgmt_bind: "0.0.0.0"
 
+# --- Managed service users + auth tokens -----------------------------------
+# Create dedicated Splunk users (beyond the built-in admin) and mint each an
+# authorization token, so AI agents / MCP clients get their own scoped REST +
+# search identity instead of sharing the admin password. Off by default; the
+# splunk inventory group enables it and supplies the user list.
+splunk_docker_manage_users: false
+
+# List of managed users. Each: { name, roles: [..] }.
+#   name  - Splunk username (also the token owner / audience owner).
+#   roles - Splunk roles granted (e.g. [admin], [user], [power]).
+# The user's password is randomly generated once at creation and never rotated
+# here — the minted token is the credential that clients actually use.
+splunk_docker_users: []
+
+# Token audience tag used to detect an existing live token (idempotent mint) and
+# to label the token in Splunk. One token per (user, audience).
+splunk_docker_token_audience: "hermes-mcp"
+
+# Relative expiry for minted tokens (Splunk relative-time syntax, e.g. +90d).
+# Empty string omits expires_on so Splunk applies its default token lifetime.
+splunk_docker_token_expires_on: "+90d"
+
+# When true, publish a freshly minted token to OpenBao so the consumer (Hermes)
+# reads it from the shared secrets engine. Requires a write-capable OpenBao
+# AppRole in the converge environment (see the *_openbao_* vars below). Inert
+# by default: the user is created and the token minted, but the JWT is only
+# surfaced for out-of-band placement until a write role is wired.
+splunk_docker_token_publish_openbao: false
+splunk_docker_token_openbao_addr: "{{ lookup('env', 'BAO_ADDR') | default('', true) }}"
+splunk_docker_token_openbao_token: "{{ lookup('env', 'BAO_TOKEN') | default('', true) }}"
+splunk_docker_token_openbao_mount: "secret"
+splunk_docker_token_openbao_path: "ai/hermes"
+splunk_docker_token_openbao_key: "SPLUNK_MCP_TOKEN"
+
 # Splunk Web SSL (enableSplunkWebSSL)
 splunk_docker_web_ssl: true
 

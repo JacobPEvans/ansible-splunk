@@ -135,7 +135,7 @@ All secrets via your Doppler config:
 | `SPLUNK_PASSWORD` | `splunk_docker_password` | Splunk admin password |
 | `HEC_NAMESPACE` | `splunk_docker_hec_namespace` | UUID namespace for per-index HEC token derivation (optional) |
 | `SPLUNK_HEC_TOKEN` | `splunk_docker_hec_token_values.legacy` | Shared legacy HEC token (always required) |
-| `SPLUNK_MCP_TOKEN` | — | MCP Server Bearer token (client-side, created via Splunk UI) |
+| `SPLUNK_MCP_TOKEN` | — | MCP Server Bearer token (client-side). Minted per managed user by the role — see [Managed service users](#managed-service-users) |
 | `PROXMOX_SSH_KEY_PATH` | — | SSH key for VM access |
 
 ```bash
@@ -151,6 +151,37 @@ doppler run -- ansible-playbook playbooks/site.yml
 > rotation you must reset the container admin via the standard
 > [user-seed.conf](https://docs.splunk.com/Documentation/Splunk/latest/Admin/User-seedconf)
 > procedure on the persistent `etc/` mount.
+
+## Managed service users
+
+Service accounts (AI agents, MCP clients) get their own scoped Splunk identity
+instead of sharing the admin password. Set `splunk_docker_manage_users: true`
+and list them in `splunk_docker_users`:
+
+```yaml
+splunk_docker_users:
+  - name: hermes
+    roles: [admin]   # narrow to a custom read/search role once known
+```
+
+After the REST API is up, the role (`tasks/manage_users.yml`) idempotently:
+
+1. **Enables token authentication** deployment-wide.
+2. **Creates each user** with its roles (password is random, set once at
+   creation — never rotated here, since the token is the real credential).
+3. **Mints an authorization token** (JWT) per user, tagged with
+   `splunk_docker_token_audience` (default `hermes-mcp`), skipping the mint when
+   a live token for that audience already exists.
+
+The minted JWT is the client-side `SPLUNK_MCP_TOKEN` the Splunk MCP Server
+(Splunkbase 7931) accepts as a Bearer token — a Splunk token inherits its
+owner's roles, so searches run with the user's capabilities. Because Splunk
+returns a token's value **only once at creation**, minting is gated on a
+delivery path: set `splunk_docker_token_publish_openbao: true` and provide a
+write-capable OpenBao AppRole (`BAO_ADDR` / `BAO_TOKEN`) so the role merges the
+token into `secret/ai/hermes` (`SPLUNK_MCP_TOKEN`) without clobbering sibling
+keys. Until that is wired, users and roles are still reconciled; only the
+token mint is deferred.
 
 ## Testing
 
