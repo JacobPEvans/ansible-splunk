@@ -184,6 +184,77 @@ splunk_docker_indexes:
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
 
 
+# Per-index pipeline-silence detectors.
+# Each entry renders a [<name>_silence_detector] saved search (see
+# savedsearches.conf.j2) cloning the macos_edge_silence_detector shape:
+# tstats latest(_time) over the index, alert when silent beyond the
+# threshold. Fields:
+#   name              — stanza prefix; must not collide with the bespoke
+#                       detectors in savedsearches.conf.j2 (macos_edge,
+#                       llm_pipeline, llm_manager_panic, llm_router*).
+#   index             — index to watch.
+#   threshold_minutes — silence duration that fires the alert.
+#   cron              — schedule (keep period well below the threshold).
+#   suppress_minutes  — alert.suppress.period; throttles re-fires.
+#   by_host           — optional, default false. Detect PER-HOST (`by host`
+#                       + alert.suppress.fields = host) so a healthy emitter
+#                       can't mask a dead one. Note: a host that has never
+#                       emitted has no baseline and cannot be detected.
+#   disabled          — optional, default 0. Set 1 to ship the stanza
+#                       disabled (e.g. index exists but no emitter yet).
+#   sourcetype        — optional filter added to the tstats WHERE clause.
+splunk_docker_silence_detectors:
+  - name: unifi
+    index: unifi
+    threshold_minutes: 15
+    cron: "*/5 * * * *"
+    suppress_minutes: 60
+  - name: os
+    index: os
+    threshold_minutes: 15
+    cron: "*/5 * * * *"
+    suppress_minutes: 60
+    by_host: true
+  - name: claude
+    index: claude
+    threshold_minutes: 60
+    cron: "*/15 * * * *"
+    suppress_minutes: 240
+  - name: dns
+    index: dns
+    threshold_minutes: 30
+    cron: "*/10 * * * *"
+    suppress_minutes: 120
+  - name: proxy
+    index: proxy
+    threshold_minutes: 30
+    cron: "*/10 * * * *"
+    suppress_minutes: 120
+  - name: firewall
+    index: firewall
+    threshold_minutes: 60
+    cron: "*/15 * * * *"
+    suppress_minutes: 240
+  - name: netflow
+    index: netflow
+    threshold_minutes: 15
+    cron: "*/5 * * * *"
+    suppress_minutes: 60
+  # Audit trail is low-volume; a full day of silence is the signal.
+  - name: openbao_audit
+    index: openbao_audit
+    threshold_minutes: 1440
+    cron: "0 * * * *"
+    suppress_minutes: 1440
+  # No honeypot emitter is wired up yet — ship the stanza disabled so it
+  # can be flipped on (disabled: 0) when the deception fabric starts sending.
+  - name: honeypot
+    index: honeypot
+    threshold_minutes: 1440
+    cron: "0 * * * *"
+    suppress_minutes: 1440
+    disabled: 1
+
 # Firewall configuration
 # DISABLED: Proxmox firewall is the single source of truth for network security.
 # Guest-level iptables rules conflict with Docker's FORWARD chain and break
