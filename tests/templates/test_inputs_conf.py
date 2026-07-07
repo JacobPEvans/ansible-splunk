@@ -143,6 +143,25 @@ if extra_errors:
 else:
     print("PASS: extra_hec_indexes widens 'indexes =' while 'index =' stays the token's own")
 
+# Test 8: explicit null and empty-list extra_hec_indexes degrade to the plain
+# single-index allowlist (default([], true) must swallow None, not just undefined).
+degenerate_indexes = [
+    {"name": "ai", "extra_hec_indexes": None},
+    {"name": "unifi", "extra_hec_indexes": []},
+]
+result_degenerate = template.render(
+    splunk_docker_indexes=degenerate_indexes, splunk_docker_hec_token_values=extra_tokens
+)
+degenerate_errors = []
+if "indexes = ai\n" not in result_degenerate:
+    degenerate_errors.append("  null extra_hec_indexes did not degrade to 'indexes = ai'")
+if "indexes = unifi\n" not in result_degenerate:
+    degenerate_errors.append("  empty extra_hec_indexes did not degrade to 'indexes = unifi'")
+if degenerate_errors:
+    errors.append("FAIL: degenerate extra_hec_indexes handling:\n" + "\n".join(degenerate_errors))
+else:
+    print("PASS: null and empty extra_hec_indexes both degrade to the single-index allowlist")
+
 if errors:
     print()
     for err in errors:

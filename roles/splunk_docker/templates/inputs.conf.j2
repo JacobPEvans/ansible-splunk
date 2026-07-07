@@ -16,7 +16,9 @@ token = {{ token_val }}
 disabled = 0
 description = HEC token for {{ idx.name }} index
 index = {{ idx.name }}
-indexes = {{ ([idx.name] + (idx.extra_hec_indexes | default([]))) | join(',') }}
+{# default(…, true) also swallows an explicit null, which default([]) alone
+   would pass through and crash the concat #}
+indexes = {{ ([idx.name] + (idx.extra_hec_indexes | default([], true))) | join(',') }}
 
 {% endif %}
 {% endfor %}
