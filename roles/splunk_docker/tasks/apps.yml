@@ -125,6 +125,14 @@
   loop_control:
     label: "{{ item.app_dir }}"
 
+# FAIL-SOFT (mirrors the controller-side rescue in sync-splunkbase.yml): a download
+# failure here — e.g. broken guest DNS making object storage / GitHub unreachable —
+# must NOT hard-fail the play. A hard fail aborts BEFORE the notified "Restart Splunk
+# container" handler flushes, so freshly deployed indexes/inputs/savedsearches config
+# never loads. We register the per-item results and `ignore_errors` so the converge
+# continues and every notified config handler still runs; a warning task below names
+# the add-ons that failed. Only these two download tasks are softened — no other task
+# type is masked. Failed add-ons keep their previously-installed version (or stay absent).
 - name: Install/upgrade Splunk add-ons from object storage
   ansible.builtin.unarchive:
     src: "{{ splunk_docker_artifact_base_url }}/{{ item.filename }}"
@@ -135,8 +143,12 @@
   loop: "{{ splunk_docker_object_storage_decided | selectattr('_needs_install') | list }}"
   loop_control:
     label: "{{ item.app_dir }} v{{ item.desired_version | default('manual') }}"
+  register: splunk_docker_object_storage_install
+  ignore_errors: true  # noqa: ignore-errors  # fail-soft: config handlers must still flush
   notify: Restart Splunk container
 
+# Only mark apps that actually extracted — a failed download must not record a marker,
+# or the next run would treat it as up to date and never retry.
 - name: Record installed version markers
   ansible.builtin.copy:
     content: "{{ item.desired_version or 'manual' }}\n"
@@ -144,9 +156,16 @@
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     mode: '0644'
-  loop: "{{ splunk_docker_object_storage_decided | selectattr('_needs_install') | list }}"
+  loop: >-
+    {{ splunk_docker_object_storage_decided | selectattr('_needs_install')
+       | rejectattr('app_dir', 'in', _splunk_docker_os_failed_dirs) | list }}
   loop_control:
     label: "{{ item.app_dir }}"
+  vars:
+    _splunk_docker_os_failed_dirs: >-
+      {{ splunk_docker_object_storage_install.results | default([])
+         | selectattr('failed', 'defined') | selectattr('failed')
+         | map(attribute='item.app_dir') | list }}
 
 # --- GitHub-release apps (VisiCore) — unchanged; see air-gap follow-up ---
 
@@ -161,7 +180,36 @@
   loop: "{{ splunk_docker_addons | selectattr('github_repo', 'defined') | list }}"
   loop_control:
     label: "{{ item.app_dir }}"
+  register: splunk_docker_github_install
+  ignore_errors: true  # noqa: ignore-errors  # fail-soft: config handlers must still flush
   notify: Restart Splunk container
+
+# Surface exactly which add-ons failed (from the registered loop results) and why the
+# converge is proceeding anyway, so a broken download is loud but non-fatal.
+- name: Warn about add-ons that failed to install (fail-soft)
+  ansible.builtin.debug:
+    msg: >-
+      Add-on install failed for [{{ _splunk_docker_failed_addons | join(', ') }}];
+      continuing the converge so config handlers (indexes/inputs/savedsearches +
+      Restart Splunk container) still flush. These add-ons keep their previously
+      installed version, or remain absent — re-run once object storage / GitHub is
+      reachable. Errors: {{ _splunk_docker_failed_details | join(' | ') }}
+  vars:
+    _splunk_docker_failed_addons: >-
+      {{ (splunk_docker_object_storage_install.results | default([])
+          | selectattr('failed', 'defined') | selectattr('failed')
+          | map(attribute='item.app_dir') | list)
+         + (splunk_docker_github_install.results | default([])
+          | selectattr('failed', 'defined') | selectattr('failed')
+          | map(attribute='item.app_dir') | list) }}
+    _splunk_docker_failed_details: >-
+      {{ (splunk_docker_object_storage_install.results | default([])
+          | selectattr('failed', 'defined') | selectattr('failed')
+          | map(attribute='msg') | list)
+         + (splunk_docker_github_install.results | default([])
+          | selectattr('failed', 'defined') | selectattr('failed')
+          | map(attribute='msg') | list) }}
+  when: _splunk_docker_failed_addons | length > 0
 
 # Splunk container runs as uid 41812; ensure every extracted app/TA is owned
 # by that user so the running process can read/write its own config.
