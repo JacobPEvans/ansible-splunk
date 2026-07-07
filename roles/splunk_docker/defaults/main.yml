@@ -119,6 +119,11 @@ splunk_docker_indexes:
   - name: llm
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+    # Mac Studio LLM-stack metric events ride the llm-family Cribl output;
+    # the pipeline stamps index=llm_metrics on them, but they still arrive
+    # via the llm HEC token — so that token must also be allowed to write
+    # to the llm_metrics index.
+    extra_hec_indexes: [llm_metrics]
   # llm_metrics: LLM-stack metric series (Mac Studio + serving guests via the
   # llm-family Cribl output) — high-volume, 90-day retention matching
   # netmon_metrics. Splunkmetric -> metric index (mstats), NOT events.
