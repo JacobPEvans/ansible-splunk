@@ -116,6 +116,7 @@
           - "'[otel]' in (indexes_content.content | b64decode)"
           - "'[ai]' in (indexes_content.content | b64decode)"
           - "'[claude]' in (indexes_content.content | b64decode)"
+          - "'[llm]' in (indexes_content.content | b64decode)"
           - "'[codex]' in (indexes_content.content | b64decode)"
           - "'[gemini]' in (indexes_content.content | b64decode)"
           - "'[mac_perf]' in (indexes_content.content | b64decode)"
