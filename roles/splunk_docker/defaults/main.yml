@@ -135,6 +135,11 @@ splunk_docker_indexes:
   - name: unifi
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+    # The Cribl Edge unifi_fw pipeline splits FW/IPS events out of the UniFi
+    # syslog stream and stamps index=firewall on them, but they still arrive
+    # via the unifi HEC token — so that token must also be allowed to write
+    # to the firewall index.
+    extra_hec_indexes: [firewall]
   # unifi_metrics: UniFi controller telemetry (unpoller -> Telegraf -> Cribl).
   # High-volume metric series — 90-day retention per terraform-proxmox docs, not
   # the 365-day default. Distinguished from netmon by the stream=unifi_metrics tag.
