@@ -35,7 +35,7 @@ provisioner:
       all:
         # Test values for molecule - override in production
         splunk_docker_password: "molecule-test-password"
-        # Empty the add-on registry so molecule never tries to reach MinIO
+        # Empty the add-on registry so molecule never tries to reach object storage
         # or GitHub at converge time. apps.yml loops over splunk_docker_addons;
         # an empty list is a no-op.
         splunk_docker_addons: []

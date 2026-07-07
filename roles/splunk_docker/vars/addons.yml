@@ -2,14 +2,14 @@
 # Splunk Add-on Registry
 #
 # Fields:
-#   filename       — archive name (in MinIO bucket, or github release asset).
+#   filename       — archive name (in object-storage bucket, or github release asset).
 #                    Version-free by convention; extension is cosmetic
 #                    (ansible.builtin.unarchive auto-detects gzip content).
 #   app_dir        — extracted directory name under /opt/splunk/etc/apps/.
 #                    Equals the Splunkbase `appid` for splunkbase entries.
 #   splunkbase_id  — Splunkbase numeric app ID. When present, playbooks/sync-splunkbase.yml
 #                    resolves the LATEST release from the public Splunkbase API and
-#                    mirrors it into MinIO. When absent, the entry is skipped by the
+#                    mirrors it into object storage. When absent, the entry is skipped by the
 #                    sync and must be populated manually.
 #   pin_version    — optional. Hard-pin to an exact version string to hold back a bad
 #                    release. When absent (the default), the entry tracks latest.
@@ -21,14 +21,14 @@
 #                    can change without breaking either lookup).
 #
 # Flow: sync-splunkbase.yml (control node, has internet) resolves the latest version
-# per splunkbase_id, downloads it, mirrors it to the MinIO `splunk-addons` bucket, and
+# per splunkbase_id, downloads it, mirrors it to the object-storage `splunk-addons` bucket, and
 # writes manifest.json mapping app_dir → version. The air-gapped Splunk VM then reads
 # manifest.json over the LAN and re-extracts any app whose installed version differs
 # (roles/splunk_docker/tasks/apps.yml). No manual downloads; no version bumps here —
 # add `pin_version` only to deliberately freeze a single app.
 
 splunk_docker_addons:
-  # --- MinIO, Splunkbase-sourced (auto-sync, tracks latest) ---
+  # --- object-storage, Splunkbase-sourced (auto-sync, tracks latest) ---
   - {filename: TA-unifi-cloud.tar, app_dir: TA-unifi-cloud, splunkbase_id: 7494}
   - {filename: duck-yeah.tar, app_dir: DuckYeah, splunkbase_id: 7015}
   - {filename: splunk-db-connect.tar, app_dir: splunk_app_db_connect, splunkbase_id: 2686}
@@ -54,9 +54,9 @@ splunk_docker_addons:
   - {filename: hurricane-labs-app-for-shodan.tar, app_dir: Hurricane_Labs_App_for_Shodan, splunkbase_id: 1767}
   - {filename: hurricane-labs-add-on-for-windows-powershell-transcript.tar, app_dir: TA-powershell_transcript, splunkbase_id: 4984}
 
-  # --- MinIO, no Splunkbase match (manual upload; sync skips) ---
+  # --- object-storage, no Splunkbase match (manual upload; sync skips) ---
   # Hurricane Labs' Automox add-on was removed from Splunkbase. The archive is
-  # still served from MinIO but must be re-uploaded manually with `mc cp` when
+  # still served from object storage but must be re-uploaded manually with `mc cp` when
   # a new version is needed.
   - {filename: hurricane-labs-add-on-for-automox.tar, app_dir: TA-automox}
 
@@ -64,7 +64,7 @@ splunk_docker_addons:
   # only via direct download (not Splunkbase, no GitHub release). To rotate
   # versions, repackage `~/git/splunk/TA-slack-add-on-for-splunk/` as an
   # uncompressed .tar archive (not .tar.gz — install uses the registry filename
-  # directly via ansible.builtin.unarchive) and upload to MinIO with the
+  # directly via ansible.builtin.unarchive) and upload to object storage with the
   # version-free filename:
   #   tar -cf slack-add-on-for-splunk.tar -C ~/git/splunk TA-slack-add-on-for-splunk
   #   mc cp slack-add-on-for-splunk.tar homelab/splunk-addons/slack-add-on-for-splunk.tar
