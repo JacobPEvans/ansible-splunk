@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
-* **splunk:** repoint Splunkbase sync MinIO → object-storage (RustFS) ([#276](https://github.com/dryvist/ansible-splunk/issues/276)) ([b318baa](https://github.com/dryvist/ansible-splunk/commit/b318baa86045852065eade5c9bb823ad0d6616a0))
+* **splunk:** repoint Splunkbase sync to object-storage (RustFS) ([#276](https://github.com/dryvist/ansible-splunk/issues/276)) ([b318baa](https://github.com/dryvist/ansible-splunk/commit/b318baa86045852065eade5c9bb823ad0d6616a0))
 
 ## [0.22.0](https://github.com/dryvist/ansible-splunk/compare/v0.21.0...v0.22.0) (2026-06-20)
 
@@ -314,14 +314,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
-* **splunk:** MinIO add-on registry + Splunkbase auto-sync ([7364448](https://github.com/JacobPEvans/ansible-splunk/commit/736444891f658d374e85329b5fecb47cc5612a9d))
+* **splunk:** object-storage add-on registry + Splunkbase auto-sync ([7364448](https://github.com/JacobPEvans/ansible-splunk/commit/736444891f658d374e85329b5fecb47cc5612a9d))
 
 ## [0.9.0](https://github.com/JacobPEvans/ansible-splunk/compare/v0.8.1...v0.9.0) (2026-04-09)
 
 ### Features
 
-* add MinIO artifact store + propagate terraform_data to all hosts ([#124](https://github.com/JacobPEvans/ansible-splunk/issues/124)) ([804eb55](https://github.com/JacobPEvans/ansible-splunk/commit/804eb55dc49aeea7561db51375c5c9efae4f6d6e))
-* add MinIO artifact store for custom add-on downloads ([#118](https://github.com/JacobPEvans/ansible-splunk/issues/118)) ([20a1efe](https://github.com/JacobPEvans/ansible-splunk/commit/20a1efeae4e451eb8fc132a460a1883ca42b8d12))
+* add object-storage artifact store + propagate terraform_data to all hosts ([#124](https://github.com/JacobPEvans/ansible-splunk/issues/124)) ([804eb55](https://github.com/JacobPEvans/ansible-splunk/commit/804eb55dc49aeea7561db51375c5c9efae4f6d6e))
+* add object-storage artifact store for custom add-on downloads ([#118](https://github.com/JacobPEvans/ansible-splunk/issues/118)) ([20a1efe](https://github.com/JacobPEvans/ansible-splunk/commit/20a1efeae4e451eb8fc132a460a1883ca42b8d12))
 
 ## [0.8.1](https://github.com/JacobPEvans/ansible-splunk/compare/v0.8.0...v0.8.1) (2026-04-07)
 

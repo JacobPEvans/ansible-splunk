@@ -2,15 +2,15 @@
 # App installation tasks — installs/upgrades every entry in splunk_docker_addons.
 #
 # Target-side direct pull: the air-gapped Splunk VM downloads each archive straight
-# from MinIO (or GitHub releases) via `ansible.builtin.unarchive` with
-# `remote_src: true`. The Ansible controller never stages archives — MinIO is the
-# single source of truth.
+# from object storage (or GitHub releases) via `ansible.builtin.unarchive` with
+# `remote_src: true`. The Ansible controller never stages archives — object storage
+# is the single source of truth.
 #
-# VERSION-AWARE (no install-once): MinIO-sourced apps are (re)extracted whenever the
+# VERSION-AWARE (no install-once): object-storage-sourced apps are (re)extracted whenever the
 # version differs from what's installed, not merely when the dir is absent. The
 # desired version comes from `manifest.json` (published by sync-splunkbase.yml,
 # app_dir → {version, filename}); the installed version is recorded in a
-# `.minio_version` marker we write inside each app dir. This is what makes
+# `.object_storage_version` marker we write inside each app dir. This is what makes
 # "always updated to the latest" actually hold — the old `creates:` guard froze
 # every app at its first-installed version forever.
 #
@@ -30,63 +30,63 @@
     group: "{{ splunk_docker_group }}"
     mode: '0755'
 
-# --- MinIO-sourced apps: version-aware install/upgrade ---
+# --- object-storage-sourced apps: version-aware install/upgrade ---
 
-- name: Build the MinIO-sourced add-on list
+- name: Build the object-storage-sourced add-on list
   ansible.builtin.set_fact:
-    splunk_docker_minio_addons: "{{ splunk_docker_addons | rejectattr('github_repo', 'defined') | list }}"
+    splunk_docker_object_storage_addons: "{{ splunk_docker_addons | rejectattr('github_repo', 'defined') | list }}"
 
 # Gated on a non-empty list so Molecule (which sets splunk_docker_addons: []) never
 # templates splunk_docker_artifact_base_url / tofu_data, which it does not provide.
-- name: Fetch the MinIO add-on version manifest
+- name: Fetch the object-storage add-on version manifest
   ansible.builtin.uri:
     url: "{{ splunk_docker_artifact_base_url }}/manifest.json"
     method: GET
     return_content: true
     status_code: [200, 403, 404]
-  register: splunk_docker_minio_manifest_q
+  register: splunk_docker_object_storage_manifest_q
   changed_when: false
   failed_when: false
-  when: splunk_docker_minio_addons | length > 0
+  when: splunk_docker_object_storage_addons | length > 0
 
-# Empty when the manifest is absent/skipped (no sync has run yet, or no MinIO apps)
-# — every MinIO app then falls back to install-if-missing, like the legacy behaviour.
+# Empty when the manifest is absent/skipped (no sync has run yet, or no object-storage apps)
+# — every object-storage app then falls back to install-if-missing, like the legacy behaviour.
 - name: Parse the version manifest (empty when absent/unreadable)
   ansible.builtin.set_fact:
-    splunk_docker_minio_manifest: >-
-      {{ (splunk_docker_minio_manifest_q.content | from_json)
-         if (splunk_docker_minio_manifest_q.status | default(0)) == 200
-            and (splunk_docker_minio_manifest_q.content | default('') | trim)[:1] == '{'
+    splunk_docker_object_storage_manifest: >-
+      {{ (splunk_docker_object_storage_manifest_q.content | from_json)
+         if (splunk_docker_object_storage_manifest_q.status | default(0)) == 200
+            and (splunk_docker_object_storage_manifest_q.content | default('') | trim)[:1] == '{'
          else {} }}
 
 - name: Read installed version markers
   ansible.builtin.slurp:
-    src: "{{ splunk_docker_etc_dir }}/apps/{{ item.app_dir }}/.minio_version"
-  register: splunk_docker_minio_markers
-  loop: "{{ splunk_docker_minio_addons }}"
+    src: "{{ splunk_docker_etc_dir }}/apps/{{ item.app_dir }}/.object_storage_version"
+  register: splunk_docker_object_storage_markers
+  loop: "{{ splunk_docker_object_storage_addons }}"
   loop_control:
     label: "{{ item.app_dir }}"
   failed_when: false  # missing marker → not installed (or legacy install)
 
 # Initialise accumulators so they stay defined when the loop is empty (Molecule).
-- name: Initialise MinIO install accumulators
+- name: Initialise object-storage install accumulators
   ansible.builtin.set_fact:
-    splunk_docker_minio_plan: []
-    splunk_docker_minio_decided: []
+    splunk_docker_object_storage_plan: []
+    splunk_docker_object_storage_decided: []
 
 # needs_install when:
 #   manifest app (desired != ''): installed version differs from desired
 #   manual  app (desired == ''):  not yet installed
 - name: Compute install/upgrade decisions
   ansible.builtin.set_fact:
-    splunk_docker_minio_plan: >-
-      {{ splunk_docker_minio_plan | default([]) + [item.0 | combine({
-        'desired_version': ((splunk_docker_minio_manifest[item.0.app_dir] | default({})).version | default('')),
+    splunk_docker_object_storage_plan: >-
+      {{ splunk_docker_object_storage_plan | default([]) + [item.0 | combine({
+        'desired_version': ((splunk_docker_object_storage_manifest[item.0.app_dir] | default({})).version | default('')),
         'installed_version': (
           (item.1.content | b64decode | trim) if item.1.content is defined else ''
         ),
       })] }}
-  loop: "{{ splunk_docker_minio_addons | zip(splunk_docker_minio_markers.results) | list }}"
+  loop: "{{ splunk_docker_object_storage_addons | zip(splunk_docker_object_storage_markers.results) | list }}"
   loop_control:
     label: "{{ item.0.app_dir }}"
 
@@ -94,14 +94,14 @@
 # computed per-item into a bool flag here.
 - name: Mark each app's install need
   ansible.builtin.set_fact:
-    splunk_docker_minio_decided: >-
-      {{ splunk_docker_minio_decided | default([]) + [item | combine({
+    splunk_docker_object_storage_decided: >-
+      {{ splunk_docker_object_storage_decided | default([]) + [item | combine({
         '_needs_install': (
           (item.desired_version != '' and item.desired_version != item.installed_version)
           or (item.desired_version == '' and item.installed_version == '')
         )
       })] }}
-  loop: "{{ splunk_docker_minio_plan }}"
+  loop: "{{ splunk_docker_object_storage_plan }}"
   loop_control:
     label: "{{ item.app_dir }}"
 
@@ -111,7 +111,7 @@
       {{ item.app_dir }}: desired={{ item.desired_version or '(manual)' }}
       installed={{ item.installed_version or '(none)' }}
       → {{ 'INSTALL' if item._needs_install else 'skip' }}
-  loop: "{{ splunk_docker_minio_decided }}"
+  loop: "{{ splunk_docker_object_storage_decided }}"
   loop_control:
     label: "{{ item.app_dir }}"
 
@@ -121,18 +121,18 @@
   ansible.builtin.file:
     path: "{{ splunk_docker_etc_dir }}/apps/{{ item.app_dir }}"
     state: absent
-  loop: "{{ splunk_docker_minio_decided | selectattr('_needs_install') | selectattr('installed_version', 'ne', '') | list }}"
+  loop: "{{ splunk_docker_object_storage_decided | selectattr('_needs_install') | selectattr('installed_version', 'ne', '') | list }}"
   loop_control:
     label: "{{ item.app_dir }}"
 
-- name: Install/upgrade Splunk add-ons from MinIO
+- name: Install/upgrade Splunk add-ons from object storage
   ansible.builtin.unarchive:
     src: "{{ splunk_docker_artifact_base_url }}/{{ item.filename }}"
     dest: "{{ splunk_docker_etc_dir }}/apps/"
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     remote_src: true
-  loop: "{{ splunk_docker_minio_decided | selectattr('_needs_install') | list }}"
+  loop: "{{ splunk_docker_object_storage_decided | selectattr('_needs_install') | list }}"
   loop_control:
     label: "{{ item.app_dir }} v{{ item.desired_version | default('manual') }}"
   notify: Restart Splunk container
@@ -140,11 +140,11 @@
 - name: Record installed version markers
   ansible.builtin.copy:
     content: "{{ item.desired_version or 'manual' }}\n"
-    dest: "{{ splunk_docker_etc_dir }}/apps/{{ item.app_dir }}/.minio_version"
+    dest: "{{ splunk_docker_etc_dir }}/apps/{{ item.app_dir }}/.object_storage_version"
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     mode: '0644'
-  loop: "{{ splunk_docker_minio_decided | selectattr('_needs_install') | list }}"
+  loop: "{{ splunk_docker_object_storage_decided | selectattr('_needs_install') | list }}"
   loop_control:
     label: "{{ item.app_dir }}"
 
