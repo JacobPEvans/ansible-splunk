@@ -87,17 +87,45 @@ splunk_docker_indexes:
   - name: claude
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # codex: Codex CLI agent telemetry — completes the per-agent index family
+  # alongside claude/gemini/openai.
+  - name: codex
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # dns: resolver query logs shipped via Cribl.
+  - name: dns
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: firewall
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: gemini
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # honeypot: deception-fabric events (OpenCanary / T-Pot via Cribl). Security
+  # index — keep the full 365-day default retention for incident lookback.
+  - name: honeypot
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # host_metrics: per-host system metric series (Telegraf/collectors via Cribl)
+  # — high-volume, 90-day retention matching netmon_metrics. Metric indexes
+  # carry the _metrics suffix by convention (queryable via mstats, NOT events).
+  - name: host_metrics
+    datatype: metric
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: 7776000
   # llm: local LLM-stack telemetry (model-server manager + worker logs,
   # AI-stack process metrics, AI gateway logs) shipped via Cribl Edge -> Stream.
   - name: llm
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # llm_metrics: LLM-stack metric series (Mac Studio + serving guests via the
+  # llm-family Cribl output) — high-volume, 90-day retention matching
+  # netmon_metrics. Splunkmetric -> metric index (mstats), NOT events.
+  - name: llm_metrics
+    datatype: metric
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: 7776000
   - name: mac_perf
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
@@ -114,22 +142,25 @@ splunk_docker_indexes:
     datatype: metric
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: 7776000
-  # unifi_metrics: UniFi controller telemetry (device cpu/mem/temp, per-port,
-  # per-client, WAN quality) from unpoller+Telegraf via Cribl — 90-day retention,
-  # matching netmon. See ansible-proxmox-apps roles/unifi_metrics.
-  - name: unifi_metrics
-    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
-    frozen_time_secs: 7776000
   - name: network
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: openai
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # openbao_audit: OpenBao audit-device logs. Security/audit trail — keep the
+  # full 365-day default retention for incident lookback.
+  - name: openbao_audit
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: otel
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: os
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # proxy: forward-proxy access logs shipped via Cribl.
+  - name: proxy
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: unifi
