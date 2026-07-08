@@ -46,7 +46,7 @@
       MC_HOST_homelab: >-
         http://{{ lookup('env', 'OBJECT_STORAGE_ROOT_USER') }}:{{
         lookup('env', 'OBJECT_STORAGE_ROOT_PASSWORD') }}@{{
-        hostvars['localhost']['tofu_data']['containers']['object-storage']['ip'] }}:{{
+        hostvars['localhost']['tofu_data']['containers']['s3']['ip'] }}:{{
         hostvars['localhost']['tofu_data']['constants']['service_ports']['object_storage_s3'] }}
 
   tasks:
