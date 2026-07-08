@@ -275,11 +275,17 @@ splunk_docker_silence_detectors:
     threshold_minutes: 60
     cron: "*/15 * * * *"
     suppress_minutes: 240
+  # The gateway emits ZERO IPFIX despite NetFlow showing enabled in its
+  # console (a gateway-side export gap — the collector/receive chain is armed
+  # and idle; see tofu-unifi live/gateway-telemetry.tf). Structurally-empty
+  # index: ship the detector disabled so it stops firing on every cycle.
+  # Flip to disabled: 0 if the gateway ever starts exporting.
   - name: netflow
     index: netflow
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
+    disabled: 1
   # Audit trail is low-volume; a full day of silence is the signal.
   - name: openbao_audit
     index: openbao_audit
