@@ -62,8 +62,9 @@ splunk_docker_manage_users: false
 splunk_docker_users: []
 
 # Token audience tag used to detect an existing live token (idempotent mint) and
-# to label the token in Splunk. One token per (user, audience).
-splunk_docker_token_audience: "hermes-mcp"
+# to label the token in Splunk. One token per (user, audience). Audience is DICTATED
+# by the MCP app (its auth only accepts mcp), not a free-form label.
+splunk_docker_token_audience: "mcp"
 
 # Relative expiry for minted tokens (Splunk relative-time syntax, e.g. +90d).
 # Empty string omits expires_on so Splunk applies its default token lifetime.

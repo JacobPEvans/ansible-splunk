@@ -4,11 +4,9 @@
 # The MCP Server (Splunkbase app 7931) provides MCP tools for AI agents:
 # run_splunk_query, get_indexes, get_sourcetypes, etc.
 #
-# Token management is handled entirely by Splunk (UI or REST API).
-# Ansible deploys optional server settings (mcp.conf) but does NOT
-# manage authentication — tokens are RSA-encrypted JWTs created via
-# the Splunk MCP Server config page and stored in passwords.conf
-# by Splunk internally.
+# Ansible deploys optional server settings (mcp.conf) and manages
+# MCP authentication tokens for service users. Tokens are RSA-encrypted
+# JWTs created via the app's /services/mcp_token endpoint.
 #
 # The SPLUNK_MCP_TOKEN env var is a CLIENT-SIDE Bearer token used by
 # MCP clients (Claude Code, etc.) to connect to the server. It is not

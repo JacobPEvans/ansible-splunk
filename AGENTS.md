@@ -140,8 +140,7 @@ multiple endpoints, keep these speed options in mind:
 - **Apps not visible**: Verify ownership is UID 41812.
 - **HEC not working**: Confirm `SPLUNK_HEC_TOKEN` in Doppler; set
   `HEC_NAMESPACE` for per-index tokens.
-- **MCP Server not responding**: Create token via Splunk MCP Server
-  config page (Settings → MCP Server); confirm port 8089 is accessible.
+- **MCP Server not responding**: Verify token minting via the app's `/services/mcp_token` endpoint; confirm port 8089 is accessible and `SPLUNK_MCP_URL` points to the `<mgmt-base>/services/mcp` path.
 
 ### Adding Splunkbase apps
 
@@ -194,7 +193,7 @@ All secrets retrieved from Doppler at runtime. Required secrets:
 | `SPLUNK_PASSWORD` | Admin password |
 | `HEC_NAMESPACE` | UUID namespace for per-index HEC token derivation (optional) |
 | `SPLUNK_HEC_TOKEN` | Shared legacy HEC token (always required) |
-| `SPLUNK_MCP_TOKEN` | MCP Server Bearer token (client-side); minted per managed user (`splunk_docker_users`) and published to the secret store |
+| `SPLUNK_MCP_TOKEN` | MCP Server Bearer token (client-side); minted per managed user (`splunk_docker_users`) via the app's `/services/mcp_token` endpoint and published to the secret store. The SPLUNK_MCP_URL must be the `<mgmt-base>/services/mcp` path. |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
 ## Tooling baseline (inherited from dryvist/.github)
