@@ -53,10 +53,17 @@
   # Load the role's index list up front so the per-index HEC token derivation
   # below can reference splunk_docker_indexes before the role is included
   # (mirrors playbooks/validate.yml).
-  vars_files:
-    - ../roles/splunk_docker/defaults/main.yml
+
 
   tasks:
+    # Precedence trap: play-level vars_files (#14) clobbers inventory group_vars (#6).
+    # Load defaults into a namespace here so pre-role tasks can fall back safely,
+    # preserving any group_vars overrides before the role executes.
+    - name: Load splunk_docker role defaults (namespaced, pre-role fallback)
+      ansible.builtin.include_vars:
+        file: ../roles/splunk_docker/defaults/main.yml
+        name: _splunk_docker_defaults
+
     - name: Validate required environment variables
       ansible.builtin.assert:
         that:
@@ -90,7 +97,7 @@
     # their per-index token one at a time, then legacy is retired.
     - name: Derive per-index HEC token values from namespace
       vars:
-        index_names: "{{ splunk_docker_indexes | map(attribute='name') | list }}"
+        index_names: "{{ (splunk_docker_indexes | default(_splunk_docker_defaults.splunk_docker_indexes)) | map(attribute='name') | list }}"
       ansible.builtin.set_fact:
         splunk_docker_hec_token_values: >-
           {{
