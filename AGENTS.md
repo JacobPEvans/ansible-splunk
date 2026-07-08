@@ -120,13 +120,19 @@ ansible-lint
 
 ### Execution Performance & Optimization
 
-Ansible runs in this repo are generally fast since it targets a single VM. However, if running larger-scale validation or checking/deploying across multiple endpoints, keep these speed options in mind:
-1. **Parallel Execution (`--forks` or `ANSIBLE_FORKS`)**: Concurrency default is 5 hosts. Specifying a higher value (e.g. `--forks 25`) runs parallel checks faster.
-2. **Targeted Runs (`--limit`)**: Restrict playbook runs to specific target hosts (e.g., `--limit splunk-vm`).
-3. **Disable Fact Gathering**: If host facts aren't needed, setting `gather_facts: false` bypasses the slow setup step.
+Ansible runs in this repo are generally fast since it targets a single VM.
+However, if running larger-scale validation or checking/deploying across
+multiple endpoints, keep these speed options in mind:
+
+1. **Parallel Execution (`--forks` or `ANSIBLE_FORKS`)**: Concurrency default is
+   5 hosts. Specifying a higher value (e.g. `--forks 25`) runs parallel checks
+   faster.
+2. **Targeted Runs (`--limit`)**: Restrict playbook runs to specific target
+   hosts (e.g., `--limit splunk-vm`).
+3. **Disable Fact Gathering**: If host facts aren't needed, setting
+   `gather_facts: false` bypasses the slow setup step.
 
 ## Agent tasks
-
 
 ### Troubleshooting
 
@@ -188,7 +194,7 @@ All secrets retrieved from Doppler at runtime. Required secrets:
 | `SPLUNK_PASSWORD` | Admin password |
 | `HEC_NAMESPACE` | UUID namespace for per-index HEC token derivation (optional) |
 | `SPLUNK_HEC_TOKEN` | Shared legacy HEC token (always required) |
-| `SPLUNK_MCP_TOKEN` | MCP Server Bearer token (client-side, created via Splunk UI) |
+| `SPLUNK_MCP_TOKEN` | MCP Server Bearer token (client-side); minted per managed user (`splunk_docker_users`) and published to the secret store |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
 ## Tooling baseline (inherited from dryvist/.github)

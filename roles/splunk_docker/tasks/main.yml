@@ -210,6 +210,11 @@
 - name: Configure MCP Server
   ansible.builtin.include_tasks: mcp_server.yml
 
+# Create dedicated service users (e.g. the Hermes AI agent) + mint their auth
+# tokens. Runs after the REST API is live (wait_for_splunk, above).
+- name: Manage Splunk service users and tokens
+  ansible.builtin.include_tasks: manage_users.yml
+
 # Configure DB Connect post-install (Java path for Task/Query servers)
 - name: Configure DB Connect
   ansible.builtin.include_tasks: dbconnect.yml
