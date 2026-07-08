@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.3](https://github.com/dryvist/ansible-splunk/compare/v0.29.2...v0.29.3) (2026-07-08)
+
+
+### Bug Fixes
+
+* **inventory:** repoint containers['object-storage'] lookups to renamed key 's3' ([#317](https://github.com/dryvist/ansible-splunk/issues/317)) ([d277c06](https://github.com/dryvist/ansible-splunk/commit/d277c06d573caea119ddb93d009eb0936c6610f3))
+
 ## [0.29.2](https://github.com/dryvist/ansible-splunk/compare/v0.29.1...v0.29.2) (2026-07-08)
 
 
