@@ -8,8 +8,9 @@
 # Auth model: the Splunk MCP Server (Splunkbase 7931, see vars/mcp.yml) lets MCP
 # clients authenticate with a Bearer token, NOT a username/password. So for each
 # managed user we (1) create the user with its roles, (2) enable token auth on
-# the deployment, and (3) mint a Splunk authorization token (JWT) that the client
-# uses as SPLUNK_MCP_TOKEN. The token inherits the user's roles/capabilities.
+# the deployment, and (3) mint a Splunk authorization token (JWT) via the app's
+# /services/mcp_token endpoint that the client uses as SPLUNK_MCP_TOKEN.
+# The token inherits the user's roles/capabilities.
 
 - name: Manage Splunk service users and tokens
   when:

@@ -3,8 +3,6 @@
 # Called from tasks/main.yml after apps.yml installs the app archive.
 #
 # Deploys optional local/mcp.conf settings (ssl_verify, rate limits).
-# Token management is handled entirely by the Splunk UI — this role
-# does NOT manage MCP authentication tokens.
 
 - name: Load MCP Server configuration vars
   ansible.builtin.include_vars:

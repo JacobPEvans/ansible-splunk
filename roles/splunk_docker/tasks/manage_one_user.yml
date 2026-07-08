@@ -78,17 +78,14 @@
 
     - name: "Mint authorization token for {{ splunk_user.name }}"
       ansible.builtin.uri:
-        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json"
-        method: POST
+        url: >-
+          https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/mcp_token?username={{ splunk_user.name }}{{
+          ('&expires_on=' ~ (splunk_docker_token_expires_on | urlencode)) if (splunk_docker_token_expires_on | length > 0) else '' }}
+        method: GET
         user: "{{ splunk_admin_user | default('admin') }}"
         password: "{{ splunk_docker_password }}"
         force_basic_auth: true
         validate_certs: false
-        body_format: form-urlencoded
-        body:
-          name: "{{ splunk_user.name }}"
-          audience: "{{ splunk_docker_token_audience }}"
-          expires_on: "{{ splunk_docker_token_expires_on | default(omit) if (splunk_docker_token_expires_on | length > 0) else omit }}"
         status_code: [200, 201]
       register: splunk_docker_token_mint
       when: not splunk_docker_user_token_exists
@@ -120,7 +117,7 @@
         body:
           data: >-
             {{ (splunk_docker_bao_current.json.data.data | default({}))
-               | combine({splunk_docker_token_openbao_key: splunk_docker_token_mint.json.entry[0].content.token}) }}
+               | combine({splunk_docker_token_openbao_key: splunk_docker_token_mint.json.token}) }}
         validate_certs: false
         status_code: [200, 204]
       when:
