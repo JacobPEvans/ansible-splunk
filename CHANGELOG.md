@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.2](https://github.com/dryvist/ansible-splunk/compare/v0.29.1...v0.29.2) (2026-07-08)
+
+
+### Bug Fixes
+
+* **playbooks:** stop play vars_files clobbering group_vars overrides ([#312](https://github.com/dryvist/ansible-splunk/issues/312)) ([4ec0cd8](https://github.com/dryvist/ansible-splunk/commit/4ec0cd8e7a370126496ac6937921196c2aa878dd))
+
 ## [0.29.1](https://github.com/dryvist/ansible-splunk/compare/v0.29.0...v0.29.1) (2026-07-08)
 
 
