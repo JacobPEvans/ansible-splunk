@@ -268,7 +268,7 @@
             cmd: >-
               mc tag set
               homelab/{{ object_storage_bucket }}/{{ item.filename }}
-              version={{ item.desired_version | string | urlencode }}&splunkbase_id={{ item.splunkbase_id }}
+              version={{ item.desired_version | string | trim }}&splunkbase_id={{ item.splunkbase_id }}
           environment: "{{ mc_env }}"
           loop: "{{ splunkbase_to_sync }}"
           loop_control:
@@ -369,21 +369,24 @@
       environment: "{{ mc_env }}"
       register: object_storage_manifest_verify
       changed_when: false
+      failed_when: false
       when: splunkbase_manifest is defined
       no_log: true
 
     - name: Verify published manifest matches resolved Splunkbase versions
       ansible.builtin.assert:
         that:
+          - object_storage_manifest_verify.rc == 0
           - >-
-            ((object_storage_manifest_verify.stdout | from_json).get(item.app_dir, {}).version
+            ((object_storage_manifest_verify.stdout | default('{}', true) | from_json).get(item.app_dir, {}).version
             | default('') | trim) == (item.desired_version | string | trim)
           - >-
-            ((object_storage_manifest_verify.stdout | from_json).get(item.app_dir, {}).filename
+            ((object_storage_manifest_verify.stdout | default('{}', true) | from_json).get(item.app_dir, {}).filename
             | default('') | trim) == (item.filename | string | trim)
         fail_msg: >-
           manifest.json mismatch for {{ item.app_dir }}:
-          expected {{ item.filename }} at {{ item.desired_version }}.
+          expected {{ item.filename }} at {{ item.desired_version }}
+          ({{ 'manifest unreadable' if object_storage_manifest_verify.rc != 0 else 'value drift' }}).
         quiet: true
       loop: "{{ splunkbase_desired | default([]) }}"
       loop_control:
