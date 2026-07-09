@@ -350,12 +350,12 @@
         that:
           - item.rc == 0
           - >-
-            ((item.stdout | default('{}') | from_json).tagset.version
+            ((item.stdout | default('{}', true) | from_json).tagset.version
             | default('') | trim) == (item.item.desired_version | string | trim)
         fail_msg: >-
           object-storage version mismatch for {{ item.item.filename }}:
           expected {{ item.item.desired_version }}, got
-          {{ ((item.stdout | default('{}') | from_json).tagset.version
+          {{ ((item.stdout | default('{}', true) | from_json).tagset.version
              | default('(missing)') | trim) if item.rc == 0 else '(missing object)' }}.
         quiet: true
       loop: "{{ object_storage_final_tag_query.results | default([]) }}"
