@@ -5,7 +5,7 @@
 # and version pins. Mirrors the deps the retired local _molecule.yml installed.
 docker>=7.0.0
 urllib3<2.0
-requests<2.32
+requests<2.35
 molecule
 molecule-plugins[docker]>=23.0.0
 ansible-core>=2.18
