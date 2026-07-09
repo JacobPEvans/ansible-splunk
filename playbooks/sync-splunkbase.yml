@@ -268,7 +268,7 @@
             cmd: >-
               mc tag set
               homelab/{{ object_storage_bucket }}/{{ item.filename }}
-              version={{ item.desired_version }}&splunkbase_id={{ item.splunkbase_id }}
+              version={{ item.desired_version | string | urlencode }}&splunkbase_id={{ item.splunkbase_id }}
           environment: "{{ mc_env }}"
           loop: "{{ splunkbase_to_sync }}"
           loop_control:
@@ -331,3 +331,61 @@
               Splunkbase resolve/sync failed; leaving the bucket + manifest.json as-is and
               proceeding with whatever is already mirrored. Error:
               {{ ansible_failed_result.msg | default('see preceding task') }}
+
+    - name: Query final object-storage version tags
+      ansible.builtin.command:
+        cmd: "mc tag list --json homelab/{{ object_storage_bucket }}/{{ item.filename }}"
+      environment: "{{ mc_env }}"
+      loop: "{{ splunkbase_desired | default([]) }}"
+      loop_control:
+        label: "{{ item.filename }}"
+      register: object_storage_final_tag_query
+      changed_when: false
+      failed_when: false
+      when: splunkbase_manifest is defined
+      no_log: true
+
+    - name: Verify object-storage tags match resolved Splunkbase versions
+      ansible.builtin.assert:
+        that:
+          - item.rc == 0
+          - >-
+            ((item.stdout | default('{}') | from_json).tagset.version
+            | default('') | trim) == (item.item.desired_version | string | trim)
+        fail_msg: >-
+          object-storage version mismatch for {{ item.item.filename }}:
+          expected {{ item.item.desired_version }}, got
+          {{ ((item.stdout | default('{}') | from_json).tagset.version
+             | default('(missing)') | trim) if item.rc == 0 else '(missing object)' }}.
+        quiet: true
+      loop: "{{ object_storage_final_tag_query.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.filename }}"
+      when: splunkbase_manifest is defined
+
+    - name: Read published object-storage manifest
+      ansible.builtin.command:
+        cmd: "mc cat homelab/{{ object_storage_bucket }}/manifest.json"
+      environment: "{{ mc_env }}"
+      register: object_storage_manifest_verify
+      changed_when: false
+      when: splunkbase_manifest is defined
+      no_log: true
+
+    - name: Verify published manifest matches resolved Splunkbase versions
+      ansible.builtin.assert:
+        that:
+          - >-
+            ((object_storage_manifest_verify.stdout | from_json).get(item.app_dir, {}).version
+            | default('') | trim) == (item.desired_version | string | trim)
+          - >-
+            ((object_storage_manifest_verify.stdout | from_json).get(item.app_dir, {}).filename
+            | default('') | trim) == (item.filename | string | trim)
+        fail_msg: >-
+          manifest.json mismatch for {{ item.app_dir }}:
+          expected {{ item.filename }} at {{ item.desired_version }}.
+        quiet: true
+      loop: "{{ splunkbase_desired | default([]) }}"
+      loop_control:
+        label: "{{ item.app_dir }}"
+      when: splunkbase_manifest is defined
