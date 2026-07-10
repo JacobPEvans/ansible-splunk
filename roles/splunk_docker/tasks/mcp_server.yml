@@ -53,6 +53,22 @@
             mode: '0644'
           notify: Restart Splunk container
 
+        # Answer notifications/initialized with HTTP 202 (No-body ACK) instead of
+        # 200. A strict MCP proxy (agentgateway) JSON-parses every non-202/204 2xx
+        # response body; the app's 200 + empty body hits EOF and the proxy returns
+        # 500, so Hermes and Claude Code abort the session. 202 makes the proxy
+        # short-circuit before parsing. The app is re-extracted from Splunkbase on
+        # every version change (vars/addons.yml, no pin_version), so this bin/ patch
+        # is re-applied each converge to self-heal. Anchored on the handler's log
+        # line so no unrelated status_code assignment is touched, and idempotent
+        # (the pattern's trailing 200 no longer matches once flipped to 202).
+        - name: Patch MCP Server notifications/initialized to return 202 (proxy compat)
+          ansible.builtin.replace:
+            path: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_mcp_app_entry.app_dir }}/bin/mcp_message.py"
+            regexp: '(Processing notifications/initialized request.\)\s*\n\s*status_code = )200'
+            replace: '\g<1>202'
+          notify: Restart Splunk container
+
     - name: Skip MCP configuration (app not installed)
       ansible.builtin.debug:
         msg: "MCP Server app not found — skipping configuration. Install the app first via Splunkbase."
