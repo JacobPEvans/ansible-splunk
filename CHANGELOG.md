@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0](https://github.com/dryvist/ansible-splunk/compare/v0.33.0...v0.34.0) (2026-07-10)
+
+
+### Features
+
+* **splunk:** bench verdict-maturity + score-trend reports from mlx:bench feed ([#333](https://github.com/dryvist/ansible-splunk/issues/333)) ([23a3069](https://github.com/dryvist/ansible-splunk/commit/23a306977b152795f5ebcdf3aa1a58cb27d32a7a))
+
 ## [0.33.0](https://github.com/dryvist/ansible-splunk/compare/v0.32.0...v0.33.0) (2026-07-10)
 
 
