@@ -281,7 +281,7 @@ action.email.message.alert = A vllm-mlx worker hit the Metal buffer-count ceilin
 
 [llm_night_rank_error_detector]
 description = Fires on night-cluster rank/link-watcher errors (JACCL init failures, rank crashes, distributed aborts) in the night logs shipped by the serving hosts' in_night_logs input. Zero-noise by design: the night fabric is supposed to converge silently, so any error line is worth a look before the next plug night.
-search = index=llm source=*mlx-night* (ERROR OR error OR Traceback OR "night-link: rank not running")
+search = index=llm source=*mlx-night* (error OR Traceback OR "night-link: rank not running")
 dispatch.earliest_time = -15m
 dispatch.latest_time = now
 cron_schedule = */15 * * * *
@@ -304,7 +304,7 @@ action.email.message.alert = The two-Mac night cluster logged errors (rank crash
 
 [llm_night_idle_cluster_detector]
 description = "Night mode active but unused": the night rank has been up (rank log activity in the last hour) yet the gate's night endpoint saw zero completions in 30 minutes. Cluster capacity is burning memory on both Macs while Hermes/router traffic is not reaching it — usually a router flag (ai_night_brain_enabled) or fallback chain issue.
-search = index=llm source=*mlx-night*night-rank* earliest=-60m | stats count as rank_activity | appendcols [ search index=llm source=*night-access* earliest=-30m | stats count as night_requests ] | where rank_activity > 0 AND night_requests = 0
+search = index=llm (source=*mlx-night*night-rank* OR source=*night-access*) | stats count(eval(if(match(source, "night-rank"), 1, null()))) as rank_activity, count(eval(if(match(source, "night-access") AND _time >= relative_time(now(), "-30m@m"), 1, null()))) as night_requests | where rank_activity > 0 AND night_requests = 0
 dispatch.earliest_time = -60m
 dispatch.latest_time = now
 cron_schedule = */30 * * * *
