@@ -25,6 +25,17 @@
       ansible.builtin.include_vars:
         file: ../roles/splunk_docker/defaults/main.yml
         name: _splunk_docker_defaults
+
+    - name: Set fallback global defaults for nested templates
+      ansible.builtin.set_fact:
+        splunk_docker_data_dir: "{{ splunk_docker_data_dir | default(_splunk_docker_defaults.splunk_docker_data_dir) }}"
+        splunk_docker_index_default_max_size_mb: "{{ splunk_docker_index_default_max_size_mb | default(_splunk_docker_defaults.splunk_docker_index_default_max_size_mb) }}"
+        splunk_docker_index_default_frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs | default(_splunk_docker_defaults.splunk_docker_index_default_frozen_time_secs) }}"
+
+    - name: Set derived fallback global defaults
+      ansible.builtin.set_fact:
+        splunk_docker_etc_dir: "{{ splunk_docker_etc_dir | default(_splunk_docker_defaults.splunk_docker_etc_dir) }}"
+
     - name: Set HEC namespace from environment
       ansible.builtin.set_fact:
         splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') | default('', true) }}"
