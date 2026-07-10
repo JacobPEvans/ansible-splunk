@@ -324,3 +324,27 @@ action.email.to = {{ splunk_docker_alert_email }}
 action.email.subject = [Splunk Alert] Night cluster up but receiving no traffic
 action.email.message.alert = The night rank is running but the gated night endpoint served nothing for 30 minutes. Check the router large-phase config (night deployment + fallbacks) and whether the fallback chain silently drained all traffic to the solo brain.
 {% endif %}
+
+{# ---------------------------------------------------------------------------
+   Benchmark result reports (mlx-benchmarks#119 bench-events feed,
+   sourcetype=mlx:bench: one flat JSON event per result row, fields
+   model, quantization, suite, metric, value, run_id, git_sha, hostname).
+   Reports, not alerts: they back trend/maturity review, nothing pages.
+--------------------------------------------------------------------------- #}
+[bench_verdict_maturity]
+description = Verdict maturity per model+suite from the mlx:bench feed, encoding docs/verdict-policy.md (>=4 protocol-valid runs >=5 days apart). "Runs >=5 days apart" is approximated as distinct 5-day buckets containing at least one run — each bucket contributes max one valid run, so N/4 never overcounts closely-spaced runs. PROVISIONAL until 4/4.
+search = index=llm sourcetype=mlx:bench | bin _time span=5d | stats dc(_time) as valid_runs, dc(run_id) as total_runs, latest(_time) as last_run by model, suite | eval maturity = min(valid_runs, 4) . "/4", verdict_state = if(valid_runs >= 4, "MATURE", "PROVISIONAL") | convert ctime(last_run) | sort verdict_state, model, suite | table model suite maturity verdict_state total_runs last_run
+dispatch.earliest_time = -90d
+dispatch.latest_time = now
+enableSched = 0
+is_visible = 1
+disabled = 0
+
+[bench_score_trend]
+description = Per-metric score trend over time from the mlx:bench feed, one series per model+suite+metric. Backs the benchmark trend review; RANKINGS.md and the HF dataset stay canonical.
+search = index=llm sourcetype=mlx:bench | eval series = model . " | " . suite . " | " . metric | timechart span=1d latest(value) by series limit=20 useother=false
+dispatch.earliest_time = -90d
+dispatch.latest_time = now
+enableSched = 0
+is_visible = 1
+disabled = 0
