@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0](https://github.com/dryvist/ansible-splunk/compare/v0.32.0...v0.33.0) (2026-07-10)
+
+
+### Features
+
+* **splunk:** add TA Studio splunkbase app ([#331](https://github.com/dryvist/ansible-splunk/issues/331)) ([891ddae](https://github.com/dryvist/ansible-splunk/commit/891ddaebab78b26011fb0c92a634ac9e90dd5294))
+
 ## [0.32.0](https://github.com/dryvist/ansible-splunk/compare/v0.31.0...v0.32.0) (2026-07-10)
 
 
