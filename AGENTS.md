@@ -84,8 +84,6 @@ documented once at
 | --- | --- |
 | Index definitions | `roles/splunk_docker/defaults/main.yml` |
 | Add-on registry | `roles/splunk_docker/vars/addons.yml` |
-| Splunkbase app registry | `roles/splunk_docker/vars/splunkbase_apps.yml` |
-| Custom TA definitions | `roles/splunk_docker/vars/custom_addons.yml` |
 | MCP Server configuration | `roles/splunk_docker/vars/mcp.yml` |
 | Inventory | `inventory/load_tofu.yml` |
 | Pipeline architecture | `~/git/CLAUDE.md` |
@@ -144,17 +142,16 @@ multiple endpoints, keep these speed options in mind:
 
 ### Adding Splunkbase apps
 
-1. Edit `roles/splunk_docker/vars/splunkbase_apps.yml` — add entry or
-   set `enabled: true`.
-2. Download archive from Splunkbase and place it in
-   `roles/splunk_docker/files/`.
+1. Add the app entry to `roles/splunk_docker/vars/addons.yml` under `splunk_docker_addons` with its `filename`, `app_dir`, and `splunkbase_id`.
+2. Sync the app to object storage: `doppler run -- ansible-playbook playbooks/sync-splunkbase.yml`.
 3. Re-run `doppler run -- ansible-playbook playbooks/site.yml`.
 
 ### Adding custom add-ons
 
-1. Place `.tar` or `.tgz` in `roles/splunk_docker/files/`.
-2. Add entry to `roles/splunk_docker/vars/custom_addons.yml`.
-3. Re-run `doppler run -- ansible-playbook playbooks/site.yml`.
+1. Package the custom add-on as a version-free `.tar` archive.
+2. Upload the archive to object storage (e.g. using `mc cp`) and tag it with `version=X.Y.Z`.
+3. Add the entry to `roles/splunk_docker/vars/addons.yml` without a `splunkbase_id`.
+4. Re-run `doppler run -- ansible-playbook playbooks/site.yml`.
 
 ## Artifact store (object-storage / RustFS)
 
