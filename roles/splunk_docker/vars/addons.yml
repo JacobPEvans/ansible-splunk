@@ -55,6 +55,7 @@ splunk_docker_addons:
   - {filename: hurricane-labs-app-for-shodan.tar, app_dir: Hurricane_Labs_App_for_Shodan, splunkbase_id: 1767}
   - {filename: hurricane-labs-add-on-for-windows-powershell-transcript.tar, app_dir: TA-powershell_transcript, splunkbase_id: 4984}
   - {filename: ta-studio.tar, app_dir: ta_studio, splunkbase_id: 8932}
+  - {filename: slack-app-alert-integration.tar, app_dir: TA-slack-app-alert-integration, splunkbase_id: 5735}
 
   # --- object-storage, no Splunkbase match (manual upload; sync skips) ---
   # Hurricane Labs' Automox add-on was removed from Splunkbase. The archive is
