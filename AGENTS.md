@@ -26,6 +26,10 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
 - Custom index creation and retention
 - Technology Add-ons (TAs) and Splunkbase apps
 - MCP Server integration (app 7931)
+- Splunk-triggered Slack alerting (Slack App Alert Integration TA,
+  Splunkbase 5735) — one channel in the broader bot/agent/human
+  notification architecture documented at
+  [docs.jacobpevans.com](https://docs.jacobpevans.com)
 
 ## Critical constraints
 
@@ -138,7 +142,9 @@ multiple endpoints, keep these speed options in mind:
 - **Apps not visible**: Verify ownership is UID 41812.
 - **HEC not working**: Confirm `SPLUNK_HEC_TOKEN` in Doppler; set
   `HEC_NAMESPACE` for per-index tokens.
-- **MCP Server not responding**: Verify token minting via the app's `/services/mcp_token` endpoint; confirm port 8089 is accessible and `SPLUNK_MCP_URL` points to the `<mgmt-base>/services/mcp` path.
+- **MCP Server not responding**: Verify token minting via the app's
+  `/services/mcp_token` endpoint; confirm port 8089 is accessible and
+  `SPLUNK_MCP_URL` points to the `<mgmt-base>/services/mcp` path.
 
 ### Adding Splunkbase apps
 
@@ -190,7 +196,7 @@ All secrets retrieved from Doppler at runtime. Required secrets:
 | `SPLUNK_PASSWORD` | Admin password |
 | `HEC_NAMESPACE` | UUID namespace for per-index HEC token derivation (optional) |
 | `SPLUNK_HEC_TOKEN` | Shared legacy HEC token (always required) |
-| `SPLUNK_MCP_TOKEN` | MCP Server Bearer token (client-side); minted per managed user (`splunk_docker_users`) via the app's `/services/mcp_token` endpoint and published to the secret store. The SPLUNK_MCP_URL must be the `<mgmt-base>/services/mcp` path. |
+| `SPLUNK_MCP_TOKEN` | MCP Server Bearer token; minted per user via `/services/mcp_token`. `SPLUNK_MCP_URL` must be `<mgmt-base>/services/mcp`. |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
 ## Tooling baseline (inherited from dryvist/.github)
