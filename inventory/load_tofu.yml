@@ -8,117 +8,17 @@
   gather_facts: false
   become: false
 
-  # Inventory source resolution (priority order, first that resolves wins).
-  # S3 is the single source of truth; there is deliberately NO local-cache step,
-  # so no on-disk inventory file can ever go stale and be read (see AGENTS.md
-  # "Inventory freshness guarantee").
-  #   1. TOFU_INVENTORY_PATH  — explicit local path / pin (tests, DR overrides)
-  #   2. S3 published artifact — `terragrunt apply` publishes the RAW tofu output
-  #      to the terraform-proxmox state bucket; fetched natively (amazon.aws,
-  #      boto3 from the dev shell — no aws CLI, no checkout, no toolchain).
-  #      Location override: TOFU_INVENTORY_S3_URI, else derived from the account.
-  #   3. No tofu data at all — the static hosts.yml entry still works via
-  #      SPLUNK_VM_HOST, or DNS-first via splunk-aio.{PROXMOX_DOMAIN} (a
-  #      self-hosted A-record continuously reconciled from this same inventory).
-  vars:
-    tofu_inventory_path: "{{ lookup('env', 'TOFU_INVENTORY_PATH') | default('', true) }}"
-    tofu_inventory_s3_uri: "{{ lookup('env', 'TOFU_INVENTORY_S3_URI') | default('', true) }}"
-    tofu_inventory_s3_region: "{{ lookup('env', 'TOFU_INVENTORY_S3_REGION') | default('us-east-2', true) }}"
-
   tasks:
-    - name: Stat the explicit TOFU_INVENTORY_PATH
-      ansible.builtin.stat:
-        path: "{{ tofu_inventory_path }}"
-      register: tofu_inv_explicit
-      when: tofu_inventory_path | length > 0
-
-    - name: Resolve inventory from the explicit path when it exists
-      ansible.builtin.set_fact:
-        tofu_inventory_resolved: "{{ tofu_inventory_path }}"
-      when:
-        - tofu_inventory_path | length > 0
-        - tofu_inv_explicit.stat.exists | default(false)
-
-    # Native amazon.aws modules (boto3 from the dev shell). Both lookups are
-    # best-effort: on missing creds/boto3 the chain falls through to the
-    # DNS-first static fallback, mirroring the explicit-path step.
-    - name: Resolve the published S3 inventory
-      when: tofu_inventory_resolved is not defined
-      block:
-        - name: Derive the AWS account when no S3 URI is set
-          amazon.aws.aws_caller_info:
-          register: tofu_inv_aws_acct
-          failed_when: false
-          when: tofu_inventory_s3_uri | length == 0
-
-        - name: Compute the effective S3 inventory URI
-          ansible.builtin.set_fact:
-            tofu_inventory_s3_effective: >-
-              {{
-                tofu_inventory_s3_uri if tofu_inventory_s3_uri | length > 0
-                else (
-                  's3://terraform-proxmox-state-useast2-'
-                  ~ tofu_inv_aws_acct.account
-                  ~ '/terraform-proxmox/inventory/ansible_inventory.json'
-                ) if tofu_inv_aws_acct.account is defined
-                else ''
-              }}
-
-        # Inventory resolution is read-only and must work under --check too
-        # (tempfile creates no path in check mode, which would blow up the
-        # download's dest templating) — so the fetch pair always really runs
-        # (check_mode: false).
-        - name: Fetch the published inventory from S3
-          when: tofu_inventory_s3_effective | length > 0
-          block:
-            - name: Create a temp file for the S3 inventory
-              ansible.builtin.tempfile:
-                state: file
-                suffix: tofu_inventory.json
-              register: tofu_inv_tmp
-              check_mode: false
-
-            # Retry transient S3 blips (throttle/network) before degrading to
-            # DNS — the DNS fallback carries only the Splunk address, so a retry
-            # keeps the full-data path (tofu_data.constants.*) when the blip is
-            # momentary. No-creds is NOT retried here: this block only runs with
-            # an effective URI, which requires creds to have resolved upstream.
-            - name: Download the inventory from S3 (retry transient failures)
-              block:
-                - name: Get the published S3 inventory object
-                  amazon.aws.s3_object:
-                    bucket: "{{ tofu_inventory_s3_effective | regex_replace('^s3://([^/]+)/.*$', '\\1') }}"
-                    object: "{{ tofu_inventory_s3_effective | regex_replace('^s3://[^/]+/', '') }}"
-                    dest: "{{ tofu_inv_tmp.path }}"
-                    mode: get
-                    region: "{{ tofu_inventory_s3_region }}"
-                  register: tofu_inv_s3
-                  changed_when: false
-                  retries: 2
-                  delay: 3
-                  until: tofu_inv_s3 is succeeded
-                  check_mode: false
-              rescue:
-                # Reached only after retries are exhausted. Swallow it: the temp
-                # file stays empty, fails the size check below, and the chain
-                # falls through to the DNS-first static fallback.
-                - name: Note the S3 inventory fetch failed; fall through to DNS
-                  ansible.builtin.debug:
-                    msg: >-
-                      S3 inventory fetch failed after retries; falling through to
-                      the DNS-first static fallback.
-
-            # Success is judged by the artifact itself: a successful GET
-            # overwrote the empty temp file with content.
-            - name: Stat the downloaded inventory
-              ansible.builtin.stat:
-                path: "{{ tofu_inv_tmp.path }}"
-              register: tofu_inv_s3_stat
-
-            - name: Resolve inventory from the S3 download when it succeeded
-              ansible.builtin.set_fact:
-                tofu_inventory_resolved: "{{ tofu_inv_tmp.path }}"
-              when: (tofu_inv_s3_stat.stat.size | default(0)) > 0
+    # Shared resolution: explicit path -> RustFS using native OpenBao
+    # credentials. No local-cache fallback is allowed in this repo; DNS remains
+    # the deliberately independent emergency path.
+    - name: Resolve the published OpenTofu inventory
+      ansible.builtin.include_role:
+        name: inventory_resolve
+      vars:
+        inventory_resolve_required_keys: [splunk_vm]
+        inventory_resolve_local_cache: /nonexistent/tofu_inventory.json
+        inventory_resolve_fail_when_unresolved: false
 
     # Static fallback (hosts.yml splunk-01) needs SPLUNK_VM_HOST or, DNS-first,
     # PROXMOX_DOMAIN (splunk-aio.{domain} — Technitium serves the VM hostname
@@ -127,26 +27,21 @@
       ansible.builtin.fail:
         msg: |
           OpenTofu inventory could not be resolved from any source:
-            1. TOFU_INVENTORY_PATH : {{ tofu_inventory_path | default('(unset)', true) }}
-            2. S3 artifact         : {{ tofu_inventory_s3_effective | default('(no AWS creds / URI)', true) }}
+            1. TOFU_INVENTORY_PATH : {{ lookup('env', 'TOFU_INVENTORY_PATH') | default('(unset)', true) }}
+            2. RustFS artifact     : {{ inventory_resolve_s3_effective | default('(OpenBao unavailable)', true) }}
 
           Provide ONE of:
-            - Read creds for the S3 artifact (CI: OIDC role; agents: scoped role);
-              optionally set TOFU_INVENTORY_S3_URI to override the location.
+            - BAO_ADDR and BAO_TOKEN with access to
+              secret/platform/object-storage; optionally set
+              TOFU_INVENTORY_S3_URI to override the RustFS object.
             - TOFU_INVENTORY_PATH pointing at a local copy (tests / DR override).
-            - Run terraform-proxmox apply so the S3 artifact is republished.
+            - Re-run the tofu-proxmox Terrakube workspace so the RustFS artifact is republished.
             - Static fallback: SPLUNK_VM_HOST, or PROXMOX_DOMAIN for the
               DNS-first default (splunk-aio.{domain}).
       when:
         - tofu_inventory_resolved is not defined
         - not (lookup('env', 'SPLUNK_VM_HOST') | default(''))
         - not (lookup('env', 'PROXMOX_DOMAIN') | default(''))
-
-    - name: Load OpenTofu inventory JSON
-      ansible.builtin.include_vars:
-        file: "{{ tofu_inventory_resolved }}"
-        name: tofu_data
-      when: tofu_inventory_resolved is defined
 
     - name: Add Splunk VM to inventory (SSH connection)
       ansible.builtin.add_host:
