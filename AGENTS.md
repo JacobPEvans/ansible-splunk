@@ -44,31 +44,31 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
 
 ### Upstream
 
-- **`dryvist/terraform-proxmox`**: provisions Splunk VM 200 and publishes
-  the `ansible_inventory` output to its S3 state bucket on every apply.
+- **`dryvist/tofu-proxmox`**: provisions Splunk VM 200 through Terrakube and
+  publishes the `ansible_inventory` output to homelab RustFS on every apply.
   `inventory/load_tofu.yml` resolves it: `TOFU_INVENTORY_PATH` (explicit
-  pin) → S3 artifact (native `amazon.aws`, AWS read creds only — no
-  checkout, no toolchain; overrides: `TOFU_INVENTORY_S3_URI`,
-  `TOFU_INVENTORY_S3_REGION`) → static fallback (`SPLUNK_VM_HOST`, else
+  pin) → RustFS artifact (native `amazon.aws`, credentials read directly from
+  OpenBao `secret/platform/object-storage`; override:
+  `TOFU_INVENTORY_S3_URI`) → static fallback (`SPLUNK_VM_HOST`, else
   DNS-first `splunk-aio.{PROXMOX_DOMAIN}`). There is **no local-cache step**
   — see "Inventory freshness guarantee" below.
 
 #### Inventory freshness guarantee (single-writer / readers-always-latest)
 
-S3 is the single source of truth; this repo is a **read-only consumer** and
+RustFS is the single source of truth; this repo is a **read-only consumer** and
 holds no authoritative local inventory. The producer-side ACID contract is
 documented once at
 [Deployment state contract](https://docs.jacobpevans.com/infrastructure/deployment-state-contract).
 
-- **Single writer**: `terraform-proxmox` serializes every `apply` with its state
-  lock and republishes the artifact with a single atomic PUT, so two applies
+- **Single writer**: Terrakube serializes each `tofu-proxmox` apply with its
+  native workspace lock and republishes the artifact with a single atomic PUT, so two applies
   cannot both publish. This lock lives in the producer — a consumer repo cannot
   (and must not) reimplement it. (Lock mechanics: see the contract above.)
-- **Readers always get the latest**: S3 strong read-after-write consistency —
+- **Readers always get the latest**: S3-compatible strong read-after-write consistency —
   every GET returns the most recent PUT; concurrent reads need no lock. The S3
   fetch retries transient blips before degrading.
 - **No staleness hole**: there is deliberately no on-disk inventory cache. The
-  only non-S3 source is the DNS-first static fallback, and that A-record is
+  only non-RustFS source is the DNS-first static fallback, and that A-record is
   itself continuously reconciled from this same inventory (Technitium) — a live
   source for the Splunk VM address, not a frozen copy.
 

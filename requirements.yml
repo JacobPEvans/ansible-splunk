@@ -6,11 +6,18 @@ collections:
     version: ">=13.0.0,<14.0.0"
   - name: community.docker
     version: ">=5.0.6,<6.0.0"
-  # S3 inventory resolver (inventory/load_tofu.yml): aws_caller_info + s3_object
+  # RustFS inventory resolver: s3_object
   - name: amazon.aws
     version: ">=9.0.0"
+  - name: community.hashi_vault
+    version: ">=6.0.0"
 
 roles:
+  - name: inventory_resolve
+    src: https://github.com/dryvist/homelab-contracts.git
+    scm: git
+    version: 9aba451e9de0956f9c308d72a65e86924e243f23
+
   # Official Splunk Ansible role - use for REST API-based app management
   # and future cluster topology (indexer cluster, SHC) expansion.
   - name: splunk.splunk
