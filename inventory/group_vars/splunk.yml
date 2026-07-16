@@ -25,3 +25,8 @@ splunk_docker_users:
   - name: hermes
     roles:
       - admin
+
+# Publish the shared Splunk MCP connection (SPLUNK_MCP_URL + minted
+# SPLUNK_MCP_TOKEN) to OpenBao secret/ai/mcp/splunk. Requires a write-capable
+# OpenBao AppRole token (BAO_ADDR/BAO_TOKEN) in the converge environment.
+splunk_docker_token_publish_openbao: true
