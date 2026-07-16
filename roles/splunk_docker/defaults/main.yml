@@ -15,11 +15,23 @@ splunk_docker_container_name: splunk
 # Splunk credentials (from Doppler) - set in playbook vars
 splunk_docker_password: ""
 
-# Destination for saved-search alert emails. Override per-inventory or
-# per-playbook. Empty string disables email delivery on the matched alert
-# (the saved search still runs and surfaces in the Splunk UI's Triggered
-# Alerts panel — only the email action is no-op'd).
-splunk_docker_alert_email: ""
+# Saved-search alert delivery: ntfy + Slack, never email (operator directive
+# 2026-07-16). Empty string disables that channel on every alert (the saved
+# search still runs and surfaces in the Splunk UI's Triggered Alerts panel).
+#
+# ntfy: full topic URL, delivered via Splunk's built-in webhook alert action
+# (the URL is allowlisted in alert_actions.conf.j2). Defaults to the keystone
+# topic — the same one the hermes brain-watchdog pushes to — derived from
+# PROXMOX_DOMAIN when the converge env carries it.
+splunk_docker_alert_ntfy_url: >-
+  {{ ('https://ntfy.' ~ lookup('env', 'PROXMOX_DOMAIN') ~ '/keystone')
+     if lookup('env', 'PROXMOX_DOMAIN') else '' }}
+# Slack: incoming-webhook URL for TA-slack-add-on-for-splunk, sourced from the
+# shared alerting webhook (RUNSON_ALERT_SLACK_WEBHOOK_URL in the converge env,
+# e.g. under `doppler run -p iac-conf-mgmt -c prd`). Rendered into
+# alert_actions.conf (0600) — never into savedsearches.conf.
+splunk_docker_alert_slack_webhook: >-
+  {{ lookup('env', 'RUNSON_ALERT_SLACK_WEBHOOK_URL') | default('', true) }}
 
 # Splunk General Terms acceptance string for SPLUNK_GENERAL_TERMS env var.
 # Override in staging to point at non-prod terms acceptance strings if Splunk
