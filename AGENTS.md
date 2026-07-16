@@ -38,7 +38,9 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
   `HEC_NAMESPACE` is set. `SPLUNK_HEC_TOKEN` is the shared legacy
   fallback (always required).
 - **HEC transport**: HTTPS (Splunk Docker image default, SSL enabled).
-- **Secrets**: All via Doppler (`doppler run --`).
+- **Secrets**: Deployment inputs come from Doppler (`doppler run --`). The role
+  publishes the shared Splunk MCP connection to OpenBao
+  `secret/ai/mcp/splunk` when explicitly enabled.
 
 ## Dependencies
 
@@ -75,7 +77,7 @@ documented once at
 ### External services
 
 - **Doppler**: Secrets for `SPLUNK_PASSWORD`, `HEC_NAMESPACE`,
-  `SPLUNK_HEC_TOKEN`, `SPLUNK_MCP_TOKEN`, `PROXMOX_SSH_KEY_PATH`,
+  `SPLUNK_HEC_TOKEN`, `PROXMOX_SSH_KEY_PATH`,
   `OBJECT_STORAGE_ROOT_USER`, `OBJECT_STORAGE_ROOT_PASSWORD`.
 
 ## Sources of truth
@@ -138,7 +140,9 @@ multiple endpoints, keep these speed options in mind:
 - **Apps not visible**: Verify ownership is UID 41812.
 - **HEC not working**: Confirm `SPLUNK_HEC_TOKEN` in Doppler; set
   `HEC_NAMESPACE` for per-index tokens.
-- **MCP Server not responding**: Verify token minting via the app's `/services/mcp_token` endpoint; confirm port 8089 is accessible and `SPLUNK_MCP_URL` points to the `<mgmt-base>/services/mcp` path.
+- **MCP Server not responding**: Verify token minting via the app's
+  `/services/mcp_token` endpoint; confirm port 8089 is accessible and
+  `SPLUNK_MCP_URL` points to the `<mgmt-base>/services/mcp` path.
 
 ### Adding Splunkbase apps
 
@@ -183,14 +187,15 @@ Configure the MCP client in `dryvist/nix-ai` (`modules/mcp/`).
 
 ## Secrets management
 
-All secrets retrieved from Doppler at runtime. Required secrets:
+Deployment secrets are retrieved from Doppler at runtime. The Splunk MCP
+connection is an output published to OpenBao when explicitly enabled:
 
 | Secret | Purpose |
 | --- | --- |
 | `SPLUNK_PASSWORD` | Admin password |
 | `HEC_NAMESPACE` | UUID namespace for per-index HEC token derivation (optional) |
 | `SPLUNK_HEC_TOKEN` | Shared legacy HEC token (always required) |
-| `SPLUNK_MCP_TOKEN` | MCP Server Bearer token (client-side); minted per managed user (`splunk_docker_users`) via the app's `/services/mcp_token` endpoint and published to the secret store. The SPLUNK_MCP_URL must be the `<mgmt-base>/services/mcp` path. |
+| `SPLUNK_MCP_TOKEN` | Client-side MCP Bearer token minted per managed user and published with `SPLUNK_MCP_URL` to OpenBao `secret/ai/mcp/splunk` |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
 
 ## Tooling baseline (inherited from dryvist/.github)

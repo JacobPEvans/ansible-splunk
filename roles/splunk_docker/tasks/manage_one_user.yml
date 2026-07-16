@@ -105,9 +105,9 @@
         - splunk_docker_token_mint is not skipped
       no_log: true
 
-    # KV v2 write replaces the whole secret, so merge the new key over the
-    # current data to avoid clobbering sibling keys (e.g. HERMES_GITHUB_APP_*).
-    - name: "Publish {{ splunk_user.name }} token to OpenBao ({{ splunk_docker_token_openbao_key }})"
+    # KV v2 write replaces the whole secret, so merge the canonical connection
+    # fields over the current data to avoid clobbering sibling keys.
+    - name: "Publish {{ splunk_user.name }} MCP connection to OpenBao"
       ansible.builtin.uri:
         url: "{{ splunk_docker_token_openbao_addr }}/v1/{{ splunk_docker_token_openbao_mount }}/data/{{ splunk_docker_token_openbao_path }}"
         method: POST
@@ -116,8 +116,11 @@
         body_format: json
         body:
           data: >-
-            {{ (splunk_docker_bao_current.json.data.data | default({}))
-               | combine({splunk_docker_token_openbao_key: splunk_docker_token_mint.json.token}) }}
+            {{ (splunk_docker_bao_current.json | default({}, true)).get('data', {}).get('data', {})
+               | combine({
+                   splunk_docker_url_openbao_key: splunk_docker_mcp_url,
+                   splunk_docker_token_openbao_key: splunk_docker_token_mint.json.token
+                 }) }}
         validate_certs: false
         status_code: [200, 204]
       when:
@@ -131,5 +134,6 @@
       User '{{ splunk_user.name }}' ensured (roles {{ splunk_user.roles | join(',') }}).
       Token minting is deferred because splunk_docker_token_publish_openbao is off —
       wire a write-capable OpenBao AppRole (BAO_ADDR/BAO_TOKEN) to mint + publish
-      {{ splunk_docker_token_openbao_key }} to {{ splunk_docker_token_openbao_mount }}/{{ splunk_docker_token_openbao_path }}.
+      {{ splunk_docker_url_openbao_key }} and {{ splunk_docker_token_openbao_key }} to
+      {{ splunk_docker_token_openbao_mount }}/{{ splunk_docker_token_openbao_path }}.
   when: not (splunk_docker_token_publish_openbao | bool)
