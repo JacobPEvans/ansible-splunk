@@ -1,0 +1,55 @@
+---
+- name: Verify the canonical Splunk MCP publication contract
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../../roles/splunk_docker/defaults/main.yml
+  vars:
+    ansible_host: splunk.example.test
+    existing_secret:
+      SIBLING_FIELD: preserve-me
+      SPLUNK_MCP_URL: https://old.example.test:8089/services/mcp
+      SPLUNK_MCP_TOKEN: old-token
+    minted_token: new-token
+    token_list:
+      json:
+        entry:
+          - content:
+              claims:
+                sub: hermes
+                aud: mcp
+
+  tasks:
+    - name: Simulate the KV-v2 merge used by the publisher
+      ansible.builtin.set_fact:
+        merged_secret: >-
+          {{ existing_secret
+             | combine({
+                 splunk_docker_url_openbao_key: splunk_docker_mcp_url,
+                 splunk_docker_token_openbao_key: minted_token
+               }) }}
+        live_token_exists: >-
+          {{ (token_list.json.entry | default([]))
+             | map(attribute='content.claims') | select('defined')
+             | selectattr('sub', 'defined') | selectattr('sub', 'equalto', 'hermes')
+             | selectattr('aud', 'defined') | selectattr('aud', 'equalto', splunk_docker_token_audience)
+             | list | length > 0 }}
+
+    - name: Simulate minting only when no live token exists
+      ansible.builtin.set_fact:
+        replacement_token_minted: true
+      when: not live_token_exists
+
+    - name: Assert canonical path and field contract
+      ansible.builtin.assert:
+        that:
+          - splunk_docker_token_openbao_mount == 'secret'
+          - splunk_docker_token_openbao_path == 'ai/mcp/splunk'
+          - splunk_docker_url_openbao_key == 'SPLUNK_MCP_URL'
+          - splunk_docker_token_openbao_key == 'SPLUNK_MCP_TOKEN'
+          - merged_secret.SPLUNK_MCP_URL == 'https://splunk.example.test:8089/services/mcp'
+          - merged_secret.SPLUNK_MCP_TOKEN == minted_token
+          - merged_secret.SIBLING_FIELD == 'preserve-me'
+          - live_token_exists
+          - replacement_token_minted is undefined
+        fail_msg: Splunk MCP OpenBao publication contract is invalid

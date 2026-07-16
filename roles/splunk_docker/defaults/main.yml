@@ -70,17 +70,22 @@ splunk_docker_token_audience: "mcp"
 # Empty string omits expires_on so Splunk applies its default token lifetime.
 splunk_docker_token_expires_on: "+90d"
 
-# When true, publish a freshly minted token to OpenBao so the consumer (Hermes)
-# reads it from the shared secrets engine. Requires a write-capable OpenBao
-# AppRole in the converge environment (see the *_openbao_* vars below). Inert
-# by default: the user is created and the token minted, but the JWT is only
-# surfaced for out-of-band placement until a write role is wired.
+# When true, publish the shared MCP connection to OpenBao. Requires a
+# write-capable OpenBao AppRole in the converge environment (see the
+# *_openbao_* vars below). Inert by default: the user is created, but a token is
+# minted only when it can be written to the canonical shared secret.
 splunk_docker_token_publish_openbao: false
 splunk_docker_token_openbao_addr: "{{ lookup('env', 'BAO_ADDR') | default('', true) }}"
 splunk_docker_token_openbao_token: "{{ lookup('env', 'BAO_TOKEN') | default('', true) }}"
 splunk_docker_token_openbao_mount: "secret"
-splunk_docker_token_openbao_path: "ai/hermes"
+splunk_docker_token_openbao_path: "ai/mcp/splunk"
+splunk_docker_url_openbao_key: "SPLUNK_MCP_URL"
 splunk_docker_token_openbao_key: "SPLUNK_MCP_TOKEN"
+splunk_docker_mcp_host: >-
+  {{ (hostname ~ '.' ~ tofu_data.domain)
+     if (hostname is defined and tofu_data is defined and tofu_data.domain is defined)
+     else ansible_host }}
+splunk_docker_mcp_url: "https://{{ splunk_docker_mcp_host }}:{{ splunk_docker_mgmt_port }}/services/mcp"
 
 # Splunk Web SSL (enableSplunkWebSSL)
 splunk_docker_web_ssl: true

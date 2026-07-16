@@ -179,9 +179,13 @@ owner's roles, so searches run with the user's capabilities. Because Splunk
 returns a token's value **only once at creation**, minting is gated on a
 delivery path: set `splunk_docker_token_publish_openbao: true` and provide a
 write-capable OpenBao AppRole (`BAO_ADDR` / `BAO_TOKEN`) so the role merges the
-token into `secret/ai/hermes` (`SPLUNK_MCP_TOKEN`) without clobbering sibling
-keys. Until that is wired, users and roles are still reconciled; only the
-token mint is deferred.
+canonical `SPLUNK_MCP_URL` and `SPLUNK_MCP_TOKEN` fields into
+`secret/ai/mcp/splunk` without clobbering sibling keys. If Splunk already has a
+live token for the managed user and `mcp` audience, the role preserves it and
+does not mint a replacement. Until publication is wired, users and roles are
+still reconciled; only the token mint is deferred. The URL uses the
+inventory-derived Splunk FQDN when available and can be overridden with
+`splunk_docker_mcp_url`.
 
 ## Testing
 
