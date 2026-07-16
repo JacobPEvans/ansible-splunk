@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0](https://github.com/dryvist/ansible-splunk/compare/v0.37.0...v0.38.0) (2026-07-16)
+
+
+### Features
+
+* **splunk:** enable Splunk MCP token publish to OpenBao ([#345](https://github.com/dryvist/ansible-splunk/issues/345)) ([9850503](https://github.com/dryvist/ansible-splunk/commit/9850503b7d5d0473d44405227dae92b353ba02ff))
+
 ## [0.37.0](https://github.com/dryvist/ansible-splunk/compare/v0.36.0...v0.37.0) (2026-07-16)
 
 
