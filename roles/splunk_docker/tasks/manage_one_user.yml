@@ -116,7 +116,7 @@
         body_format: json
         body:
           data: >-
-            {{ (splunk_docker_bao_current.json.data.data | default({}))
+            {{ (splunk_docker_bao_current.json | default({}, true)).get('data', {}).get('data', {})
                | combine({
                    splunk_docker_url_openbao_key: splunk_docker_mcp_url,
                    splunk_docker_token_openbao_key: splunk_docker_token_mint.json.token
