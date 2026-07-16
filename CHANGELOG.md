@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0](https://github.com/dryvist/ansible-splunk/compare/v0.36.0...v0.37.0) (2026-07-16)
+
+
+### Features
+
+* **alerts:** ntfy + Slack delivery, repoint LLM router alerts at live data ([#342](https://github.com/dryvist/ansible-splunk/issues/342)) ([0f10cbb](https://github.com/dryvist/ansible-splunk/commit/0f10cbb784a882fd43709bdca4365f1c61acfbd5))
+
 ## [0.36.0](https://github.com/dryvist/ansible-splunk/compare/v0.35.0...v0.36.0) (2026-07-16)
 
 
