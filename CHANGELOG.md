@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0](https://github.com/dryvist/ansible-splunk/compare/v0.38.0...v0.39.0) (2026-07-16)
+
+
+### Features
+
+* **scripts:** mint short-lived SSH certificates from the OpenBao CA in run-ansible.sh ([#349](https://github.com/dryvist/ansible-splunk/issues/349)) ([6a40a0a](https://github.com/dryvist/ansible-splunk/commit/6a40a0a912fe1abbcff8cc4c62a9ac850e7bec06))
+
 ## [0.38.0](https://github.com/dryvist/ansible-splunk/compare/v0.37.0...v0.38.0) (2026-07-16)
 
 
