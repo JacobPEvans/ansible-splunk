@@ -32,7 +32,7 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
 - **Firewall disabled**: Guest firewall is off
   (`splunk_docker_firewall_enabled: false`). Docker DNAT conflicts with
   iptables FORWARD chain. The Proxmox firewall is the sole network
-  security (see `dryvist/terraform-proxmox` firewall modules).
+  security (see `dryvist/tofu-proxmox` firewall modules).
 - **HEC tokens**: Per-index tokens are derived via
   `uuidv5(HEC_NAMESPACE, "splunk-hec-<index_name>")` when
   `HEC_NAMESPACE` is set. `SPLUNK_HEC_TOKEN` is the shared legacy
@@ -221,7 +221,7 @@ rules to work around stale tooling.
 
 | Repo | Relationship |
 | --- | --- |
-| `dryvist/terraform-proxmox` | Upstream: provisions Splunk VM + object-storage (RustFS) LXC |
+| `dryvist/tofu-proxmox` | Upstream: provisions Splunk VM + object-storage (RustFS) LXC |
 | `dryvist/ansible-proxmox-apps` | Peer: owns Cribl (sends to HEC), deploys the object storage (RustFS) |
 | `dryvist/ansible-proxmox` | Peer: Proxmox host config |
 | `dryvist/nix-ai` | MCP client configuration (`modules/mcp/`) |

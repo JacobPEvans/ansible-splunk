@@ -22,7 +22,7 @@ ansible-galaxy collection install -r requirements.yml
 
 - Debian-based target host
 - Doppler secrets for SPLUNK_PASSWORD and SPLUNK_HEC_TOKEN
-- VM provisioned by terraform-proxmox with appropriate disk space
+- VM provisioned by tofu-proxmox with appropriate disk space
 
 ## Role Variables
 
@@ -67,7 +67,7 @@ splunk_docker_addons:
 ## Dependencies
 
 - community.docker collection
-- terraform-proxmox for VM provisioning
+- tofu-proxmox for VM provisioning
 - Doppler for secrets management
 
 ## HEC Token Setup
