@@ -160,6 +160,16 @@
     mode: '0644'
   notify: Restart Splunk container
 
+# 0600, not 0644: carries the Slack webhook URL (a credential).
+- name: Deploy alert_actions.conf for ntfy webhook allowlist + Slack delivery
+  ansible.builtin.template:
+    src: alert_actions.conf.j2
+    dest: "{{ splunk_docker_etc_dir }}/system/local/alert_actions.conf"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0600'
+  notify: Restart Splunk container
+
 - name: Check if Splunk Docker image exists
   community.docker.docker_image_info:
     name: "{{ splunk_docker_image }}"

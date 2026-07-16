@@ -6,7 +6,22 @@
 
    Wired into the system/local stanza so the alerts run under the system
    namespace and don't depend on any specific Splunk app being installed.
+
+   Delivery is ntfy + Slack (operator directive 2026-07-16: never email).
+   ntfy rides the built-in webhook alert action (URL allowlisted in
+   alert_actions.conf.j2); Slack rides TA-slack-add-on-for-splunk with the
+   shared alerting webhook. Each stanza calls alert_deliver() below.
 #}
+{% macro alert_deliver(title, message, priority='high') %}
+{% if splunk_docker_alert_ntfy_url %}
+action.webhook = 1
+action.webhook.param.url = {{ splunk_docker_alert_ntfy_url }}?title={{ title | urlencode }}&priority={{ priority }}
+{% endif %}
+{% if splunk_docker_alert_slack_webhook %}
+action.slack = 1
+action.slack.param.message = [{{ title }}] {{ message }}
+{% endif %}
+{% endmacro %}
 
 [macos_edge_silence_detector]
 description = Alerts when the macbook-m4 Cribl Edge -> Cribl Cloud -> Splunk chain has been silent for more than 15 minutes. Catches Mac offline, daemon crash, Cribl Cloud enrollment expiry, Stream pipeline stalls, and HEC ingestion failures with a single signal.
@@ -28,12 +43,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] macOS Cribl Edge chain silent
-action.email.message.alert = The macbook-m4 Cribl Edge pipeline has not delivered any macos:* sourcetype events to Splunk in the last 15+ minutes. Investigate Cribl Edge daemon, Cribl Cloud enrollment, Cribl Stream pipelines, and Splunk HEC ingestion.
-{% endif %}
+{{ alert_deliver('macOS Cribl Edge chain silent', 'The macbook-m4 Cribl Edge pipeline has not delivered any macos:* sourcetype events to Splunk in the last 15+ minutes. Investigate Cribl Edge daemon, Cribl Cloud enrollment, Cribl Stream pipelines, and Splunk HEC ingestion.') }}
 
 [llm_pipeline_silence_detector]
 description = Alerts when any llama-swap emitter feeding the llm index goes silent for more than 30 minutes. Detection is PER-HOST (`by host`) so a healthy emitter can never mask a dead one — with the fabric running multiple llama-swap serving guests, an index-wide `latest(_time)` would stay fresh as long as a single host reports, hiding the failure of every other host. Each silent host produces its own result row, so the alert fires once per dead emitter. A host that has never emitted has no baseline and cannot be detected here (same inherent limitation as the macOS edge detector).
@@ -54,12 +64,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] llm emitter silent (per-host)
-action.email.message.alert = One or more llama-swap emitters feeding the llm index have delivered no events for 30+ minutes (see the `host` field in the results for which). Investigate that host's llama-swap serving guest, its Cribl Edge daemon, the HAProxy :10300 frontend, the Cribl Stream input, and Splunk HEC ingestion.
-{% endif %}
+{{ alert_deliver('llm emitter silent (per-host)', 'One or more llama-swap emitters feeding the llm index have delivered no events for 30+ minutes (see the host field in the results for which). Investigate that host llama-swap serving guest, its Cribl Edge daemon, the HAProxy :10300 frontend, the Cribl Stream input, and Splunk HEC ingestion.') }}
 
 [llm_manager_panic_detector]
 description = Alerts on model-server manager panics in the llm index (worker lifecycle faults that can leave workers unmanaged).
@@ -77,32 +82,27 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] LLM manager panic detected
-action.email.message.alert = A model-server manager panic reached the llm index. Workers may be unmanaged; check the inference stack and consider a manager restart.
-{% endif %}
+{{ alert_deliver('LLM manager panic detected', 'A model-server manager panic reached the llm index. Workers may be unmanaged; check the inference stack and consider a manager restart.') }}
 
 {# ---------------------------------------------------------------------------
    LiteLLM router alerts.
 
    The LLM fabric fronts every model consumer with a LiteLLM router (multiple
-   instances behind a single virtual endpoint). Router request telemetry flows
-   app -> OTLP -> Cribl -> Splunk into index=ai. This template stamps that
-   traffic with sourcetype=litellm — mirroring the index=llm / sourcetype=
-   llamaswap convention used above (service-named sourcetype). This is the one
-   load-bearing assumption in the router searches: the Cribl pipeline (or the
-   router's own log/OTLP metadata) MUST land these events as
-   `index=ai sourcetype=litellm`. If the fabric stamps a different sourcetype,
-   update `litellm` in both searches below to match — nothing else changes.
+   instances behind a single virtual endpoint). These searches originally
+   assumed router telemetry landed as `index=ai sourcetype=litellm` via OTLP;
+   in reality index=ai received ZERO events for weeks while the router LXCs'
+   syslog (litellm process logs included) landed in `index=llm` as
+   host=llm-router-* — so both alerts silently watched an empty index through
+   the 2026-07-16 brain wedge (8.9k error events, no alert). Scope by HOST
+   (llm-router-*), not by sourcetype semantics: the host pattern comes from
+   the guests' actual hostnames and survives sourcetype-stamping drift.
 --------------------------------------------------------------------------- #}
 [llm_router_silence_detector]
-description = Alerts when the LiteLLM router stops recording requests in index=ai for more than 15 minutes. The router is the single endpoint every LLM consumer resolves, so its silence means the whole fabric is unreachable even if individual model servers are healthy. Assumes router request events land as index=ai sourcetype=litellm (see comment above).
+description = Alerts when the LiteLLM router hosts stop emitting into index=llm for more than 15 minutes. The router is the single endpoint every LLM consumer resolves, so its silence means the whole fabric is unreachable even if individual model servers are healthy. Scoped by host=llm-router-* (see comment above).
 # coalesce: with zero events in the whole lookback window, tstats yields a
 # null last_seen; without the fallback the where clause filters the row out
 # and the alert goes quiet exactly when the router has been dead longest.
-search = | tstats latest(_time) as last_seen WHERE index=ai sourcetype=litellm | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
+search = | tstats latest(_time) as last_seen WHERE index=llm host=llm-router-* | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
 dispatch.earliest_time = -24h
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
@@ -116,16 +116,11 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] LiteLLM router silent
-action.email.message.alert = The LiteLLM router has recorded no requests in index=ai for 15+ minutes. Every LLM consumer resolves this single endpoint, so the fabric is likely unreachable. Investigate the router instances, their OTLP exporter, the Cribl pipeline into index=ai, and Splunk HEC ingestion.
-{% endif %}
+{{ alert_deliver('LiteLLM router silent', 'The LiteLLM router hosts have emitted nothing into index=llm for 15+ minutes. Every LLM consumer resolves this single endpoint, so the fabric is likely unreachable. Investigate the router instances, their syslog forwarding, and Splunk ingestion.', priority='urgent') }}
 
 [llm_router_fallback_spike]
-description = Alerts when the LiteLLM router logs a spike of fallback/cooldown/5xx events in index=ai over a 15-minute window — a healthy router serves almost entirely from its primary targets, so a burst of fallbacks or upstream 5xx/cooldown events means one or more backend model servers are failing or overloaded. Assumes router events land as index=ai sourcetype=litellm (see comment above). Threshold is a count over the dispatch window; tune it to the fabric's request volume.
-search = index=ai sourcetype=litellm ("fallback" OR "cooldown" OR "cooling down" OR status_code>=500) | stats count | where count > 20
+description = Alerts when the LiteLLM router hosts log a spike of serving errors in index=llm over a 15-minute window — a healthy router serves almost entirely from its primary targets, so a burst of MidStreamFallbackError / finish_reason error / cooldown events means one or more backend model servers are failing or overloaded. The MidStreamFallbackError + "finish_reason error" pair is the 2026-07-16 brain-wedge signature: the MLX engine returns HTTP 200 with an in-stream error chunk, so no status-code search can see it. Scoped by host=llm-router-* (see comment above). Threshold is a count over the dispatch window; tune it to the fabric's request volume.
+search = index=llm host=llm-router-* ("MidStreamFallbackError" OR "finish_reason: error" OR "cooldown" OR "cooling down" OR "Fallback also failed") | stats count | where count > 20
 dispatch.earliest_time = -15m
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
@@ -139,12 +134,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] LiteLLM router fallback/error spike
-action.email.message.alert = The LiteLLM router logged more than 20 fallback / cooldown / 5xx events in the last 15 minutes. A backend model server is likely failing or overloaded and the router is shedding load onto its fallbacks. Check the router logs and the health of each backend target.
-{% endif %}
+{{ alert_deliver('LiteLLM router fallback/error spike', 'The LiteLLM router logged 20+ serving errors (MidStreamFallbackError / finish_reason error / cooldown) in 15 minutes. A backend engine is failing — if the MLX batch scheduler is wedged (broadcast_shapes in the Studio log), launchctl kickstart dev.vllm-mlx.server on the serving host is the sanctioned break-fix.', priority='urgent') }}
 
 {# ---------------------------------------------------------------------------
    Model-eval regression.
@@ -175,12 +165,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] Model-eval score regression
-action.email.message.alert = A promptfoo eval suite regressed: the latest score for a model+suite fell more than 0.05 below the prior run (see the model / suite / score / prev_score fields). Review the recent model or routing-policy change that preceded the drop.
-{% endif %}
+{{ alert_deliver('Model-eval score regression', 'A promptfoo eval suite regressed: the latest score for a model+suite fell more than 0.05 below the prior run (see the model / suite / score / prev_score fields). Review the recent model or routing-policy change that preceded the drop.', priority='default') }}
 
 {# ---------------------------------------------------------------------------
    Generic per-index silence detectors.
@@ -223,13 +208,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] {{ det.index }} index silent{% if det.by_host | default(false) %} (per-host){% endif %}
-
-action.email.message.alert = The {{ det.index }} index has received no events for {{ det.threshold_minutes }}+ minutes{% if det.by_host | default(false) %} from one or more hosts (see the host field in the results){% endif %}. Investigate the emitter, its Cribl pipeline, and Splunk HEC ingestion.
-{% endif %}
+{{ alert_deliver(det.index ~ ' index silent' ~ (' (per-host)' if det.by_host | default(false) else ''), 'The ' ~ det.index ~ ' index has received no events for ' ~ det.threshold_minutes ~ '+ minutes' ~ (' from one or more hosts (see the host field in the results)' if det.by_host | default(false) else '') ~ '. Investigate the emitter, its Cribl pipeline, and Splunk HEC ingestion.', priority='default') }}
 
 {% endfor %}
 [llm_serving_memory_headroom]
@@ -249,12 +228,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] LLM serving host near memory ceiling
-action.email.message.alert = A serving host's 5-minute average memory use exceeds 85% (see host + used_pct in results) — the Metal cache-clear trip sits at ~85% of device memory, so serving quality degrades next. Check resident model composition (/running via the gate), the daily brain-rotation phase, and idle-unload behavior before the trip fires.
-{% endif %}
+{{ alert_deliver('LLM serving host near memory ceiling', 'A serving host 5-minute average memory use exceeds 85% (see host + used_pct in results) — the Metal cache-clear trip sits at ~85% of device memory, so serving quality degrades next. Check resident model composition (/running via the gate), the daily brain-rotation phase, and idle-unload behavior before the trip fires.') }}
 
 [llm_metal_resource_limit_detector]
 description = Fires on any MLX Metal buffer-count ceiling error ("[metal::malloc] Resource limit (499000) exceeded") reaching the llm index — the mid-stream-abort failure mode the 2026-07 serving fixes (buffer-cache cap + paged-block sizing) are meant to make impossible. Zero-noise by design: any single event is a regression worth investigating. Depends on the vllm-mlx log input (nix-darwin#1623); inert until that delivers.
@@ -272,12 +246,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] Metal buffer-count ceiling tripped on a serving host
-action.email.message.alert = A vllm-mlx worker hit the Metal buffer-count ceiling (Resource limit 499000) — requests are aborting mid-stream. This regression was supposed to be impossible after the 2026-07 buffer-cache/block-size fixes; check concurrent long-context load, MLX_BUFFER_CACHE_LIMIT in the worker env, and paged-cache block sizes (nix-ai catalog).
-{% endif %}
+{{ alert_deliver('Metal buffer-count ceiling tripped on a serving host', 'A vllm-mlx worker hit the Metal buffer-count ceiling (Resource limit 499000) — requests are aborting mid-stream. This regression was supposed to be impossible after the 2026-07 buffer-cache/block-size fixes; check concurrent long-context load, MLX_BUFFER_CACHE_LIMIT in the worker env, and paged-cache block sizes (nix-ai catalog).', priority='urgent') }}
 
 [llm_night_rank_error_detector]
 description = Fires on night-cluster rank/link-watcher errors (JACCL init failures, rank crashes, distributed aborts) in the night logs shipped by the serving hosts' in_night_logs input. Zero-noise by design: the night fabric is supposed to converge silently, so any error line is worth a look before the next plug night.
@@ -295,12 +264,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] Night-cluster rank/watcher errors
-action.email.message.alert = The two-Mac night cluster logged errors (rank crash, JACCL failure, or repeated watcher kickstarts). The fabric falls back to the solo brain automatically, but the night capacity is degraded — check night-rank.error.log on both Macs before the next plug night.
-{% endif %}
+{{ alert_deliver('Night-cluster rank/watcher errors', 'The two-Mac night cluster logged errors (rank crash, JACCL failure, or repeated watcher kickstarts). The fabric falls back to the solo brain automatically, but the night capacity is degraded — check night-rank.error.log on both Macs before the next plug night.', priority='default') }}
 
 [llm_night_idle_cluster_detector]
 description = "Night mode active but unused": the night rank has been up (rank log activity in the last hour) yet the gate's night endpoint saw zero completions in 30 minutes. Cluster capacity is burning memory on both Macs while Hermes/router traffic is not reaching it — usually a router flag (ai_night_brain_enabled) or fallback chain issue.
@@ -318,12 +282,7 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{% if splunk_docker_alert_email %}
-action.email = 1
-action.email.to = {{ splunk_docker_alert_email }}
-action.email.subject = [Splunk Alert] Night cluster up but receiving no traffic
-action.email.message.alert = The night rank is running but the gated night endpoint served nothing for 30 minutes. Check the router large-phase config (night deployment + fallbacks) and whether the fallback chain silently drained all traffic to the solo brain.
-{% endif %}
+{{ alert_deliver('Night cluster up but receiving no traffic', 'The night rank is running but the gated night endpoint served nothing for 30 minutes. Check the router large-phase config (night deployment + fallbacks) and whether the fallback chain silently drained all traffic to the solo brain.', priority='default') }}
 
 {# ---------------------------------------------------------------------------
    Benchmark result reports (mlx-benchmarks#119 bench-events feed,

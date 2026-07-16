@@ -1,0 +1,16 @@
+{{ ansible_managed | comment }}
+{# Alert-action plumbing for the ntfy + Slack delivery pair used by every
+   saved search in savedsearches.conf.j2 (email is deliberately absent —
+   operator directive 2026-07-16). #}
+{% if splunk_docker_alert_ntfy_url %}
+[webhook]
+# Splunk 9+ gates the webhook alert action behind an allowlist; without this
+# the ntfy action fails silently. Anchor the topic URL, allow the per-alert
+# ?title/&priority query suffix.
+enable_allowlist = true
+allowlist.ntfy = ^{{ splunk_docker_alert_ntfy_url | regex_escape }}(\?.*)?$
+{% endif %}
+{% if splunk_docker_alert_slack_webhook %}
+[slack]
+param.webhook_url = {{ splunk_docker_alert_slack_webhook }}
+{% endif %}
