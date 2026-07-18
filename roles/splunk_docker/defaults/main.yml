@@ -97,7 +97,19 @@ splunk_docker_mcp_host: >-
   {{ (hostname ~ '.' ~ tofu_data.domain)
      if (hostname is defined and tofu_data is defined and tofu_data.domain is defined)
      else ansible_host }}
-splunk_docker_mcp_url: "https://{{ splunk_docker_mcp_host }}:{{ splunk_docker_mgmt_port }}/services/mcp"
+# Published URL = the Traefik-fronted `splunk-mgmt` ingress (a first-class
+# tofu ingress entry), NOT the raw https://<host>:<mgmt_port> endpoint. The
+# raw mgmt port serves Splunk's self-signed cert, which MCP clients rightly
+# refuse — the Hermes gateway parked its splunk MCP server on exactly this
+# ("failed initial connection ... parking") while the token itself was valid,
+# leaving the SIEM blind for cron monitoring (2026-07-18, Zammad incident).
+# Traefik terminates real TLS on the ingress name; publishing that URL makes
+# every consumer verify-clean by default. Fall back to the raw mgmt URL only
+# when tofu_data (and thus the ingress name derivation) is unavailable.
+splunk_docker_mcp_url: >-
+  {{ ('https://splunk-mgmt.' ~ tofu_data.domain ~ '/services/mcp')
+     if (tofu_data is defined and tofu_data.domain is defined)
+     else 'https://' ~ splunk_docker_mcp_host ~ ':' ~ splunk_docker_mgmt_port ~ '/services/mcp' }}
 
 # Splunk Web SSL (enableSplunkWebSSL)
 splunk_docker_web_ssl: true
