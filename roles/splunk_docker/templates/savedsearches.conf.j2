@@ -161,7 +161,7 @@ quantity = 0
 --------------------------------------------------------------------------- #}
 [hermes_delivery_slo_violation]
 description = Fires when BOTH hourly Hermes work-product jobs (splunk-digest, homelab-ai-fabric-status) have failed within 90 minutes — no useful Slack message could have been delivered that hour, violating the >=1-useful-message-per-hour SLO. Successful deliveries are silent in syslog, so this uses the double-failure signal (dc(job) >= 2); the paused/flapping mode is covered by the ansible-proxmox-ai brain-watchdog sustained-flap alert. INC-17088.
-search = index=os host=hermes-agent "cron.scheduler" failed | rex "Job '(?<hermes_job>splunk-digest|homelab-ai-fabric-status)' failed" | where isnotnull(hermes_job) | stats dc(hermes_job) as jobs_failed values(hermes_job) as jobs | where jobs_failed >= 2
+search = index=os host=hermes-agent "cron.scheduler" failed ("splunk-digest" OR "homelab-ai-fabric-status") | rex "Job '(?<hermes_job>splunk-digest|homelab-ai-fabric-status)' failed" | stats dc(hermes_job) as jobs_failed values(hermes_job) as jobs | where jobs_failed >= 2
 dispatch.earliest_time = -90m
 dispatch.latest_time = now
 cron_schedule = */15 * * * *
