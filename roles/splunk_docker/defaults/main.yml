@@ -166,6 +166,12 @@ splunk_docker_indexes:
   - name: gemini
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # hermes: Hermes agent operational logs (gateway + watchdog via Cribl syslog
+  # route hermes_agent) — dedicated index so agent health is searchable apart
+  # from the shared os index.
+  - name: hermes
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # honeypot: deception-fabric events (OpenCanary / T-Pot via Cribl). Security
   # index — keep the full 365-day default retention for incident lookback.
   - name: honeypot
