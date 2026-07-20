@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.41.0](https://github.com/dryvist/ansible-splunk/compare/v0.40.0...v0.41.0) (2026-07-20)
+
+
+### Features
+
+* **splunk_docker:** add dedicated hermes index ([#357](https://github.com/dryvist/ansible-splunk/issues/357)) ([8baf82a](https://github.com/dryvist/ansible-splunk/commit/8baf82a03ad50167ba02ecbf281ab62912f0f4e5))
+
 ## [0.40.0](https://github.com/dryvist/ansible-splunk/compare/v0.39.1...v0.40.0) (2026-07-19)
 
 
