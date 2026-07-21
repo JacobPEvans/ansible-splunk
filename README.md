@@ -170,9 +170,9 @@ After the REST API is up, the role (`tasks/manage_users.yml`) idempotently:
 1. **Enables token authentication** deployment-wide.
 2. **Creates each user** with its roles (password is random, set once at
    creation — never rotated here, since the token is the real credential).
-3. **Mints an authorization token** (JWT) per user, tagged with
-   `splunk_docker_token_audience` (default `hermes-mcp`), skipping the mint when
-   a live token for that audience already exists.
+3. **Validates the canonical authorization token** (JWT) from OpenBao and mints
+   a replacement when it is missing, invalid, outside its validity window, or
+   duplicated in Splunk, and when explicitly rotated.
 
 The minted JWT is the client-side `SPLUNK_MCP_TOKEN` the Splunk MCP Server
 (Splunkbase 7931) accepts as a Bearer token — a Splunk token inherits its
@@ -181,10 +181,23 @@ returns a token's value **only once at creation**, minting is gated on a
 delivery path: set `splunk_docker_token_publish_openbao: true` and provide a
 write-capable OpenBao AppRole (`BAO_ADDR` / `BAO_TOKEN`) so the role merges the
 canonical `SPLUNK_MCP_URL` and `SPLUNK_MCP_TOKEN` fields into
-`secret/ai/mcp/splunk` without clobbering sibling keys. If Splunk already has a
-live token for the managed user and `mcp` audience, the role preserves it and
-does not mint a replacement. Until publication is wired, users and roles are
-still reconciled; only the token mint is deferred. The URL uses the
+`secret/ai/mcp/splunk` without clobbering sibling keys. The AppRole needs KV-v2
+data read/write, metadata read, and undelete access for that exact path so a
+soft-deleted current version can be recovered before a compare-and-set write.
+The role validates the published JWT's subject, audience, validity window, and
+token ID against Splunk on every converge; merely finding a token in Splunk
+never suppresses recovery when the canonical key is missing or invalid.
+To rotate that token, run one converge with
+`splunk_docker_token_force_rotate: true`. The role identifies one new token,
+publishes it through a version-checked OpenBao merge, then re-enumerates Splunk
+and revokes every other eligible token, including tokens minted concurrently
+after the initial snapshot. A final read proves the published token is the sole
+eligible token. Disabled, expired, and not-yet-valid tokens never count as live.
+A publish failure removes the unpublished replacement when possible and never
+revokes the old snapshot. Forced rotation requires publication to be enabled
+and returns to its default-off state on the next normal converge. Until
+publication is wired, users and roles are still reconciled; only token delivery
+is deferred. The URL uses the
 inventory-derived Splunk FQDN when available and can be overridden with
 `splunk_docker_mcp_url`.
 

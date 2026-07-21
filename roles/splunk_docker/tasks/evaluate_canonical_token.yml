@@ -1,0 +1,25 @@
+---
+- name: "Evaluate canonical JWT claims for {{ splunk_user.name }}"
+  vars:
+    claims: "{{ splunk_docker_canonical_jwt_claims }}"
+    expires_text: "{{ claims.get('exp', '') | string }}"
+    not_before_text: "{{ claims.get('nbr', '') | string }}"
+    token_id: "{{ claims.get('jti', '') }}"
+    probe_username: >-
+      {{ (((splunk_docker_bao_token_probe.json | default({}, true)).get('entry', [])
+           | first | default({}, true)).get('content', {}).get('username', '')) }}
+  ansible.builtin.set_fact:
+    splunk_docker_bao_token_valid: >-
+      {{ (splunk_docker_canonical_jwt_decode_valid | bool)
+         and (splunk_docker_bao_token_probe.status | default(0) | int == 200)
+         and (probe_username == splunk_user.name)
+         and (claims.get('sub', '') == splunk_user.name)
+         and (claims.get('aud', '') == splunk_docker_token_audience)
+         and (token_id is string) and (token_id | length > 0)
+         and (expires_text is match('^[0-9]+$'))
+         and (not_before_text is match('^[0-9]+$'))
+         and (expires_text | int == 0 or expires_text | int > ansible_date_time.epoch | int)
+         and (not_before_text | int <= ansible_date_time.epoch | int)
+         and (splunk_docker_eligible_tokens | length == 1)
+         and ((splunk_docker_eligible_tokens | first).name == token_id) }}
+  no_log: true

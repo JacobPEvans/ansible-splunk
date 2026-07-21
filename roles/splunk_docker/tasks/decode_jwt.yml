@@ -1,0 +1,44 @@
+---
+- name: Reset decoded JWT state
+  ansible.builtin.set_fact:
+    splunk_docker_decoded_jwt_claims: {}
+    splunk_docker_jwt_decode_valid: false
+  no_log: true
+
+- name: Decode JWT claims
+  block:
+    - name: Validate JWT compact format
+      ansible.builtin.assert:
+        that:
+          - splunk_docker_jwt_to_decode is string
+          - splunk_docker_jwt_to_decode.split('.') | length == 3
+          - splunk_docker_jwt_to_decode.split('.')[1] | length > 0
+        fail_msg: Token is not a compact JWT
+      no_log: true
+
+    - name: Decode JWT payload
+      vars:
+        payload_segment: "{{ splunk_docker_jwt_to_decode.split('.')[1] }}"
+        payload_padding: "{{ '=' * ((4 - (payload_segment | length % 4)) % 4) }}"
+      ansible.builtin.set_fact:
+        splunk_docker_decoded_jwt_claims: >-
+          {{ ((payload_segment ~ payload_padding) | ansible.builtin.b64decode(urlsafe=true)) | from_json }}
+      no_log: true
+
+    - name: Validate decoded JWT claims object
+      ansible.builtin.assert:
+        that:
+          - splunk_docker_decoded_jwt_claims is mapping
+        fail_msg: JWT payload is not a claims object
+      no_log: true
+
+    - name: Mark JWT decode successful
+      ansible.builtin.set_fact:
+        splunk_docker_jwt_decode_valid: true
+      no_log: true
+  rescue:
+    - name: Mark JWT decode invalid
+      ansible.builtin.set_fact:
+        splunk_docker_decoded_jwt_claims: {}
+        splunk_docker_jwt_decode_valid: false
+      no_log: true

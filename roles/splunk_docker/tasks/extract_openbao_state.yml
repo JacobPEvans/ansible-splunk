@@ -1,0 +1,27 @@
+---
+- name: Extract OpenBao CAS and source data
+  vars:
+    metadata_version: >-
+      {{ (splunk_docker_bao_metadata.json | default({}, true)).get('data', {}).get(
+           'current_version',
+           (splunk_docker_bao_current.json | default({}, true)).get('data', {}).get('metadata', {}).get('version', 0)
+         ) | int }}
+  ansible.builtin.set_fact:
+    splunk_docker_bao_cas_version: "{{ metadata_version }}"
+    splunk_docker_bao_source_data: >-
+      {%- if splunk_docker_bao_current.status | default(0) | int == 200 -%}
+        {{ (splunk_docker_bao_current.json | default({}, true)).get('data', {}).get('data', {}) }}
+      {%- elif metadata_version | int > 0
+                and splunk_docker_bao_recovered.status | default(0) | int == 200 -%}
+        {{ (splunk_docker_bao_recovered.json | default({}, true)).get('data', {}).get('data', {}) }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  no_log: true
+
+- name: Extract canonical token from OpenBao source data
+  vars:
+    candidate: "{{ splunk_docker_bao_source_data.get(splunk_docker_token_openbao_key, '') | default('', true) }}"
+  ansible.builtin.set_fact:
+    splunk_docker_bao_published_token: "{{ candidate if candidate is string else '' }}"
+  no_log: true

@@ -1,0 +1,22 @@
+---
+- name: "Record replacement token identity for {{ splunk_user.name }}"
+  vars:
+    minted_token_id: "{{ splunk_docker_decoded_jwt_claims.get('jti', '') }}"
+  ansible.builtin.set_fact:
+    splunk_docker_new_token_id: >-
+      {{ minted_token_id
+         if (splunk_docker_jwt_decode_valid | bool)
+            and (minted_token_id is string)
+            and (minted_token_id | length > 0)
+         else '' }}
+  no_log: true
+
+- name: "Verify minted JWT identity for {{ splunk_user.name }}"
+  ansible.builtin.assert:
+    that:
+      - splunk_docker_jwt_decode_valid | bool
+      - splunk_docker_decoded_jwt_claims.get('sub', '') == splunk_user.name
+      - splunk_docker_decoded_jwt_claims.get('aud', '') == splunk_docker_token_audience
+      - splunk_docker_new_token_id | length > 0
+    fail_msg: Minted Splunk token claims do not match the managed identity
+  no_log: true

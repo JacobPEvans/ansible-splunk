@@ -1,0 +1,8 @@
+---
+- name: "Plan token delivery for {{ splunk_user.name }}"
+  ansible.builtin.set_fact:
+    splunk_docker_token_mint_required: >-
+      {{ (splunk_docker_token_force_rotate | bool)
+         or not (splunk_docker_bao_token_valid | bool)
+         or (splunk_docker_eligible_tokens | length != 1) }}
+  no_log: true

@@ -49,15 +49,17 @@
   when: splunk_docker_user_lookup.status == 200
   no_log: true
 
-# A Splunk auth-token JWT is returned exactly once, at creation. So we only mint
-# when a delivery path exists (OpenBao publish on) — otherwise a minted token
-# would be un-deliverable and the audience check would suppress re-minting later.
+# A Splunk auth-token JWT is returned exactly once, at creation. Mint only with
+# an OpenBao delivery path, validate that canonical credential every converge,
+# and never revoke its predecessor until a replacement is durably published.
 - name: "Ensure a live token for {{ splunk_user.name }}"
   when: splunk_docker_token_publish_openbao | bool
   block:
     - name: "List existing tokens for {{ splunk_user.name }}"
       ansible.builtin.uri:
-        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json"
+        url: >-
+          https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json&username={{
+          splunk_user.name | urlencode }}&count=0
         method: GET
         user: "{{ splunk_admin_user | default('admin') }}"
         password: "{{ splunk_docker_password }}"
@@ -67,29 +69,8 @@
       register: splunk_docker_token_list
       no_log: true
 
-    - name: "Detect a live token for {{ splunk_user.name }} / {{ splunk_docker_token_audience }}"
-      ansible.builtin.set_fact:
-        splunk_docker_user_token_exists: >-
-          {{ (splunk_docker_token_list.json.entry | default([]))
-             | map(attribute='content.claims') | select('defined')
-             | selectattr('sub', 'defined') | selectattr('sub', 'equalto', splunk_user.name)
-             | selectattr('aud', 'defined') | selectattr('aud', 'equalto', splunk_docker_token_audience)
-             | list | length > 0 }}
-
-    - name: "Mint authorization token for {{ splunk_user.name }}"
-      ansible.builtin.uri:
-        url: >-
-          https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/mcp_token?username={{ splunk_user.name }}{{
-          ('&expires_on=' ~ (splunk_docker_token_expires_on | urlencode)) if (splunk_docker_token_expires_on | length > 0) else '' }}
-        method: GET
-        user: "{{ splunk_admin_user | default('admin') }}"
-        password: "{{ splunk_docker_password }}"
-        force_basic_auth: true
-        validate_certs: false
-        status_code: [200, 201]
-      register: splunk_docker_token_mint
-      when: not splunk_docker_user_token_exists
-      no_log: true
+    - name: "Plan token state for {{ splunk_user.name }}"
+      ansible.builtin.include_tasks: plan_token_reconciliation.yml
 
     - name: "Read current OpenBao secret at {{ splunk_docker_token_openbao_path }}"
       ansible.builtin.uri:
@@ -100,32 +81,260 @@
         validate_certs: false
         status_code: [200, 404]
       register: splunk_docker_bao_current
-      when:
-        - not splunk_docker_user_token_exists
-        - splunk_docker_token_mint is not skipped
       no_log: true
 
-    # KV v2 write replaces the whole secret, so merge the canonical connection
-    # fields over the current data to avoid clobbering sibling keys.
-    - name: "Publish {{ splunk_user.name }} MCP connection to OpenBao"
+    - name: "Read current OpenBao metadata at {{ splunk_docker_token_openbao_path }}"
       ansible.builtin.uri:
-        url: "{{ splunk_docker_token_openbao_addr }}/v1/{{ splunk_docker_token_openbao_mount }}/data/{{ splunk_docker_token_openbao_path }}"
+        url: "{{ splunk_docker_token_openbao_addr }}/v1/{{ splunk_docker_token_openbao_mount }}/metadata/{{ splunk_docker_token_openbao_path }}"
+        method: GET
+        headers:
+          X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
+        validate_certs: false
+        status_code: [200, 404]
+      register: splunk_docker_bao_metadata
+      no_log: true
+
+    - name: "Initialize OpenBao recovery state for {{ splunk_user.name }}"
+      ansible.builtin.set_fact:
+        splunk_docker_bao_current_version: >-
+          {{ (splunk_docker_bao_metadata.json | default({}, true)).get('data', {}).get(
+               'current_version',
+               (splunk_docker_bao_current.json | default({}, true)).get('data', {}).get('metadata', {}).get('version', 0)
+             ) | int }}
+        splunk_docker_bao_recovered:
+          status: 0
+          json: {}
+      no_log: true
+
+    - name: "Undelete current OpenBao version at {{ splunk_docker_token_openbao_path }}"
+      ansible.builtin.uri:
+        url: "{{ splunk_docker_token_openbao_addr }}/v1/{{ splunk_docker_token_openbao_mount }}/undelete/{{ splunk_docker_token_openbao_path }}"
         method: POST
         headers:
           X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
         body_format: json
         body:
-          data: >-
-            {{ (splunk_docker_bao_current.json | default({}, true)).get('data', {}).get('data', {})
-               | combine({
-                   splunk_docker_url_openbao_key: splunk_docker_mcp_url,
-                   splunk_docker_token_openbao_key: splunk_docker_token_mint.json.token
-                 }) }}
+          versions: ["{{ splunk_docker_bao_current_version | int }}"]
         validate_certs: false
         status_code: [200, 204]
       when:
-        - not splunk_docker_user_token_exists
-        - splunk_docker_token_mint is not skipped
+        - splunk_docker_bao_current.status | int == 404
+        - splunk_docker_bao_current_version | int > 0
+      no_log: true
+
+    - name: "Re-read recovered OpenBao version at {{ splunk_docker_token_openbao_path }}"
+      ansible.builtin.uri:
+        url: >-
+          {{ splunk_docker_token_openbao_addr }}/v1/{{ splunk_docker_token_openbao_mount }}/data/{{
+          splunk_docker_token_openbao_path }}?version={{ splunk_docker_bao_current_version | int }}
+        method: GET
+        headers:
+          X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
+        validate_certs: false
+        status_code: [200]
+      register: splunk_docker_bao_recovered
+      when:
+        - splunk_docker_bao_current.status | int == 404
+        - splunk_docker_bao_current_version | int > 0
+      no_log: true
+
+    - name: "Extract canonical OpenBao state for {{ splunk_user.name }}"
+      ansible.builtin.include_tasks: extract_openbao_state.yml
+
+    - name: "Decode canonical OpenBao token for {{ splunk_user.name }}"
+      vars:
+        splunk_docker_jwt_to_decode: "{{ splunk_docker_bao_published_token }}"
+      ansible.builtin.include_tasks: decode_jwt.yml
+
+    - name: "Record canonical JWT claims for {{ splunk_user.name }}"
+      ansible.builtin.set_fact:
+        splunk_docker_canonical_jwt_claims: "{{ splunk_docker_decoded_jwt_claims }}"
+        splunk_docker_canonical_jwt_decode_valid: "{{ splunk_docker_jwt_decode_valid }}"
+      no_log: true
+
+    - name: "Validate canonical OpenBao token for {{ splunk_user.name }}"
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authentication/current-context?output_mode=json"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ splunk_docker_bao_published_token }}"
+        validate_certs: false
+        status_code: [200, 401, 403]
+      register: splunk_docker_bao_token_probe
+      when: splunk_docker_bao_published_token | length > 0
+      no_log: true
+
+    - name: "Evaluate canonical OpenBao token for {{ splunk_user.name }}"
+      ansible.builtin.include_tasks: evaluate_canonical_token.yml
+
+    - name: "Plan token delivery for {{ splunk_user.name }}"
+      ansible.builtin.include_tasks: plan_token_delivery.yml
+
+    - name: "Mint and publish replacement token for {{ splunk_user.name }}"
+      when: splunk_docker_token_mint_required
+      block:
+        - name: "Clear replacement token identity for {{ splunk_user.name }}"
+          ansible.builtin.set_fact:
+            splunk_docker_new_token_id: ""
+          no_log: true
+
+        - name: "Mint authorization token for {{ splunk_user.name }}"
+          ansible.builtin.uri:
+            url: >-
+              https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/mcp_token?username={{ splunk_user.name }}{{
+              ('&expires_on=' ~ (splunk_docker_token_expires_on | urlencode)) if (splunk_docker_token_expires_on | length > 0) else '' }}
+            method: GET
+            user: "{{ splunk_admin_user | default('admin') }}"
+            password: "{{ splunk_docker_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            status_code: [200, 201]
+          register: splunk_docker_token_mint
+          no_log: true
+
+        - name: "Decode minted JWT for {{ splunk_user.name }}"
+          vars:
+            splunk_docker_jwt_to_decode: "{{ splunk_docker_token_mint.json.token }}"
+          ansible.builtin.include_tasks: decode_jwt.yml
+
+        - name: "Record minted JWT identity for {{ splunk_user.name }}"
+          ansible.builtin.include_tasks: record_minted_identity.yml
+
+        - name: "Re-list tokens after minting for {{ splunk_user.name }}"
+          ansible.builtin.uri:
+            url: >-
+              https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json&username={{
+              splunk_user.name | urlencode }}&count=0
+            method: GET
+            user: "{{ splunk_admin_user | default('admin') }}"
+            password: "{{ splunk_docker_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            status_code: [200]
+          register: splunk_docker_token_list_after_mint
+          no_log: true
+
+        - name: "Verify minted JWT identity in Splunk for {{ splunk_user.name }}"
+          ansible.builtin.include_tasks: verify_minted_identity.yml
+
+        # KV v2 writes replace the whole secret. Merge sibling data and use the
+        # metadata endpoint's current_version so a soft-deleted latest version
+        # is recovered with the correct compare-and-set value.
+        - name: "Publish {{ splunk_user.name }} MCP connection to OpenBao"
+          ansible.builtin.uri:
+            url: "{{ splunk_docker_token_openbao_addr }}/v1/{{ splunk_docker_token_openbao_mount }}/data/{{ splunk_docker_token_openbao_path }}"
+            method: POST
+            headers:
+              X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
+            body_format: json
+            body:
+              data: >-
+                {{ splunk_docker_bao_source_data | combine({
+                       splunk_docker_url_openbao_key: splunk_docker_mcp_url,
+                       splunk_docker_token_openbao_key: splunk_docker_token_mint.json.token
+                     }) }}
+              options:
+                cas: "{{ splunk_docker_bao_cas_version | int }}"
+            validate_certs: false
+            status_code: [200, 204]
+          no_log: true
+      rescue:
+        - name: "Remove unpublished replacement token for {{ splunk_user.name }}"
+          ansible.builtin.uri:
+            url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens/{{ splunk_user.name | urlencode }}"
+            method: DELETE
+            user: "{{ splunk_admin_user | default('admin') }}"
+            password: "{{ splunk_docker_password }}"
+            force_basic_auth: true
+            validate_certs: false
+            body_format: form-urlencoded
+            body:
+              id: "{{ splunk_docker_new_token_id }}"
+            status_code: [200]
+          register: splunk_docker_unpublished_token_cleanup
+          when: splunk_docker_new_token_id | default('') | length > 0
+          failed_when: false
+          no_log: true
+
+        - name: "Fail replacement publication for {{ splunk_user.name }}"
+          ansible.builtin.fail:
+            msg: >-
+              Replacement token publication failed. The previous token snapshot
+              was not revoked; unpublished replacement cleanup was attempted.
+
+    # Re-enumerate after publication so tokens minted concurrently after the
+    # original snapshot are also reconciled. Never revoke the published jti.
+    - name: "Re-list eligible tokens after publication for {{ splunk_user.name }}"
+      ansible.builtin.uri:
+        url: >-
+          https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json&username={{
+          splunk_user.name | urlencode }}&count=0
+        method: GET
+        user: "{{ splunk_admin_user | default('admin') }}"
+        password: "{{ splunk_docker_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      register: splunk_docker_token_list_after_publication
+      when: splunk_docker_token_mint_required
+      no_log: true
+
+    - name: "Plan post-publication token reconciliation for {{ splunk_user.name }}"
+      vars:
+        splunk_docker_token_list: "{{ splunk_docker_token_list_after_publication }}"
+      ansible.builtin.include_tasks: plan_token_reconciliation.yml
+      when: splunk_docker_token_mint_required
+
+    - name: "Plan noncanonical token cleanup for {{ splunk_user.name }}"
+      ansible.builtin.include_tasks: plan_token_cleanup.yml
+      when: splunk_docker_token_mint_required
+
+    - name: "Revoke noncanonical eligible tokens for {{ splunk_user.name }} / {{ splunk_docker_token_audience }}"
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens/{{ splunk_user.name | urlencode }}"
+        method: DELETE
+        user: "{{ splunk_admin_user | default('admin') }}"
+        password: "{{ splunk_docker_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        body_format: form-urlencoded
+        body:
+          id: "{{ item.name }}"
+        status_code: [200]
+      loop: "{{ splunk_docker_noncanonical_eligible_tokens }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: splunk_docker_token_mint_required
+      no_log: true
+
+    - name: "Re-list tokens after final reconciliation for {{ splunk_user.name }}"
+      ansible.builtin.uri:
+        url: >-
+          https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json&username={{
+          splunk_user.name | urlencode }}&count=0
+        method: GET
+        user: "{{ splunk_admin_user | default('admin') }}"
+        password: "{{ splunk_docker_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+      register: splunk_docker_token_list_after_reconciliation
+      when: splunk_docker_token_mint_required
+      no_log: true
+
+    - name: "Plan final token state for {{ splunk_user.name }}"
+      vars:
+        splunk_docker_token_list: "{{ splunk_docker_token_list_after_reconciliation }}"
+      ansible.builtin.include_tasks: plan_token_reconciliation.yml
+      when: splunk_docker_token_mint_required
+
+    - name: "Verify sole eligible token is published for {{ splunk_user.name }}"
+      ansible.builtin.assert:
+        that:
+          - splunk_docker_eligible_tokens | length == 1
+          - (splunk_docker_eligible_tokens | first).name == splunk_docker_new_token_id
+        fail_msg: Published Splunk token is not the sole eligible token after reconciliation
+      when: splunk_docker_token_mint_required
       no_log: true
 
 - name: "Token delivery deferred for {{ splunk_user.name }}"

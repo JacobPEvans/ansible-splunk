@@ -1,0 +1,19 @@
+---
+- name: "Verify published token is eligible for {{ splunk_user.name }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        splunk_docker_eligible_tokens
+        | selectattr('name', 'defined')
+        | selectattr('name', 'equalto', splunk_docker_new_token_id)
+        | list | length == 1
+    fail_msg: Published Splunk token is not exactly one eligible token
+  no_log: true
+
+- name: "Select noncanonical eligible tokens for {{ splunk_user.name }}"
+  ansible.builtin.set_fact:
+    splunk_docker_noncanonical_eligible_tokens: >-
+      {{ splunk_docker_eligible_tokens
+         | rejectattr('name', 'equalto', splunk_docker_new_token_id)
+         | list }}
+  no_log: true
