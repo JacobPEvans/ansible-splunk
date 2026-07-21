@@ -108,6 +108,7 @@
           - "'[netmon_metrics]' in (indexes_content.content | b64decode)"
           - "'[host_metrics]' in (indexes_content.content | b64decode)"
           - "'[llm_metrics]' in (indexes_content.content | b64decode)"
+          - "'[os_metrics]' in (indexes_content.content | b64decode)"
           - "'[firewall]' in (indexes_content.content | b64decode)"
           - "'[network]' in (indexes_content.content | b64decode)"
           - "'[dns]' in (indexes_content.content | b64decode)"

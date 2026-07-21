@@ -234,6 +234,14 @@ splunk_docker_indexes:
   - name: os
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # os_metrics: per-host OS metric series (CPU/memory/disk/network, incl.
+  # per-process) shipped via Cribl Edge — the metric-datatype sibling of the os
+  # event index. High-volume, 90-day retention matching the other _metrics
+  # indexes. Splunkmetric -> metric index (queryable via mstats), NOT events.
+  - name: os_metrics
+    datatype: metric
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: 7776000
   # proxy: forward-proxy access logs shipped via Cribl.
   - name: proxy
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
