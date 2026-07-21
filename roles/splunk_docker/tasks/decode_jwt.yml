@@ -22,7 +22,8 @@
         payload_padding: "{{ '=' * ((4 - (payload_segment | length % 4)) % 4) }}"
       ansible.builtin.set_fact:
         splunk_docker_decoded_jwt_claims: >-
-          {{ ((payload_segment ~ payload_padding) | ansible.builtin.b64decode(urlsafe=true)) | from_json }}
+          {{ ((((payload_segment | replace('-', '+')) | replace('_', '/')) ~ payload_padding)
+              | ansible.builtin.b64decode) | from_json }}
       no_log: true
 
     - name: Validate decoded JWT claims object
