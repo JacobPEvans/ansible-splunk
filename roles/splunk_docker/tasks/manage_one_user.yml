@@ -78,8 +78,9 @@
         method: GET
         headers:
           X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
-        validate_certs: false
+        validate_certs: true
         status_code: [200, 404]
+      delegate_to: localhost
       register: splunk_docker_bao_current
       no_log: true
 
@@ -89,8 +90,9 @@
         method: GET
         headers:
           X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
-        validate_certs: false
+        validate_certs: true
         status_code: [200, 404]
+      delegate_to: localhost
       register: splunk_docker_bao_metadata
       no_log: true
 
@@ -115,8 +117,9 @@
         body_format: json
         body:
           versions: ["{{ splunk_docker_bao_current_version | int }}"]
-        validate_certs: false
+        validate_certs: true
         status_code: [200, 204]
+      delegate_to: localhost
       when:
         - splunk_docker_bao_current.status | int == 404
         - splunk_docker_bao_current_version | int > 0
@@ -130,8 +133,9 @@
         method: GET
         headers:
           X-Vault-Token: "{{ splunk_docker_token_openbao_token }}"
-        validate_certs: false
+        validate_certs: true
         status_code: [200]
+      delegate_to: localhost
       register: splunk_docker_bao_recovered
       when:
         - splunk_docker_bao_current.status | int == 404
@@ -235,8 +239,9 @@
                      }) }}
               options:
                 cas: "{{ splunk_docker_bao_cas_version | int }}"
-            validate_certs: false
+            validate_certs: true
             status_code: [200, 204]
+          delegate_to: localhost
           no_log: true
       rescue:
         - name: "Remove unpublished replacement token for {{ splunk_user.name }}"
