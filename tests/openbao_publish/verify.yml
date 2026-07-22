@@ -310,9 +310,16 @@
 
     - name: Extract top-level workflow tasks
       ansible.builtin.set_fact:
+        token_list_task: "{{ token_workflow | selectattr('name', 'search', '^List existing tokens') | first }}"
+        token_current_secret_task: "{{ token_workflow | selectattr('name', 'search', '^Read current OpenBao secret') | first }}"
+        token_metadata_task: "{{ token_workflow | selectattr('name', 'search', '^Read current OpenBao metadata') | first }}"
         token_undelete_task: "{{ token_workflow | selectattr('name', 'search', '^Undelete current OpenBao') | first }}"
+        token_recovered_read_task: "{{ token_workflow | selectattr('name', 'search', '^Re-read recovered OpenBao') | first }}"
+        token_probe_task: "{{ token_workflow | selectattr('name', 'search', '^Validate canonical OpenBao token') | first }}"
         mint_publish_owner: "{{ token_workflow | selectattr('name', 'search', '^Mint and publish replacement') | first }}"
+        token_post_publish_list_task: "{{ token_workflow | selectattr('name', 'search', '^Re-list eligible tokens after publication') | first }}"
         token_revoke_task: "{{ token_workflow | selectattr('name', 'search', '^Revoke noncanonical eligible tokens') | first }}"
+        token_final_list_task: "{{ token_workflow | selectattr('name', 'search', '^Re-list tokens after final reconciliation') | first }}"
         token_final_assert_task: "{{ token_workflow | selectattr('name', 'search', '^Verify sole eligible token') | first }}"
 
     - name: Extract mint-publication workflow
@@ -320,6 +327,8 @@
         mint_publish_names: "{{ mint_publish_owner.block | map(attribute='name') | list }}"
         mint_publish_rescue_names: "{{ mint_publish_owner.rescue | map(attribute='name') | list }}"
         token_publish_task: "{{ mint_publish_owner.block | selectattr('name', 'search', '^Publish ') | first }}"
+        token_mint_task: "{{ mint_publish_owner.block | selectattr('name', 'search', '^Mint authorization token') | first }}"
+        token_post_mint_list_task: "{{ mint_publish_owner.block | selectattr('name', 'search', '^Re-list tokens after minting') | first }}"
         token_cleanup_task: "{{ mint_publish_owner.rescue | selectattr('name', 'search', '^Remove unpublished replacement') | first }}"
 
     - name: Extract ordered top-level names
@@ -374,6 +383,24 @@
           - recovered_merge.SPLUNK_MCP_TOKEN == minted_jwt
           - token_undelete_task['ansible.builtin.uri'].url is search('/undelete/')
           - token_publish_task['ansible.builtin.uri'].body.data is search('splunk_docker_bao_source_data')
+          - token_current_secret_task.delegate_to == 'localhost'
+          - token_current_secret_task['ansible.builtin.uri'].validate_certs | bool
+          - token_metadata_task.delegate_to == 'localhost'
+          - token_metadata_task['ansible.builtin.uri'].validate_certs | bool
+          - token_undelete_task.delegate_to == 'localhost'
+          - token_undelete_task['ansible.builtin.uri'].validate_certs | bool
+          - token_recovered_read_task.delegate_to == 'localhost'
+          - token_recovered_read_task['ansible.builtin.uri'].validate_certs | bool
+          - token_publish_task.delegate_to == 'localhost'
+          - token_publish_task['ansible.builtin.uri'].validate_certs | bool
+          - token_list_task.delegate_to is not defined
+          - token_probe_task.delegate_to is not defined
+          - token_mint_task.delegate_to is not defined
+          - token_post_mint_list_task.delegate_to is not defined
+          - token_cleanup_task.delegate_to is not defined
+          - token_post_publish_list_task.delegate_to is not defined
+          - token_revoke_task.delegate_to is not defined
+          - token_final_list_task.delegate_to is not defined
           - token_cleanup_task.when is search('splunk_docker_new_token_id')
           - token_revoke_task.loop is search('splunk_docker_noncanonical_eligible_tokens')
           - token_final_assert_task['ansible.builtin.assert'].that | length == 2
