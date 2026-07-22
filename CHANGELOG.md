@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.1](https://github.com/dryvist/ansible-splunk/compare/v0.42.0...v0.42.1) (2026-07-22)
+
+
+### Bug Fixes
+
+* **splunk:** rotate managed MCP token safely ([#366](https://github.com/dryvist/ansible-splunk/issues/366)) ([6296b4a](https://github.com/dryvist/ansible-splunk/commit/6296b4a6ae8e61cc78b393ac342b25b9a222cc72))
+
 ## [0.42.0](https://github.com/dryvist/ansible-splunk/compare/v0.41.0...v0.42.0) (2026-07-21)
 
 
