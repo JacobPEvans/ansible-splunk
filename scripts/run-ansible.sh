@@ -19,8 +19,27 @@ PLAYBOOK="$1"
 shift
 
 CERT_DIR=""
+RUNNER_BAO_TOKEN=""
+BAO_TOKEN_WAS_SET=${BAO_TOKEN+x}
 cleanup() {
+  local status=$? revoke_status=0
+  if [[ -n $RUNNER_BAO_TOKEN ]]; then
+    { set +x; } 2>/dev/null
+    curl -fsSL --max-time 10 --request POST \
+      -H "X-Vault-Token: $RUNNER_BAO_TOKEN" \
+      --output /dev/null \
+      "$BAO_ADDR/v1/auth/token/revoke-self" || revoke_status=$?
+  fi
   [[ -n $CERT_DIR ]] && rm -rf "$CERT_DIR"
+  if (( revoke_status != 0 )); then
+    echo "ERROR: failed to revoke the runner-owned OpenBao token." >&2
+  fi
+  if (( status != 0 )); then
+    exit "$status"
+  fi
+  if (( revoke_status != 0 )); then
+    exit "$revoke_status"
+  fi
 }
 trap cleanup EXIT
 
@@ -39,12 +58,16 @@ mint_ssh_cert() {
     | curl -fsSL --max-time 10 -H 'Content-Type: application/json' --data @- \
       "$BAO_ADDR/v1/auth/approle/login") || return 1
   token=$(printf '%s' "$login" | jq -er '.auth.client_token') || return 1
+  RUNNER_BAO_TOKEN="$token"
   signed=$(jq -nc --rawfile pub "$CERT_DIR/id.pub" --arg ttl "${SSH_CERT_TTL:-1h}" \
     '{public_key: $pub, ttl: $ttl}' \
     | curl -fsSL --max-time 10 -H "X-Vault-Token: $token" --data @- \
       "$BAO_ADDR/v1/$mount/sign/automation-ansible" \
     | jq -er '.data.signed_key') || return 1
   printf '%s\n' "$signed" > "$CERT_DIR/id-cert.pub"
+  if [[ -z $BAO_TOKEN_WAS_SET ]]; then
+    export BAO_TOKEN="$token"
+  fi
   export PROXMOX_SSH_KEY_PATH="$CERT_DIR/id"
 }
 
