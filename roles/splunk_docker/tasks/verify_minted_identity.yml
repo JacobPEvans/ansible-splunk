@@ -1,0 +1,16 @@
+---
+- name: "Verify minted JWT ID exists in Splunk for {{ splunk_user.name }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        splunk_docker_token_list_after_mint.json.entry | default([])
+        | selectattr('name', 'defined')
+        | selectattr('name', 'equalto', splunk_docker_new_token_id)
+        | selectattr('content.claims', 'defined')
+        | selectattr('content.claims.sub', 'defined')
+        | selectattr('content.claims.sub', 'equalto', splunk_user.name)
+        | selectattr('content.claims.aud', 'defined')
+        | selectattr('content.claims.aud', 'equalto', splunk_docker_token_audience)
+        | list | length == 1
+    fail_msg: Minted JWT ID was not exposed as the managed Splunk token
+  no_log: true

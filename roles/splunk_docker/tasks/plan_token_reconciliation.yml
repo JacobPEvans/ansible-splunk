@@ -1,0 +1,33 @@
+---
+- name: "Snapshot matching tokens for {{ splunk_user.name }} / {{ splunk_docker_token_audience }}"
+  ansible.builtin.set_fact:
+    splunk_docker_matching_tokens: >-
+      {{ (splunk_docker_token_list.json.entry | default([]))
+         | selectattr('name', 'defined')
+         | selectattr('content.claims', 'defined')
+         | selectattr('content.claims.sub', 'defined')
+         | selectattr('content.claims.sub', 'equalto', splunk_user.name)
+         | selectattr('content.claims.aud', 'defined')
+         | selectattr('content.claims.aud', 'equalto', splunk_docker_token_audience)
+         | list }}
+  no_log: true
+
+- name: "Select eligible live tokens for {{ splunk_user.name }} / {{ splunk_docker_token_audience }}"
+  ansible.builtin.set_fact:
+    splunk_docker_eligible_tokens: >-
+      {%- set eligible = [] -%}
+      {%- set current_epoch = ansible_date_time.epoch | int -%}
+      {%- for token in splunk_docker_matching_tokens -%}
+        {%- set status = token.content.status | default('') -%}
+        {%- set expires_text = token.content.claims.exp | default('') | string -%}
+        {%- set not_before_text = token.content.claims.nbr | default('') | string -%}
+        {%- if status == 'enabled'
+               and expires_text is match('^[0-9]+$')
+               and not_before_text is match('^[0-9]+$')
+               and (expires_text | int == 0 or expires_text | int > current_epoch)
+               and not_before_text | int <= current_epoch -%}
+          {%- set _ = eligible.append(token) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ eligible }}
+  no_log: true

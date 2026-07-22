@@ -113,8 +113,25 @@ Tokens are minted via the app's `/services/mcp_token` endpoint. Configure the MC
 
 When OpenBao publication is enabled, the role writes the shared connection as
 `SPLUNK_MCP_URL` and `SPLUNK_MCP_TOKEN` at `secret/ai/mcp/splunk`. The KV-v2
-write preserves sibling fields, and an existing live token for the managed user
-and `mcp` audience is not replaced.
+write preserves sibling fields and uses metadata-based compare-and-set, including
+when the latest secret version was soft-deleted. The publisher AppRole needs
+KV-v2 data read/write, metadata read, and undelete access for this exact path.
+Every converge validates the published JWT's subject, audience, validity window,
+and token ID against Splunk; inventory presence alone never suppresses repair of
+a missing or invalid canonical credential, and duplicate live tokens trigger
+replacement so a failed cleanup is recovered by the next default converge.
+
+For an operator-initiated rotation, run one converge with
+`splunk_docker_token_force_rotate: true`. Publication must also be enabled. The
+role mints exactly one replacement per user, publishes it with KV-v2 compare-and-set,
+then re-enumerates Splunk and revokes every other eligible token for that user
+and audience, including tokens minted concurrently after the initial snapshot.
+A final read proves the published token is the sole eligible token. Disabled or
+expired tokens, and tokens whose not-before time is still in the future, do not
+count as live. If publication fails, the role attempts to revoke the unpublished
+replacement and leaves the old snapshot untouched; if final revocation fails,
+both old and new tokens remain usable. Leave the option at its default `false`
+for ordinary converges; default mode still repairs an undelivered token.
 
 ### Available MCP Tools
 

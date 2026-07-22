@@ -71,6 +71,10 @@ jobs:
         run: |
           python3 tests/templates/test_inputs_conf.py
 
+      - name: Verify Splunk MCP OpenBao publication contract
+        run: |
+          ansible-playbook tests/openbao_publish/verify.yml
+
   verify-inventory:
     name: Verify Inventory Load
     runs-on: ubuntu-latest

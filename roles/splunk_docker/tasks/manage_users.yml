@@ -17,6 +17,15 @@
     - splunk_docker_manage_users | bool
     - splunk_docker_users | length > 0
   block:
+    - name: Require OpenBao publication for forced token rotation
+      ansible.builtin.assert:
+        that:
+          - splunk_docker_token_publish_openbao | bool
+        fail_msg: >-
+          splunk_docker_token_force_rotate requires splunk_docker_token_publish_openbao
+          so the replacement token has a delivery path.
+      when: splunk_docker_token_force_rotate | bool
+
     # Token authentication must be enabled deployment-wide before any token can
     # be minted. Idempotent — POSTing disabled=false when already enabled is a
     # no-op 200.

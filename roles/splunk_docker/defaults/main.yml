@@ -73,9 +73,9 @@ splunk_docker_manage_users: false
 # here — the minted token is the credential that clients actually use.
 splunk_docker_users: []
 
-# Token audience tag used to detect an existing live token (idempotent mint) and
-# to label the token in Splunk. One token per (user, audience). Audience is DICTATED
-# by the MCP app (its auth only accepts mcp), not a free-form label.
+# Token audience tag used to inventory enabled tokens whose not-before and
+# expiry windows include the current time. Audience is DICTATED by the MCP app
+# (its auth only accepts mcp), not a free-form label.
 splunk_docker_token_audience: "mcp"
 
 # Relative expiry for minted tokens (Splunk relative-time syntax, e.g. +90d).
@@ -84,9 +84,16 @@ splunk_docker_token_expires_on: "+90d"
 
 # When true, publish the shared MCP connection to OpenBao. Requires a
 # write-capable OpenBao AppRole in the converge environment (see the
-# *_openbao_* vars below). Inert by default: the user is created, but a token is
-# minted only when it can be written to the canonical shared secret.
+# *_openbao_* vars below), including KV-v2 data read/write, metadata read, and
+# undelete access for the exact secret path. Inert by default: the user is
+# created, but a token is minted only when it can be written to the canonical
+# shared secret.
 splunk_docker_token_publish_openbao: false
+# Explicit one-run rotation control. When true, mint and CAS-publish exactly one
+# replacement, then re-enumerate and revoke every other eligible user/audience
+# token. Keep false for normal converges, which still repair a missing or
+# invalid published token.
+splunk_docker_token_force_rotate: false
 splunk_docker_token_openbao_addr: "{{ lookup('env', 'BAO_ADDR') | default('', true) }}"
 splunk_docker_token_openbao_token: "{{ lookup('env', 'BAO_TOKEN') | default('', true) }}"
 splunk_docker_token_openbao_mount: "secret"
