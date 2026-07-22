@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.2](https://github.com/dryvist/ansible-splunk/compare/v0.42.1...v0.42.2) (2026-07-22)
+
+
+### Bug Fixes
+
+* **runner:** keep OpenBao token out of argv ([866d811](https://github.com/dryvist/ansible-splunk/commit/866d811a78eb5ff55e8cccbd2fc34a2fc8327d33))
+* **runner:** pass OpenBao token to Ansible ([a742638](https://github.com/dryvist/ansible-splunk/commit/a74263889321c0e733587ab393aff41b0fb8a9b9))
+* **splunk:** keep OpenBao publishing controller-local ([d8a7c2a](https://github.com/dryvist/ansible-splunk/commit/d8a7c2a645d7c2ad260c0cf41e5d91c7c5f33170))
+* **splunk:** secure OpenBao-backed token publication ([93b0cb4](https://github.com/dryvist/ansible-splunk/commit/93b0cb4680ef21a98e1da013ce42a6d2a8af3f90))
+
 ## [0.42.1](https://github.com/dryvist/ansible-splunk/compare/v0.42.0...v0.42.1) (2026-07-22)
 
 
