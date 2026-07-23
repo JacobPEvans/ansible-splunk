@@ -173,6 +173,13 @@ splunk_docker_indexes:
   - name: gemini
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # hardware: host disk/health telemetry (SMART, IPMI/SEL, NVMe health, ZFS
+  # fault events) shipped via Cribl exec packs + a syslog reclassify out of the
+  # os catch-all — keeps index=os to OS logs/metrics only. Long retention
+  # (365-day default) for drive failure-trend lookback, like the security indexes.
+  - name: hardware
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # hermes: Hermes agent operational logs (gateway + watchdog via Cribl syslog
   # route hermes_agent) — dedicated index so agent health is searchable apart
   # from the shared os index.
@@ -305,6 +312,17 @@ splunk_docker_silence_detectors:
     cron: "*/5 * * * *"
     suppress_minutes: 60
     by_host: true
+  # hardware: alert if the hardware index stops receiving telemetry (packs /
+  # Cribl / HEC dead). Shipped disabled until the Cribl hardware packs + syslog
+  # reclassify are converged and index=hardware is actually emitting — a
+  # silence detector on an empty index would false-fire continuously.
+  - name: hardware
+    index: hardware
+    threshold_minutes: 60
+    cron: "*/15 * * * *"
+    suppress_minutes: 120
+    by_host: true
+    disabled: 1
   - name: claude
     index: claude
     threshold_minutes: 60
