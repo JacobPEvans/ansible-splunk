@@ -1,0 +1,4 @@
+---
+# Indexer cluster peers. Licensed as a Peer against the license master
+# (splunk-mgmt-40); splunk_uri_lm is inherited from group_vars/splunk_cluster.yml.
+splunk_license_group: Peer

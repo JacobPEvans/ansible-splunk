@@ -1,0 +1,91 @@
+---
+# Deploy the Splunk-native HA cluster (Phase 3): a 2-peer indexer cluster, two
+# independent search heads, and one management node (cluster manager + license
+# master + monitoring console + a third unclustered search head), via the
+# vendored splunk.splunk role. See docs/SPLUNK_CLUSTER_DESIGN.md.
+#
+# This does NOT touch the legacy all-in-one Splunk (playbooks/deploy.yml,
+# splunk_docker role) — the AIO is disable-never-delete and stays a search peer
+# during migration.
+#
+# Usage:
+#   doppler run -- ansible-playbook -i inventory/hosts.yml \
+#     playbooks/deploy-cluster.yml
+#
+# Required environment (injection-agnostic; wrapper supplies them):
+#   SPLUNK_PASSWORD, SPLUNK_PACKAGE_URL_FULL, SPLUNK_IDXC_PASS4SYMMKEY,
+#   SPLUNK_GENERAL_PASS4SYMMKEY, PROXMOX_DOMAIN, PROXMOX_SSH_KEY_PATH
+#   (optional: SPLUNK_LICENSE_FILE)
+
+- name: Load OpenTofu inventory
+  ansible.builtin.import_playbook: ../inventory/load_tofu.yml
+
+- name: Validate cluster secrets are present
+  hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Assert required environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SPLUNK_PASSWORD') | length > 0
+          - lookup('env', 'SPLUNK_PACKAGE_URL_FULL') | length > 0
+          - lookup('env', 'SPLUNK_IDXC_PASS4SYMMKEY') | length > 0
+          - lookup('env', 'SPLUNK_GENERAL_PASS4SYMMKEY') | length > 0
+          - lookup('env', 'PROXMOX_DOMAIN') | length > 0
+        fail_msg: >-
+          Set SPLUNK_PASSWORD, SPLUNK_PACKAGE_URL_FULL,
+          SPLUNK_IDXC_PASS4SYMMKEY, SPLUNK_GENERAL_PASS4SYMMKEY and
+          PROXMOX_DOMAIN (doppler run -- ansible-playbook ...).
+
+# Order matters: install everywhere, then license master, then cluster manager,
+# then peers, then attach search heads, then the monitoring console.
+
+- name: Install Splunk Enterprise on all cluster hosts
+  hosts: splunk_cluster
+  become: true
+  serial: 2
+  vars:
+    deployment_task: check_splunk.yml
+  roles:
+    - role: splunk.splunk
+
+- name: Configure the license master
+  hosts: licensemaster
+  become: true
+  vars:
+    deployment_task: configure_license.yml
+  roles:
+    - role: splunk.splunk
+
+- name: Configure the indexer cluster manager
+  hosts: clustermanager
+  become: true
+  vars:
+    deployment_task: configure_idxc_manager.yml
+  roles:
+    - role: splunk.splunk
+
+- name: Configure indexer cluster peers
+  hosts: indexer
+  become: true
+  vars:
+    deployment_task: configure_idxc_member.yml
+  roles:
+    - role: splunk.splunk
+
+- name: Attach search heads to the indexer cluster
+  hosts: search
+  become: true
+  vars:
+    deployment_task: configure_idxc_sh.yml
+  roles:
+    - role: splunk.splunk
+
+- name: Configure the monitoring console
+  hosts: dmc
+  become: true
+  vars:
+    deployment_task: configure_dmc.yml
+  roles:
+    - role: splunk.splunk

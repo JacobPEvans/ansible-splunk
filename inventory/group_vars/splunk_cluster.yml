@@ -1,0 +1,36 @@
+---
+# Shared variables for the Splunk-native HA cluster (Phase 3).
+# Applies to every host in the `splunk_cluster` group (indexers, search heads,
+# and the management node). See docs/SPLUNK_CLUSTER_DESIGN.md.
+#
+# Secrets are read injection-agnostically via lookup('env', ...): no backend
+# (Doppler / SOPS / OpenBao) is baked in here — the wrapper that runs the
+# playbook decides where the values come from.
+
+# --- Package (native Splunk Enterprise install) ---
+# Full-package .tgz URL. The splunk.splunk role extracts the version + build
+# from this URL for its upgrade check, so it must be the canonical form:
+#   https://download.splunk.com/products/splunk/releases/<ver>/linux/splunk-<ver>-<build>-linux-amd64.tgz
+splunk_package_url_full: "{{ lookup('env', 'SPLUNK_PACKAGE_URL_FULL') }}"
+splunk_package_arch: linux-amd64
+
+# --- Admin identity ---
+splunk_admin_username: admin
+splunk_admin_password: "{{ lookup('env', 'SPLUNK_PASSWORD') }}"
+
+# --- Cluster domain (FQDN-first; never an IP) ---
+splunk_cluster_domain: "{{ lookup('env', 'PROXMOX_DOMAIN') }}"
+
+# --- Indexer clustering: RF=2 / SF=2, the supported minimum ---
+splunk_idxc_label: homelab_idxc
+splunk_idxc_rf: 2
+splunk_idxc_sf: 2
+splunk_idxc_rep_port: 9887
+splunk_idxc_key: "{{ lookup('env', 'SPLUNK_IDXC_PASS4SYMMKEY') }}"
+
+# Cluster manager + license master live on the management VM. FQDN-only.
+splunk_uri_cm: "https://splunk-mgmt-40.{{ splunk_cluster_domain }}:{{ splunkd_port }}"
+splunk_uri_lm: "https://splunk-mgmt-40.{{ splunk_cluster_domain }}:{{ splunkd_port }}"
+
+# General pass4SymmKey (server.conf [general]) shared across the deployment.
+splunk_general_key: "{{ lookup('env', 'SPLUNK_GENERAL_PASS4SYMMKEY') }}"

@@ -65,6 +65,40 @@
         - tofu_data is defined
         - tofu_data.splunk_vm.splunk is defined
 
+    # Splunk-native HA cluster hosts (Phase 3). The tofu `vms` map publishes the
+    # cluster VMs (each tagged `splunk` + one of splunk-idx/splunk-sh/splunk-mgmt)
+    # into tofu_data.vms. Group each guest into the splunk.splunk role's canonical
+    # groups by its role tag, plus a friendly splunk_idx/splunk_sh/splunk_mgmt
+    # group (group_vars) and the shared splunk_cluster group. Coexists with the
+    # legacy AIO `splunk` host above during migration.
+    - name: Add Splunk cluster hosts to inventory (SSH connection)
+      ansible.builtin.add_host:
+        name: "{{ item.value.hostname }}"
+        groups: "{{ ['all', 'full', 'splunk_cluster'] + _splunk_role_groups[_tag] }}"
+        ansible_host: "{{ item.value.ip }}"
+        ansible_connection: "{{ item.value.ansible_connection | default('ssh') }}"
+        ansible_user: debian
+        ansible_ssh_private_key_file: "{{ lookup('env', 'PROXMOX_SSH_KEY_PATH') | mandatory }}"
+        ansible_python_interpreter: /usr/bin/python3
+        hostname: "{{ item.value.hostname }}"
+        vmid: "{{ item.value.vmid }}"
+      vars:
+        # First matching role tag wins (each guest carries exactly one).
+        _tag: >-
+          {{ (['splunk-idx', 'splunk-sh', 'splunk-mgmt']
+              | select('in', item.value.tags | default([])) | list | first) | default('') }}
+        _splunk_role_groups:
+          splunk-idx: ['indexer', 'splunk_idx']
+          splunk-sh: ['search', 'splunk_sh']
+          splunk-mgmt: ['clustermanager', 'licensemaster', 'dmc', 'search', 'splunk_mgmt']
+      loop: "{{ (tofu_data.vms | default({})) | dict2items }}"
+      loop_control:
+        label: "{{ item.value.hostname | default(item.key) }}"
+      when:
+        - tofu_data is defined
+        - item.value.tags is defined
+        - _tag | length > 0
+
     # Push tofu_data onto every dynamically-added host so roles can access
     # tofu_data.constants.* directly without hostvars['localhost'] indirection.
     - name: Propagate tofu_data to all inventory hosts
