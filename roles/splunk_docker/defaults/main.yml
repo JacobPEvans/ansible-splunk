@@ -263,6 +263,12 @@ splunk_docker_indexes:
   - name: otel
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # otel_traces: OTLP trace spans (Claude Code interaction/tool/subagent spans
+  # via Cribl Stream in_otel -> otel_stamp). Events, not metrics. Distinct from
+  # the otel index (LLM-fabric app traces) so agent-tooling spans stay isolated.
+  - name: otel_traces
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: os
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
