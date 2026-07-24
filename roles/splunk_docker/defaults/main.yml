@@ -231,6 +231,24 @@ splunk_docker_indexes:
     datatype: metric
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: 7776000
+  # network: SUPERSEDED by `netflow` (above) — do not send new data here, and do
+  # not delete it. It holds 89 real IPFIX events (sourcetype=ipfix) from a single
+  # ~11h window on 2026-06-11/12 and nothing since: it WAS the live IPFIX
+  # destination until the per-index HEC split moved the pipeline to index=netflow.
+  # Left fully enabled ON PURPOSE. `disabled = 1` in indexes.conf makes existing
+  # data unsearchable, so disabling this would destroy access to those 89 events —
+  # the opposite of retiring it safely. Nothing writes here (no HEC token grants
+  # it), so leaving it enabled costs nothing and keeps the history queryable.
+  # It fired a permanent critical INGEST SILENCE in the Hermes digest; the fix is
+  # to stop watching it (ansible-proxmox-ai #191), not to disable the index. Name
+  # reconciliation across docs, the pipeline validator and the Docker Cribl
+  # templates is ansible-proxmox-apps #1270.
+  #
+  # Counting caveat: enumerate indexes with `| eventcount summarize=false index=*`,
+  # NOT `| tstats ... by index`. tstats only lists indexes with data in the search
+  # window, so a 30-day tstats hides every dormant index — it showed neither these
+  # 89 events nor 13 other valid indexes (28 exist here). A guard built on the
+  # tstats list would reject valid indexes and fail closed.
   - name: network
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
