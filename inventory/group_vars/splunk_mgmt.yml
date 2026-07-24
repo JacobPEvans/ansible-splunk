@@ -1,0 +1,10 @@
+---
+# Management VM: cluster manager + license master + monitoring console + a third
+# unclustered search head. Holds the license (license master role).
+#
+# LICENSE REQUIREMENT: a Splunk *Free* license cannot run indexer clustering,
+# distributed search, or authentication — an Enterprise or developer license is
+# REQUIRED. Provide the license file path(s) via SPLUNK_LICENSE_FILE, or apply
+# the license out-of-band and leave it empty.
+splunk_license_group: Enterprise
+splunk_license_file: "{{ [lookup('env', 'SPLUNK_LICENSE_FILE')] if lookup('env', 'SPLUNK_LICENSE_FILE') else [] }}"

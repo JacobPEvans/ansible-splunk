@@ -1,0 +1,6 @@
+---
+# Independent search heads (NOT a search head cluster — an SHC requires a
+# minimum of 3 members). Each attaches to the indexer cluster as a standalone
+# search head (configure_idxc_sh) and is licensed as a Peer of the license
+# master; splunk_uri_lm is inherited from group_vars/splunk_cluster.yml.
+splunk_license_group: Peer
