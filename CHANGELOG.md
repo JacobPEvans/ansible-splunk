@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.45.0](https://github.com/dryvist/ansible-splunk/compare/v0.44.0...v0.45.0) (2026-07-25)
+
+
+### Features
+
+* **splunk_docker:** add otel_traces index for OTLP trace spans ([#379](https://github.com/dryvist/ansible-splunk/issues/379)) ([4f8a618](https://github.com/dryvist/ansible-splunk/commit/4f8a61872606d9b0308b28f13cec1c09109fc8fa))
+
 ## [0.44.0](https://github.com/dryvist/ansible-splunk/compare/v0.43.0...v0.44.0) (2026-07-24)
 
 
