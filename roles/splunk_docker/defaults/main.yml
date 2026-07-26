@@ -405,7 +405,17 @@ splunk_docker_indexes:
     tier: large
     home_max_size_mb: 15360
     max_size_mb: 61440
-    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+    # 90 days, not the 365-day default. Measured 2026-07-26: unifi held
+    # 51,072 MB spanning 180 days on a data disk that was 95% full with 11 GB
+    # free. It is the only large index whose data is old enough for a time
+    # threshold to evict anything — firewall is 82,489 MB but spans just 44
+    # days, so no realistic frozenTimePeriodInSecs touches it (its size cap is
+    # the control that matters there).
+    #
+    # Aging out is NOT deletion: coldToFrozenScript archives each bucket to
+    # Backblaze B2 before it leaves the disk, verified end-to-end on a real
+    # cold bucket the same day. Restoring is a thaw, not a recovery.
+    frozen_time_secs: 7776000
     # The Cribl Edge unifi_fw pipeline splits FW/IPS events out of the UniFi
     # syslog stream and stamps index=firewall on them, but they still arrive
     # via the unifi HEC token — so that token must also be allowed to write
