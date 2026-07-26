@@ -45,6 +45,17 @@
 # into a false alarm, which is the same defect class the guard exists to catch.
 - name: Determine whether volume capacity is verifiable
   ansible.builtin.set_fact:
+    # An unset cap renders no maxVolumeDataSizeMB at all, so there is nothing to
+    # verify and nothing to refuse. Checking it anyway would block every
+    # converge on a host that has not opted into caps yet, including the one
+    # that turns on the frozen archive — which is the step that has to happen
+    # BEFORE any cap is allowed to bind. A guard that prevents its own
+    # prerequisite is a broken guard.
+    splunk_docker_volume_caps_set: >-
+      {{
+        (splunk_docker_volume_hot_warm_max_mb | default('', true) | string | length > 0)
+        or (splunk_docker_volume_cold_max_mb | default('', true) | string | length > 0)
+      }}
     splunk_docker_volume_caps_verifiable: >-
       {{
         (splunk_docker_volume_mounts.hot_warm.size_available is defined)
@@ -58,6 +69,17 @@
              == splunk_docker_volume_mounts.cold.device)
       }}
 
+- name: Report that no volume caps are set
+  ansible.builtin.debug:
+    msg: >-
+      No volume caps configured, so the volumes are uncapped and Splunk will not
+      evict to stay under a size limit. This is the pre-tiering behaviour and is
+      safe, but it does NOT bound the filesystem. Set
+      splunk_docker_volume_hot_warm_max_mb / _cold_max_mb once the intended
+      storage is attached AND the frozen archive is enabled - a cap that binds
+      evicts the oldest buckets, and without the archive that means deletion.
+  when: not (splunk_docker_volume_caps_set | bool)
+
 - name: Report when volume capacity cannot be verified
   ansible.builtin.debug:
     msg: >-
@@ -66,7 +88,9 @@
       facts. This is expected in a container without the real volumes attached.
       The caps are NOT validated here - verify them on the real host before
       relying on them.
-  when: not (splunk_docker_volume_caps_verifiable | bool)
+  when:
+    - splunk_docker_volume_caps_set | bool
+    - not (splunk_docker_volume_caps_verifiable | bool)
 
 # Shared filesystem: the caps only mean anything when summed, and tiering is
 # not actually separating anything. Warn loudly rather than fail, because a
@@ -84,6 +108,8 @@
   when:
     - splunk_docker_volume_caps_verifiable | bool
     - splunk_docker_volumes_share_fs | bool
+    - splunk_docker_volume_hot_warm_max_mb | default('', true) | string | length > 0
+    - splunk_docker_volume_cold_max_mb | default('', true) | string | length > 0
 
 - name: Assert each volume cap fits the filesystem holding it
   ansible.builtin.assert:
@@ -115,7 +141,12 @@
       mount: "{{ splunk_docker_volume_mounts.cold }}"
   loop_control:
     label: "{{ item.name }}"
-  when: splunk_docker_volume_caps_verifiable | bool
+  when:
+    - splunk_docker_volume_caps_verifiable | bool
+    # Per volume, not per run: one volume may be capped while the other is
+    # deliberately left uncapped. An empty cap would otherwise coerce to 0 and
+    # pass trivially, reporting a check that never happened.
+    - item.cap | default('', true) | string | length > 0
 
 - name: Assert the combined caps fit when both volumes share a filesystem
   ansible.builtin.assert:
@@ -139,3 +170,5 @@
   when:
     - splunk_docker_volume_caps_verifiable | bool
     - splunk_docker_volumes_share_fs | bool
+    - splunk_docker_volume_hot_warm_max_mb | default('', true) | string | length > 0
+    - splunk_docker_volume_cold_max_mb | default('', true) | string | length > 0
