@@ -41,6 +41,7 @@ services:
     volumes:
       - {{ splunk_docker_var_dir }}:/opt/splunk/var
       - {{ splunk_docker_etc_dir }}:/opt/splunk/etc
+      - {{ splunk_docker_cold_dir }}:{{ splunk_docker_cold_dir }}
 {% if splunk_docker_java_enabled %}
       - {{ splunk_docker_java_home }}:{{ splunk_docker_java_container_home }}:ro
 {% endif %}

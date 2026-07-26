@@ -2,8 +2,16 @@
 """
 Test the indexes.conf.j2 Jinja2 template rendering.
 
-The template generates one INI stanza per index with five required fields:
-  homePath, coldPath, thawedPath, maxTotalDataSizeMB, frozenTimePeriodInSecs
+The template emits two [volume:*] stanzas (hot_warm, cold) followed by one
+INI stanza per index with: homePath, coldPath, thawedPath,
+maxTotalDataSizeMB, frozenTimePeriodInSecs.
+
+Per-index `tier` (default "small") controls path placement:
+  small (default) - homePath and coldPath both on volume:hot_warm.
+  large           - homePath on volume:hot_warm with homePath.maxDataSizeMB,
+                     coldPath on volume:cold.
+thawedPath is always a literal $SPLUNK_DB path (Splunk rejects a volume:
+reference there), regardless of tier.
 
 Run from repo root:
   python3 tests/templates/test_indexes_conf.py
@@ -22,38 +30,98 @@ TEMPLATE_DIR = Path(__file__).parent.parent.parent / "roles/splunk_docker/templa
 env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), keep_trailing_newline=True)
 template = env.get_template("indexes.conf.j2")
 
+COMMON_VARS = {
+    "splunk_docker_cold_dir": "/opt/splunk/cold",
+    "splunk_docker_volume_hot_warm_max_mb": 409600,
+    "splunk_docker_volume_cold_max_mb": 122880,
+}
+
+
+def render(indexes):
+    return template.render(splunk_docker_indexes=indexes, **COMMON_VARS)
+
+
 errors = []
 
 # Shared fixture: representative subset of the pipeline indexes
 INDEXES = [
-    {"name": "unifi",    "max_size_mb": 102400, "frozen_time_secs": 31536000},
-    {"name": "firewall", "max_size_mb": 102400, "frozen_time_secs": 31536000},
-    {"name": "netflow",  "max_size_mb": 204800, "frozen_time_secs": 63072000},
+    {"name": "unifi", "tier": "large", "home_max_size_mb": 15360, "max_size_mb": 61440,
+     "frozen_time_secs": 31536000},
+    {"name": "firewall", "tier": "large", "home_max_size_mb": 20480, "max_size_mb": 92160,
+     "frozen_time_secs": 31536000},
+    {"name": "netflow", "max_size_mb": 51200, "frozen_time_secs": 7776000},
+    {"name": "dns", "max_size_mb": 10240, "frozen_time_secs": 31536000},
 ]
 
-result = template.render(splunk_docker_indexes=INDEXES)
+result = render(INDEXES)
 
-# Test 1: Each index has its own INI stanza header
-missing_stanzas = [idx["name"] for idx in INDEXES if f"[{idx['name']}]" not in result]
+
+def stanza_body(text, name, all_names):
+    start = text.index(f"[{name}]")
+    ends = [text.index(f"\n[{other}]", start + 1) for other in all_names if other != name
+            if f"\n[{other}]" in text[start + 1:]]
+    end = min(ends) if ends else len(text)
+    return text[start:end]
+
+
+# Test 1: both volume stanzas present with the right paths/caps
+if "[volume:hot_warm]" not in result or "path = $SPLUNK_DB" not in result:
+    errors.append("FAIL: volume:hot_warm stanza missing or wrong path")
+elif f"maxVolumeDataSizeMB = {COMMON_VARS['splunk_docker_volume_hot_warm_max_mb']}" not in result:
+    errors.append("FAIL: volume:hot_warm maxVolumeDataSizeMB wrong")
+else:
+    print("PASS: volume:hot_warm stanza rendered correctly")
+
+if "[volume:cold]" not in result or f"path = {COMMON_VARS['splunk_docker_cold_dir']}" not in result:
+    errors.append("FAIL: volume:cold stanza missing or wrong path")
+elif f"maxVolumeDataSizeMB = {COMMON_VARS['splunk_docker_volume_cold_max_mb']}" not in result:
+    errors.append("FAIL: volume:cold maxVolumeDataSizeMB wrong")
+else:
+    print("PASS: volume:cold stanza rendered correctly")
+
+# Test 2: each index has its own INI stanza header
+all_names = [idx["name"] for idx in INDEXES]
+missing_stanzas = [n for n in all_names if f"[{n}]" not in result]
 if missing_stanzas:
     errors.append(f"FAIL: missing stanza headers for: {missing_stanzas}")
 else:
     print(f"PASS: all {len(INDEXES)} index stanza headers present")
 
-# Test 2: Required path fields are rendered for every index
-REQUIRED_SUFFIXES = ["/db", "/colddb", "/thaweddb"]
-path_errors = []
-for idx in INDEXES:
-    for suffix in REQUIRED_SUFFIXES:
-        expected = f"$SPLUNK_DB/{idx['name']}{suffix}"
-        if expected not in result:
-            path_errors.append(f"  missing '{expected}' for index '{idx['name']}'")
-if path_errors:
-    errors.append("FAIL: missing path fields:\n" + "\n".join(path_errors))
-else:
-    print("PASS: homePath/coldPath/thawedPath rendered for all indexes")
+# Test 3: small-tier indexes put both homePath and coldPath on volume:hot_warm
+for idx in ("netflow", "dns"):
+    body = stanza_body(result, idx, all_names)
+    if f"homePath = volume:hot_warm/{idx}/db" not in body:
+        errors.append(f"FAIL: small index '{idx}' homePath not on volume:hot_warm")
+    if f"coldPath = volume:hot_warm/{idx}/colddb" not in body:
+        errors.append(f"FAIL: small index '{idx}' coldPath not on volume:hot_warm")
+    if "homePath.maxDataSizeMB" in body:
+        errors.append(f"FAIL: small index '{idx}' should not emit homePath.maxDataSizeMB")
+if not errors:
+    print("PASS: small-tier indexes keep home+cold on volume:hot_warm")
 
-# Test 3: Size and retention values are rendered correctly
+# Test 4: large-tier indexes split home (hot_warm) from cold (cold volume)
+for idx in INDEXES:
+    if idx.get("tier") != "large":
+        continue
+    body = stanza_body(result, idx["name"], all_names)
+    if f"homePath = volume:hot_warm/{idx['name']}/db" not in body:
+        errors.append(f"FAIL: large index '{idx['name']}' homePath not on volume:hot_warm")
+    if f"homePath.maxDataSizeMB = {idx['home_max_size_mb']}" not in body:
+        errors.append(f"FAIL: large index '{idx['name']}' missing homePath.maxDataSizeMB")
+    if f"coldPath = volume:cold/{idx['name']}/colddb" not in body:
+        errors.append(f"FAIL: large index '{idx['name']}' coldPath not on volume:cold")
+else:
+    print("PASS: large-tier indexes split home (hot_warm) / cold (cold volume)")
+
+# Test 5: thawedPath is always a literal $SPLUNK_DB path, regardless of tier
+for name in all_names:
+    body = stanza_body(result, name, all_names)
+    if f"thawedPath = $SPLUNK_DB/{name}/thaweddb" not in body:
+        errors.append(f"FAIL: thawedPath not a literal $SPLUNK_DB path for '{name}'")
+else:
+    print("PASS: thawedPath stays a literal $SPLUNK_DB path for every tier")
+
+# Test 6: size and retention values are rendered correctly
 value_errors = []
 for idx in INDEXES:
     if f"maxTotalDataSizeMB = {idx['max_size_mb']}" not in result:
@@ -65,20 +133,13 @@ if value_errors:
 else:
     print("PASS: maxTotalDataSizeMB and frozenTimePeriodInSecs rendered with correct values")
 
-# Test 4: Stanzas are independent — each index path uses only that index's name
-for idx in INDEXES:
-    other_names = [i["name"] for i in INDEXES if i["name"] != idx["name"]]
-    stanza_start = result.index(f"[{idx['name']}]")
-    try:
-        stanza_end = result.index("\n[", stanza_start + 1)
-    except ValueError:
-        stanza_end = len(result)
-    stanza_body = result[stanza_start:stanza_end]
+# Test 7: stanzas are independent — each index path uses only that index's name
+for idx in all_names:
+    other_names = [n for n in all_names if n != idx]
+    body = stanza_body(result, idx, all_names)
     for other in other_names:
-        if f"/{other}/" in stanza_body:
-            errors.append(
-                f"FAIL: stanza for '{idx['name']}' contains path referencing '{other}'"
-            )
+        if f"/{other}/" in body:
+            errors.append(f"FAIL: stanza for '{idx}' contains path referencing '{other}'")
             break
     else:
         continue
@@ -86,20 +147,21 @@ for idx in INDEXES:
 else:
     print("PASS: each index stanza references only its own paths")
 
-# Test 5: Empty index list produces no stanzas
-result_empty = template.render(splunk_docker_indexes=[])
-spurious = [line for line in result_empty.splitlines() if line.startswith("[")]
+# Test 8: empty index list produces no index stanzas (volume stanzas still render)
+result_empty = render([])
+spurious = [line for line in result_empty.splitlines()
+            if line.startswith("[") and not line.startswith("[volume:")]
 if spurious:
-    errors.append(f"FAIL: stanzas rendered with empty index list: {spurious}")
+    errors.append(f"FAIL: index stanzas rendered with empty index list: {spurious}")
 else:
-    print("PASS: empty index list produces no stanzas")
+    print("PASS: empty index list produces no index stanzas")
 
-# Test 6: datatype = metric only for indexes flagged datatype: metric
+# Test 9: datatype = metric only for indexes flagged datatype: metric
 DATATYPE_INDEXES = [
     {"name": "events_idx", "max_size_mb": 102400, "frozen_time_secs": 31536000},
     {"name": "metric_idx", "max_size_mb": 102400, "frozen_time_secs": 7776000, "datatype": "metric"},
 ]
-result_dt = template.render(splunk_docker_indexes=DATATYPE_INDEXES)
+result_dt = render(DATATYPE_INDEXES)
 metric_stanza = result_dt[result_dt.index("[metric_idx]"):]
 events_stanza = result_dt[result_dt.index("[events_idx]"):result_dt.index("[metric_idx]")]
 if "datatype = metric" not in metric_stanza.split("[metric_idx]")[1].split("\n[")[0]:

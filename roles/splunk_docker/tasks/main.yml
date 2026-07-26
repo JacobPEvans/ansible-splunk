@@ -95,6 +95,7 @@
     - "{{ splunk_docker_var_dir }}"
     - "{{ splunk_docker_etc_dir }}"
     - "{{ splunk_docker_config_dir }}"
+    - "{{ splunk_docker_cold_dir }}"
 
 # Runs after the directories exist so the mount appears in facts, and before the
 # container starts so splunkd sees the full usable capacity on its first health

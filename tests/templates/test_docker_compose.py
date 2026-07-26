@@ -45,6 +45,7 @@ BASE_VARS = {
     "splunk_docker_hec_port": 8088,
     "splunk_docker_var_dir": "/opt/splunk/var",
     "splunk_docker_etc_dir": "/opt/splunk/etc",
+    "splunk_docker_cold_dir": "/opt/splunk/cold",
     "splunk_docker_java_enabled": False,
     "splunk_docker_java_home": "/usr/lib/jvm/temurin-21-jre-amd64",
     "splunk_docker_java_container_home": "/opt/java",
