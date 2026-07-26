@@ -211,6 +211,12 @@ splunk_docker_volume_cold_max_mb: ""
 # the template test asserts that.
 splunk_docker_frozen_archive_enabled: false
 splunk_docker_frozen_script_path: "{{ splunk_docker_etc_dir }}/system/local/cold_to_frozen.py"
+# splunkd invokes coldToFrozenScript with a restricted environment, so the
+# compose-injected SPLUNK_FROZEN_S3_* vars it sees under `docker exec` are not
+# visible to the script when splunkd runs it. This file is the fallback the
+# script reads when the environment is empty - written next to the script
+# itself, inside the same bind-mounted config volume.
+splunk_docker_frozen_config_path: "{{ splunk_docker_etc_dir }}/system/local/cold_to_frozen_creds.conf"
 # Left empty deliberately. Setting it alongside the script would take priority
 # and silently turn archiving back into local-only retention.
 splunk_docker_frozen_dir: ""

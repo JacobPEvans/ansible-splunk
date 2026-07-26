@@ -33,9 +33,13 @@ services:
       SPLUNK_HOME_OWNERSHIP_ENFORCEMENT: "true"
 {% if splunk_docker_frozen_archive_enabled %}
       # Frozen-archive credential for the coldToFrozenScript. splunkd invokes
-      # that script with no environment of its own, so the values have to reach
-      # it through the container. This file is written 0600 with no_log, the
-      # same route the admin password above already takes.
+      # that script with a restricted environment of its own, so these compose
+      # vars are NOT what splunkd's real invocation sees - they only reach a
+      # manual `docker exec` run, which inherits the container's configured
+      # environment. The path splunkd actually uses is the 0600 credential
+      # file frozen_archive.yml writes into the same config volume; this env
+      # block is kept as that manual/canary fallback, written 0600 with
+      # no_log the same as the admin password above.
 {% for key, value in splunk_docker_frozen_env.items() %}
       {{ key }}: "{{ value }}"
 {% endfor %}
