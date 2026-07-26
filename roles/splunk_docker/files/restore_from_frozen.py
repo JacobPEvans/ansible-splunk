@@ -42,7 +42,6 @@ ENDPOINT = os.environ.get("SPLUNK_FROZEN_S3_ENDPOINT", "")
 BUCKET = os.environ.get("SPLUNK_FROZEN_S3_BUCKET", "")
 KEY_ID = os.environ.get("SPLUNK_FROZEN_S3_KEY_ID", "")
 APP_KEY = os.environ.get("SPLUNK_FROZEN_S3_APP_KEY", "")
-PREFIX = os.environ.get("SPLUNK_FROZEN_S3_PREFIX", "splunk-frozen")
 
 
 def _region_from_endpoint(endpoint):
@@ -152,8 +151,8 @@ def main():
     action = sys.argv[1]
 
     if action == "list":
-        scope = "%s/%s" % (PREFIX, sys.argv[2]) if len(sys.argv) > 2 else PREFIX
-        buckets = sorted({"/".join(k.split("/")[:3]) for k in list_keys(scope + "/")})
+        scope = (sys.argv[2] + "/") if len(sys.argv) > 2 else ""
+        buckets = sorted({"/".join(k.split("/")[:2]) for k in list_keys(scope)})
         for entry in buckets:
             print(entry)
         print("\n%d archived bucket(s)" % len(buckets))
@@ -164,7 +163,7 @@ def main():
             print("usage: restore_from_frozen.py fetch <index> <bucket_id> <dest_dir>")
             return 2
         index, bucket_id, dest = sys.argv[2], sys.argv[3], sys.argv[4]
-        scope = "%s/%s/%s/" % (PREFIX, index, bucket_id)
+        scope = "%s/%s/" % (index, bucket_id)
         keys = list_keys(scope)
         if not keys:
             print("nothing archived under %s" % scope)
