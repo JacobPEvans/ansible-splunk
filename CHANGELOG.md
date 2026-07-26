@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.46.0](https://github.com/dryvist/ansible-splunk/compare/v0.45.1...v0.46.0) (2026-07-26)
+
+
+### Features
+
+* **splunk_docker:** hot_warm/cold volume tiering with a capacity preflight ([#384](https://github.com/dryvist/ansible-splunk/issues/384)) ([8eee970](https://github.com/dryvist/ansible-splunk/commit/8eee970f776bbe22777b2e62344d1ad0077a578f))
+
 ## [0.45.1](https://github.com/dryvist/ansible-splunk/compare/v0.45.0...v0.45.1) (2026-07-26)
 
 
