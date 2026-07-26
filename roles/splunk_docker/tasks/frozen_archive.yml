@@ -45,6 +45,10 @@
   no_log: true
   delegate_to: localhost
   become: false
+  # Read-path credential mint, and it must run under --check too. Skipped, the
+  # dry run fails on an undefined token rather than validating anything, which
+  # makes --check useless for exactly the config most worth checking first.
+  check_mode: false
 
 - name: Read the frozen-archive secret
   ansible.builtin.uri:
@@ -58,6 +62,8 @@
   no_log: true
   delegate_to: localhost
   become: false
+  # Read-only fetch; same reasoning as the login above.
+  check_mode: false
 
 # Fail on a missing field rather than deploying a script that will refuse every
 # freeze at runtime. A converge-time failure is visible; a freeze that quietly
