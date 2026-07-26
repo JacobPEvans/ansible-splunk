@@ -8,9 +8,11 @@
 # caps are trusted, not after.
 #
 # The credential is read from the secrets store at converge time and handed to
-# the container through the compose environment, which is the same route the
-# admin password already takes (written 0600, no_log). It is never written to a
-# standalone file and never baked into an image layer.
+# the container two ways: through the compose environment (same route the
+# admin password already takes - written 0600, no_log), and as a 0600 file in
+# the config volume, because splunkd invokes coldToFrozenScript with a
+# restricted environment that does not see the compose vars. Neither copy is
+# baked into an image layer.
 
 # Check the inputs before using them. Without this, a converge run without the
 # secrets environment loaded fails on an HTTP 400 from the login endpoint, which
@@ -105,4 +107,27 @@
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     mode: '0750'
+  notify: Restart Splunk container
+
+# splunkd invokes coldToFrozenScript with a restricted environment, so the
+# compose-injected SPLUNK_FROZEN_S3_* vars are invisible to the script on the
+# path that actually matters. A manual `docker exec` canary run inherits the
+# container's configured environment and succeeds, which made this look
+# working; splunkd.log showed the real path failing with "refusing to freeze,
+# missing config" on every real eviction. Writing the same values to a file in
+# the config volume gives the script a source that does not depend on how it
+# was invoked - the environment stays checked first so the manual/canary path
+# keeps working unchanged.
+- name: Write the frozen-archive credential file
+  ansible.builtin.copy:
+    dest: "{{ splunk_docker_frozen_config_path }}"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0600'
+    content: |
+      SPLUNK_FROZEN_S3_ENDPOINT={{ splunk_docker_frozen_env.SPLUNK_FROZEN_S3_ENDPOINT }}
+      SPLUNK_FROZEN_S3_BUCKET={{ splunk_docker_frozen_env.SPLUNK_FROZEN_S3_BUCKET }}
+      SPLUNK_FROZEN_S3_KEY_ID={{ splunk_docker_frozen_env.SPLUNK_FROZEN_S3_KEY_ID }}
+      SPLUNK_FROZEN_S3_APP_KEY={{ splunk_docker_frozen_env.SPLUNK_FROZEN_S3_APP_KEY }}
+  no_log: true
   notify: Restart Splunk container

@@ -17,6 +17,7 @@ Run from repo root:
   python3 tests/templates/test_cold_to_frozen.py
 """
 
+import os
 import sys
 import tempfile
 import types
@@ -32,7 +33,13 @@ except ImportError:
 
 TEMPLATE_DIR = Path(__file__).parent.parent.parent / "roles/splunk_docker/templates"
 env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), keep_trailing_newline=True)
-rendered = env.get_template("cold_to_frozen.py.j2").render(ansible_managed="test render")
+
+SETTING_KEYS = (
+    "SPLUNK_FROZEN_S3_ENDPOINT",
+    "SPLUNK_FROZEN_S3_BUCKET",
+    "SPLUNK_FROZEN_S3_KEY_ID",
+    "SPLUNK_FROZEN_S3_APP_KEY",
+)
 
 # The script reads its config from the environment at import time, so the
 # values have to be in place before the module body executes.
@@ -44,18 +51,30 @@ CONFIG = {
 }
 
 
-def load_module():
+def load_module(env_vars=None, config_path=""):
+    """Render and exec the template with a controlled env and config path.
+
+    Splunkd's restricted environment is exactly what env_vars={} simulates:
+    the module must then fall back to reading config_path. Every call clears
+    the four settings from os.environ first so scenarios cannot leak into
+    each other via process-wide state.
+    """
+    for key in SETTING_KEYS:
+        os.environ.pop(key, None)
+    for key, value in (env_vars or {}).items():
+        os.environ[key] = value
+
+    rendered = env.get_template("cold_to_frozen.py.j2").render(
+        ansible_managed="test render",
+        splunk_docker_frozen_config_path=config_path,
+    )
     module = types.ModuleType("cold_to_frozen")
     module.__dict__["__name__"] = "cold_to_frozen"
-    import os
-
-    for key, value in CONFIG.items():
-        os.environ[key] = value
     exec(compile(rendered, "cold_to_frozen.py", "exec"), module.__dict__)
     return module
 
 
-mod = load_module()
+mod = load_module(env_vars=CONFIG)
 
 errors = []
 calls = []
@@ -129,10 +148,77 @@ if len(calls) != 1:
 
 Path(PAYLOAD).unlink()
 
+# --- Config resolution: environment vs. credential file -------------------
+#
+# splunkd invokes coldToFrozenScript with a restricted environment, so the
+# compose-injected env vars a manual `docker exec` sees are absent on the
+# real path. The script must fall back to reading CONFIG_PATH, and the
+# environment must still win when both are present (preserves the existing
+# manual/canary invocation).
+
+with tempfile.NamedTemporaryFile(
+    mode="w", suffix=".conf", delete=False
+) as handle:
+    handle.write(
+        "# comment line, ignored\n"
+        "\n"
+        "SPLUNK_FROZEN_S3_ENDPOINT=https://s3.us-east-005.file.invalid\n"
+        "SPLUNK_FROZEN_S3_BUCKET=file-bucket\n"
+        "SPLUNK_FROZEN_S3_KEY_ID=file-key-id\n"
+        "SPLUNK_FROZEN_S3_APP_KEY=file-app-key\n"
+    )
+    CONFIG_FILE = handle.name
+
+# 6. No environment at all (splunkd's real invocation) -> resolved from file.
+file_mod = load_module(env_vars={}, config_path=CONFIG_FILE)
+if file_mod.ENDPOINT != "https://s3.us-east-005.file.invalid":
+    errors.append("ENDPOINT should resolve from the config file, got: %r" % file_mod.ENDPOINT)
+if file_mod.BUCKET != "file-bucket":
+    errors.append("BUCKET should resolve from the config file, got: %r" % file_mod.BUCKET)
+if file_mod.KEY_ID != "file-key-id":
+    errors.append("KEY_ID should resolve from the config file, got: %r" % file_mod.KEY_ID)
+if file_mod.APP_KEY != "file-app-key":
+    errors.append("APP_KEY should resolve from the config file, got: %r" % file_mod.APP_KEY)
+
+# 7. Both present -> the environment wins (the manual/canary path is unchanged).
+both_mod = load_module(env_vars=CONFIG, config_path=CONFIG_FILE)
+if both_mod.ENDPOINT != CONFIG["SPLUNK_FROZEN_S3_ENDPOINT"]:
+    errors.append(
+        "environment must win over the config file, got ENDPOINT=%r" % both_mod.ENDPOINT
+    )
+if both_mod.BUCKET != CONFIG["SPLUNK_FROZEN_S3_BUCKET"]:
+    errors.append(
+        "environment must win over the config file, got BUCKET=%r" % both_mod.BUCKET
+    )
+
+# 8. Missing in both -> still refuses, and the message still names the
+#    missing keys (main() re-reads the module-level globals it already
+#    resolved at import time, so this exercises the same missing-config path
+#    that runs when neither source is populated).
+missing_mod = load_module(env_vars={}, config_path="/nonexistent/cold_to_frozen_creds.conf")
+log_lines = []
+missing_mod.log = lambda msg: log_lines.append(msg)
+with tempfile.TemporaryDirectory() as bucket_dir:
+    Path(bucket_dir, "file.tsidx").write_bytes(b"x")
+    original_argv = sys.argv[:]
+    sys.argv[1:] = [bucket_dir]
+    try:
+        rc = missing_mod.main()
+    finally:
+        sys.argv[:] = original_argv
+if rc != 1:
+    errors.append("missing config in both env and file should refuse (exit 1), got %r" % rc)
+if not any("refusing to freeze" in line and "endpoint" in line for line in log_lines):
+    errors.append("missing-config message should name 'endpoint', got: %r" % log_lines)
+if not any("key id" in line and "app key" in line for line in log_lines):
+    errors.append("missing-config message should name 'key id' and 'app key', got: %r" % log_lines)
+
+Path(CONFIG_FILE).unlink()
+
 if errors:
     print("FAIL")
     for error in errors:
         print("  - %s" % error)
     sys.exit(1)
 
-print("PASS: cold_to_frozen retry classification")
+print("PASS: cold_to_frozen retry classification and config resolution")

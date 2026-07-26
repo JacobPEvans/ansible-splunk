@@ -42,11 +42,52 @@ import urllib.request
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 MAX_ATTEMPTS = 5
 
-ENDPOINT = os.environ.get("SPLUNK_FROZEN_S3_ENDPOINT", "")
-BUCKET = os.environ.get("SPLUNK_FROZEN_S3_BUCKET", "")
-KEY_ID = os.environ.get("SPLUNK_FROZEN_S3_KEY_ID", "")
-APP_KEY = os.environ.get("SPLUNK_FROZEN_S3_APP_KEY", "")
-PREFIX = os.environ.get("SPLUNK_FROZEN_S3_PREFIX", "splunk-frozen")
+# splunkd invokes coldToFrozenScript with a restricted environment - the
+# compose-injected SPLUNK_FROZEN_S3_* vars a manual `docker exec` sees are not
+# present on the path that actually matters. CONFIG_PATH is the fallback:
+# simple KEY=value lines written by frozen_archive.yml next to this script,
+# in the same config volume. The environment is checked first so the manual
+# invocation used to canary this script keeps working unchanged.
+CONFIG_PATH = "{{ splunk_docker_frozen_config_path }}"
+
+
+def _read_config_file(path):
+    """Parse simple KEY=value lines. Blank lines and '#' comments are ignored.
+
+    Deliberately not INI/JSON - this script has no third-party dependencies
+    and the config has no nesting, so the simplest parser that works is the
+    right one.
+    """
+    values = {}
+    try:
+        with open(path, "r") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return values
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip()
+    return values
+
+
+_FILE_CONFIG = _read_config_file(CONFIG_PATH)
+
+
+def _setting(name, default=""):
+    value = os.environ.get(name, "")
+    if value:
+        return value
+    return _FILE_CONFIG.get(name, default)
+
+
+ENDPOINT = _setting("SPLUNK_FROZEN_S3_ENDPOINT")
+BUCKET = _setting("SPLUNK_FROZEN_S3_BUCKET")
+KEY_ID = _setting("SPLUNK_FROZEN_S3_KEY_ID")
+APP_KEY = _setting("SPLUNK_FROZEN_S3_APP_KEY")
+PREFIX = _setting("SPLUNK_FROZEN_S3_PREFIX", "splunk-frozen")
 
 
 def _region_from_endpoint(endpoint):
