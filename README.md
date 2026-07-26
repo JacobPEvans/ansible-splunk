@@ -48,8 +48,15 @@ doppler run -- ansible-playbook playbooks/validate.yml
 
 ## Custom Indexes
 
-All indexes: 100 GiB max size, 365-day retention (except `netmon_metrics`: 90-day),
-stored at `/opt/splunk/<index>/`.
+Per-index size caps and retention are set in
+`roles/splunk_docker/defaults/main.yml` (`splunk_docker_indexes`); most
+indexes use the 365-day/10 GiB defaults, but `netflow`, `host_metrics`,
+`llm_metrics`, `netmon_metrics`, `os_metrics`, and `unifi_metrics` use
+90-day retention, and `netflow` caps at 50 GiB rather than the default. Two
+indexes — `firewall` and `unifi` — are tiered: their hot data stays on fast
+storage (`$SPLUNK_DB`) and their cold data rolls out to a separate
+`splunk_docker_cold_dir` volume; every other index keeps both hot and cold
+data on fast storage.
 
 | Index | Purpose |
 | --- | --- |

@@ -15,10 +15,16 @@
     - name: Gather facts
       ansible.builtin.setup:
 
+    # No cache_valid_time here on purpose. The platform image is pulled fresh
+    # from a moving :latest tag, and it bakes in an apt lists directory whose
+    # timestamp can look recent while its contents no longer resolve. With a
+    # validity window, Ansible treats that stale cache as good, skips the
+    # refresh, and the very next task fails with "No package matching 'curl'".
+    # A throwaway test container has nothing to gain from a warm cache, so
+    # always refresh and let the install below be the thing that can fail.
     - name: Update apt cache (Debian/Ubuntu)
       ansible.builtin.apt:
         update_cache: true
-        cache_valid_time: 3600
       when: ansible_os_family == 'Debian'
 
     - name: Install base packages for Docker role
