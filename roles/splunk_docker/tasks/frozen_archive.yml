@@ -12,6 +12,26 @@
 # admin password already takes (written 0600, no_log). It is never written to a
 # standalone file and never baked into an image layer.
 
+# Check the inputs before using them. Without this, a converge run without the
+# secrets environment loaded fails on an HTTP 400 from the login endpoint, which
+# says nothing about what is actually missing and sends the reader looking at
+# the secrets store rather than at their own shell.
+- name: Assert the frozen-archive prerequisites are present
+  ansible.builtin.assert:
+    that:
+      - splunk_docker_frozen_bao_addr | default('', true) | length > 0
+      - splunk_docker_frozen_bao_role_id | default('', true) | length > 0
+      - splunk_docker_frozen_bao_secret_id | default('', true) | length > 0
+    fail_msg: >-
+      The frozen archive is enabled but its credential inputs are missing
+      (address / role id / secret id). These come from the environment, so the
+      usual cause is a converge run outside the secrets wrapper. Load it and
+      re-run, or set splunk_docker_frozen_archive_enabled to false to converge
+      without the archive - but note that with the archive off, any volume cap
+      that binds deletes data instead of archiving it.
+    quiet: true
+  no_log: true
+
 - name: Fetch the frozen-archive credential
   ansible.builtin.uri:
     url: "{{ splunk_docker_frozen_bao_addr }}/v1/auth/approle/login"

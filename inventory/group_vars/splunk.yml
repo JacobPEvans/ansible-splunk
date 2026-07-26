@@ -34,3 +34,20 @@ splunk_docker_users:
 # SPLUNK_MCP_TOKEN) to OpenBao secret/ai/mcp/splunk. Requires a write-capable
 # OpenBao AppRole token (BAO_ADDR/BAO_TOKEN) in the converge environment.
 splunk_docker_token_publish_openbao: true
+
+# Archive frozen buckets rather than deleting them.
+#
+# Splunk's default when a bucket ages out is deletion. That was inert here for
+# an accidental reason — the per-index quotas were larger than the disk holding
+# them, so nothing could ever bind and nothing ever froze. It stops being inert
+# the moment a volume cap is set, and at that point "reclaim space" and "lose
+# data" become the same action.
+#
+# So this is switched on FIRST and independently, well before any cap. Enabled
+# with no caps set it changes nothing observable: nothing is freezing yet. That
+# is the point — it is in place and proven before it is needed.
+#
+# The upload path was verified end to end against the real endpoint: a bucket
+# archived, restored, and compared byte for byte. Restore procedure is in the
+# runbooks under "Splunk frozen buckets".
+splunk_docker_frozen_archive_enabled: true
