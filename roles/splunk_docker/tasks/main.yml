@@ -96,6 +96,13 @@
     - "{{ splunk_docker_etc_dir }}"
     - "{{ splunk_docker_config_dir }}"
 
+# Runs after the directories exist so the mount appears in facts, and before the
+# container starts so splunkd sees the full usable capacity on its first health
+# check rather than a figure the superuser reserve has silently reduced.
+- name: Tune reserved blocks on the Splunk index volume
+  ansible.builtin.include_tasks: data_disk_reserve.yml
+  when: (splunk_docker_data_disk_reserved_percent | int) > 0
+
 - name: Deploy docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2

@@ -1,0 +1,56 @@
+---
+# Tune the reserved-block percentage on the Splunk index volume.
+#
+# Split out from site.yml so it can run on its own during a capacity incident,
+# when converging the whole role would be slower and would touch more than the
+# problem at hand. site.yml performs the same step via the role.
+
+- name: Load OpenTofu inventory
+  ansible.builtin.import_playbook: ../inventory/load_tofu.yml
+
+- name: Tune Splunk index volume reserved blocks
+  hosts: splunk
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../roles/splunk_docker/defaults/main.yml
+
+  tasks:
+    - name: Report usable capacity before tuning
+      ansible.builtin.debug:
+        msg: >-
+          {{ splunk_docker_var_dir }}:
+          {{ (item.size_available / 1048576) | round(1) }} MB available of
+          {{ (item.size_total / 1048576) | round(1) }} MB total
+          ({{ item.device }}, {{ item.fstype }}).
+      loop: "{{ ansible_facts.mounts }}"
+      loop_control:
+        label: "{{ item.mount }}"
+      # The index volume may be mounted above splunk_docker_var_dir, so report
+      # on any mount that contains it rather than requiring an exact match.
+      when: item.mount in (splunk_docker_var_dir ~ '/')
+
+    - name: Apply reserved-block tuning
+      ansible.builtin.include_role:
+        name: splunk_docker
+        tasks_from: data_disk_reserve.yml
+      when: (splunk_docker_data_disk_reserved_percent | int) > 0
+
+    - name: Re-read mount facts after tuning
+      ansible.builtin.setup:
+        gather_subset:
+          - '!all'
+          - mounts
+
+    - name: Report usable capacity after tuning
+      ansible.builtin.debug:
+        msg: >-
+          {{ splunk_docker_var_dir }}:
+          {{ (item.size_available / 1048576) | round(1) }} MB available of
+          {{ (item.size_total / 1048576) | round(1) }} MB total.
+      loop: "{{ ansible_facts.mounts }}"
+      loop_control:
+        label: "{{ item.mount }}"
+      # The index volume may be mounted above splunk_docker_var_dir, so report
+      # on any mount that contains it rather than requiring an exact match.
+      when: item.mount in (splunk_docker_var_dir ~ '/')

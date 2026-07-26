@@ -13,8 +13,12 @@ splunk_docker_java_enabled: true
 splunk_docker_mssql_driver_enabled: true
 
 # Data disk configuration
-splunk_data_disk_device: /dev/sdb1
-splunk_data_disk_mount_path: /opt/splunk/var/lib/splunk
+# The index volume is created and mounted by tofu-proxmox cloud-init, not by
+# Ansible; nothing here consumed the previous device/mount variables. The role
+# discovers the backing device from mount facts instead of assuming a device
+# node, which matters because the VM's disk layout has drifted from its
+# declaration. Reserved-block tuning is governed by
+# splunk_docker_data_disk_reserved_percent in the role defaults.
 
 # Managed service users. The Hermes AI agent gets its own Splunk identity so it
 # can search/read the environment via the Splunk MCP Server (Bearer token =
