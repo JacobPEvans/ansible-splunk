@@ -34,11 +34,16 @@ COMMON_VARS = {
     "splunk_docker_cold_dir": "/opt/splunk/cold",
     "splunk_docker_volume_hot_warm_max_mb": 409600,
     "splunk_docker_volume_cold_max_mb": 122880,
+    "splunk_docker_frozen_archive_enabled": False,
+    "splunk_docker_frozen_dir": "",
+    "splunk_docker_frozen_script_path": "/opt/splunk/etc/system/local/cold_to_frozen.py",
 }
 
 
-def render(indexes):
-    return template.render(splunk_docker_indexes=indexes, **COMMON_VARS)
+def render(indexes, **overrides):
+    variables = dict(COMMON_VARS)
+    variables.update(overrides)
+    return template.render(splunk_docker_indexes=indexes, **variables)
 
 
 errors = []
@@ -170,6 +175,52 @@ elif "datatype = metric" in events_stanza:
     errors.append("FAIL: event index wrongly emitted 'datatype = metric'")
 else:
     print("PASS: datatype = metric emitted only for metric indexes")
+
+# --- frozen archive -------------------------------------------------------
+# coldToFrozenDir and coldToFrozenScript are mutually exclusive in Splunk, and
+# when both are present Splunk silently honours the Dir and ignores the script.
+# The failure mode is therefore invisible: buckets stop being uploaded and
+# nothing reports an error. These cases pin the template to exactly one.
+FROZEN_INDEXES = [
+    {"name": "idx_a", "max_size_mb": 10240, "frozen_time_secs": 31536000},
+]
+
+frozen_off = render(FROZEN_INDEXES)
+if "coldToFrozen" in frozen_off:
+    errors.append("FAIL: frozen settings emitted while the archive is disabled")
+else:
+    print("PASS: no coldToFrozen* emitted when archive disabled and no dir set")
+
+frozen_on = render(FROZEN_INDEXES, splunk_docker_frozen_archive_enabled=True)
+if "coldToFrozenScript" not in frozen_on:
+    errors.append("FAIL: coldToFrozenScript missing when the archive is enabled")
+elif "coldToFrozenDir" in frozen_on:
+    errors.append("FAIL: coldToFrozenDir emitted alongside coldToFrozenScript")
+else:
+    print("PASS: archive enabled emits coldToFrozenScript alone")
+
+# The dangerous combination: archive on AND a dir configured. The script must
+# win, because the dir would silently disable the upload.
+frozen_both = render(
+    FROZEN_INDEXES,
+    splunk_docker_frozen_archive_enabled=True,
+    splunk_docker_frozen_dir="/opt/splunk/frozen",
+)
+if "coldToFrozenDir" in frozen_both:
+    errors.append(
+        "FAIL: coldToFrozenDir emitted with the archive enabled - Splunk would "
+        "prefer it and silently stop uploading"
+    )
+else:
+    print("PASS: a configured dir cannot override the archive script")
+
+frozen_dir_only = render(FROZEN_INDEXES, splunk_docker_frozen_dir="/opt/splunk/frozen")
+if "coldToFrozenDir = /opt/splunk/frozen" not in frozen_dir_only:
+    errors.append("FAIL: coldToFrozenDir not emitted when set with archive disabled")
+elif "coldToFrozenScript" in frozen_dir_only:
+    errors.append("FAIL: coldToFrozenScript emitted while the archive is disabled")
+else:
+    print("PASS: dir-only configuration emits coldToFrozenDir alone")
 
 if errors:
     print()

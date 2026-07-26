@@ -127,6 +127,12 @@
 - name: Verify Splunk volume caps can actually bound their filesystems
   ansible.builtin.include_tasks: verify_volume_capacity.yml
 
+# Also before indexes.conf: the archive has to be in place the moment a cap can
+# bind, because from then on ageing out deletes data unless something catches it.
+- name: Configure the frozen-bucket archive
+  ansible.builtin.include_tasks: frozen_archive.yml
+  when: splunk_docker_frozen_archive_enabled | bool
+
 - name: Deploy indexes.conf
   ansible.builtin.template:
     src: indexes.conf.j2

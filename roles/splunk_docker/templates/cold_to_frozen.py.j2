@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+# {{ ansible_managed }}
+#
+# Splunk coldToFrozenScript: archive a bucket to S3-compatible object storage
+# before Splunk removes it.
+#
+# CONTRACT WITH SPLUNK
+#   argv[1] is the bucket directory. Exiting 0 tells Splunk the bucket is safe
+#   to delete, so this script must not return 0 until every file is durably
+#   stored. Any failure exits non-zero, which leaves the bucket in place on
+#   disk. That is the safe direction: a stuck bucket costs space, a false
+#   success costs the data.
+#
+# WHY PER-FILE UPLOAD RATHER THAN A TARBALL
+#   Freezing happens precisely when a volume is under pressure. Building a
+#   tarball first would need room for a second copy of the bucket at the moment
+#   there is least room to spare. Uploading each file streams straight from
+#   disk and needs no scratch space.
+#
+# WHY NO SDK
+#   This runs inside the Splunk container, invoked by splunkd, with whatever
+#   interpreter that image ships. Adding a dependency means installing into a
+#   vendor image and keeping that working across upgrades. Request signing is a
+#   documented algorithm and the standard library covers it, so there is
+#   nothing to install and nothing to break on the next image bump.
+
+import datetime
+import hashlib
+import hmac
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+
+# Object stores return transient 429/5xx under load. Without retry a momentary
+# blip aborts the freeze, and while that direction is safe (the bucket stays on
+# disk), it means space is not reclaimed and the same bucket fails again on the
+# next pass. Retry the retryable statuses; fail fast on anything else, since a
+# 403 will not improve by being asked again.
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+MAX_ATTEMPTS = 5
+
+ENDPOINT = os.environ.get("SPLUNK_FROZEN_S3_ENDPOINT", "")
+BUCKET = os.environ.get("SPLUNK_FROZEN_S3_BUCKET", "")
+KEY_ID = os.environ.get("SPLUNK_FROZEN_S3_KEY_ID", "")
+APP_KEY = os.environ.get("SPLUNK_FROZEN_S3_APP_KEY", "")
+PREFIX = os.environ.get("SPLUNK_FROZEN_S3_PREFIX", "splunk-frozen")
+
+
+def _region_from_endpoint(endpoint):
+    """Derive the signing region from the endpoint host.
+
+    The region is part of the endpoint hostname, so carrying it as a separate
+    setting just creates a second place to be wrong — and a mismatch fails
+    signature verification with an error that says nothing about regions. A
+    self-test against the real endpoint caught exactly that: a plausible
+    default disagreed with the host the credential actually belongs to.
+    """
+    host = endpoint.split("://", 1)[-1].strip("/")
+    parts = host.split(".")
+    if len(parts) >= 3 and parts[0] == "s3":
+        return parts[1]
+    return ""
+
+
+REGION = os.environ.get("SPLUNK_FROZEN_S3_REGION", "") or _region_from_endpoint(ENDPOINT)
+
+# A single PUT is capped by the service. Buckets are normally far below this,
+# but a bucket that exceeds it must fail loudly rather than upload a truncated
+# object that looks like a successful archive.
+MAX_SINGLE_PUT_BYTES = 5 * 1024 * 1024 * 1024
+
+
+def log(msg):
+    # splunkd captures stderr from this script into splunkd.log, so this is
+    # where an operator will actually look when a freeze goes wrong.
+    sys.stderr.write("cold_to_frozen: %s\n" % msg)
+    sys.stderr.flush()
+
+
+def _sign(key, msg):
+    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+
+
+def _signing_key(secret, datestamp, region, service):
+    k = _sign(("AWS4" + secret).encode("utf-8"), datestamp)
+    k = _sign(k, region)
+    k = _sign(k, service)
+    return _sign(k, "aws4_request")
+
+
+def put_object(local_path, object_key):
+    """Upload one file. Returns None on success, or an error string."""
+    size = os.path.getsize(local_path)
+    if size > MAX_SINGLE_PUT_BYTES:
+        return "%s is %d bytes, above the single-request limit" % (local_path, size)
+
+    with open(local_path, "rb") as fh:
+        body = fh.read()
+    payload_hash = hashlib.sha256(body).hexdigest()
+
+    host = ENDPOINT.split("://", 1)[-1].rstrip("/")
+    url = "%s/%s/%s" % (ENDPOINT.rstrip("/"), BUCKET, object_key)
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    amzdate = now.strftime("%Y%m%dT%H%M%SZ")
+    datestamp = now.strftime("%Y%m%d")
+
+    canonical_uri = "/%s/%s" % (BUCKET, object_key)
+    canonical_headers = (
+        "host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n" % (host, payload_hash, amzdate)
+    )
+    signed_headers = "host;x-amz-content-sha256;x-amz-date"
+    canonical_request = "\n".join(
+        ["PUT", canonical_uri, "", canonical_headers, signed_headers, payload_hash]
+    )
+
+    scope = "%s/%s/s3/aws4_request" % (datestamp, REGION)
+    string_to_sign = "\n".join(
+        [
+            "AWS4-HMAC-SHA256",
+            amzdate,
+            scope,
+            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+        ]
+    )
+    signature = hmac.new(
+        _signing_key(APP_KEY, datestamp, REGION, "s3"),
+        string_to_sign.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    authorization = (
+        "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s"
+        % (KEY_ID, scope, signed_headers, signature)
+    )
+
+    req = urllib.request.Request(url, data=body, method="PUT")
+    req.add_header("Host", host)
+    req.add_header("x-amz-date", amzdate)
+    req.add_header("x-amz-content-sha256", payload_hash)
+    req.add_header("Authorization", authorization)
+    req.add_header("Content-Length", str(len(body)))
+
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            if resp.status not in (200, 201):
+                return "unexpected status %s for %s" % (resp.status, object_key)
+    except urllib.error.HTTPError as exc:
+        # Deliberately does not include the response body verbatim; it can echo
+        # request metadata. The status and key are enough to diagnose.
+        if exc.code in RETRY_STATUSES:
+            return "retryable HTTP %s uploading %s" % (exc.code, object_key)
+        return "HTTP %s uploading %s" % (exc.code, object_key)
+    except Exception as exc:  # noqa: BLE001 - any failure must block deletion
+        return "%s uploading %s" % (type(exc).__name__, object_key)
+    return None
+
+
+def put_object_with_retry(local_path, object_key):
+    """Upload with bounded retry. Returns None on success or an error string."""
+    err = None
+    for attempt in range(MAX_ATTEMPTS):
+        err = put_object(local_path, object_key)
+        if err is None:
+            return None
+        if not err.startswith("retryable"):
+            return err
+        # Each attempt re-signs; a signature is bound to its timestamp and
+        # cannot simply be replayed.
+        time.sleep(2 ** attempt)
+    return err
+
+
+def main():
+    if len(sys.argv) < 2:
+        log("no bucket path given")
+        return 1
+    bucket_dir = sys.argv[1].rstrip("/")
+
+    if not os.path.isdir(bucket_dir):
+        log("not a directory: %s" % bucket_dir)
+        return 1
+
+    missing = [
+        name
+        for name, value in (
+            ("endpoint", ENDPOINT),
+            ("bucket", BUCKET),
+            ("key id", KEY_ID),
+            ("app key", APP_KEY),
+        )
+        if not value
+    ]
+    if missing:
+        # Refusing here is the point: without credentials the only alternative
+        # is to let Splunk delete the bucket unarchived.
+        log("refusing to freeze, missing config: %s" % ", ".join(missing))
+        return 1
+
+    # Splunk lays buckets out as <index>/<state>db/<bucket>, so the index name
+    # is recoverable from the path and keeps archived objects grouped per index.
+    parts = bucket_dir.split(os.sep)
+    bucket_name = parts[-1]
+    index_name = parts[-3] if len(parts) >= 3 else "unknown"
+
+    files = []
+    for root, _dirs, filenames in os.walk(bucket_dir):
+        for filename in filenames:
+            files.append(os.path.join(root, filename))
+
+    if not files:
+        log("no files under %s, refusing to report success" % bucket_dir)
+        return 1
+
+    log("archiving %s (%d files) from index %s" % (bucket_name, len(files), index_name))
+
+    for path in files:
+        rel = os.path.relpath(path, bucket_dir)
+        object_key = "%s/%s/%s/%s" % (PREFIX, index_name, bucket_name, rel)
+        err = put_object_with_retry(path, object_key)
+        if err:
+            log("FAILED: %s - bucket left on disk for retry" % err)
+            return 1
+
+    log("archived %s (%d files)" % (bucket_name, len(files)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

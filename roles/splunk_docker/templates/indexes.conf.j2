@@ -22,6 +22,16 @@ coldPath = volume:hot_warm/{{ index.name }}/colddb
 thawedPath = $SPLUNK_DB/{{ index.name }}/thaweddb
 maxTotalDataSizeMB = {{ index.max_size_mb }}
 frozenTimePeriodInSecs = {{ index.frozen_time_secs }}
+{#
+  coldToFrozenDir and coldToFrozenScript are mutually exclusive, and Splunk
+  silently prefers the Dir form when both appear — which would disable the
+  upload with no error anywhere. Render exactly one, never both.
+#}
+{% if splunk_docker_frozen_archive_enabled %}
+coldToFrozenScript = "{{ splunk_docker_frozen_script_path }}"
+{% elif splunk_docker_frozen_dir %}
+coldToFrozenDir = {{ splunk_docker_frozen_dir }}
+{% endif %}
 {% if (index.datatype | default('event')) == 'metric' %}
 datatype = metric
 {% endif %}

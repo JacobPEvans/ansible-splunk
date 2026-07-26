@@ -1,0 +1,82 @@
+---
+# Configure the frozen-bucket archive.
+#
+# Without this, Splunk's behaviour when a bucket ages out is to DELETE it. That
+# default is harmless while no quota can bind, which was the situation before
+# volume caps were introduced — nothing ever froze. Once the caps actually
+# enforce, the delete path becomes live, so the archive has to exist before the
+# caps are trusted, not after.
+#
+# The credential is read from the secrets store at converge time and handed to
+# the container through the compose environment, which is the same route the
+# admin password already takes (written 0600, no_log). It is never written to a
+# standalone file and never baked into an image layer.
+
+- name: Fetch the frozen-archive credential
+  ansible.builtin.uri:
+    url: "{{ splunk_docker_frozen_bao_addr }}/v1/auth/approle/login"
+    method: POST
+    body_format: json
+    body:
+      role_id: "{{ splunk_docker_frozen_bao_role_id }}"
+      secret_id: "{{ splunk_docker_frozen_bao_secret_id }}"
+    status_code: [200]
+  register: splunk_docker_frozen_login
+  no_log: true
+  delegate_to: localhost
+  become: false
+
+- name: Read the frozen-archive secret
+  ansible.builtin.uri:
+    url: >-
+      {{ splunk_docker_frozen_bao_addr }}/v1/{{ splunk_docker_frozen_secret_path }}
+    method: GET
+    headers:
+      X-Vault-Token: "{{ splunk_docker_frozen_login.json.auth.client_token }}"
+    status_code: [200]
+  register: splunk_docker_frozen_secret
+  no_log: true
+  delegate_to: localhost
+  become: false
+
+# Fail on a missing field rather than deploying a script that will refuse every
+# freeze at runtime. A converge-time failure is visible; a freeze that quietly
+# never succeeds is not, and it silently stops reclaiming space.
+- name: Assert the frozen-archive credential is complete
+  ansible.builtin.assert:
+    that:
+      - splunk_docker_frozen_secret.json.data.data[item] | default('') | length > 0
+    fail_msg: >-
+      The frozen-archive secret at {{ splunk_docker_frozen_secret_path }} has no
+      usable '{{ item }}'. Frozen buckets would be deleted rather than archived.
+    quiet: true
+  loop:
+    - "{{ splunk_docker_frozen_endpoint_field }}"
+    - "{{ splunk_docker_frozen_bucket_field }}"
+    - "{{ splunk_docker_frozen_key_id_field }}"
+    - "{{ splunk_docker_frozen_app_key_field }}"
+  no_log: true
+
+- name: Expose the frozen-archive settings to the container templates
+  ansible.builtin.set_fact:
+    splunk_docker_frozen_env:
+      SPLUNK_FROZEN_S3_ENDPOINT: >-
+        {{ splunk_docker_frozen_secret.json.data.data[splunk_docker_frozen_endpoint_field] }}
+      SPLUNK_FROZEN_S3_BUCKET: >-
+        {{ splunk_docker_frozen_secret.json.data.data[splunk_docker_frozen_bucket_field] }}
+      SPLUNK_FROZEN_S3_KEY_ID: >-
+        {{ splunk_docker_frozen_secret.json.data.data[splunk_docker_frozen_key_id_field] }}
+      SPLUNK_FROZEN_S3_APP_KEY: >-
+        {{ splunk_docker_frozen_secret.json.data.data[splunk_docker_frozen_app_key_field] }}
+      SPLUNK_FROZEN_S3_PREFIX: "{{ splunk_docker_frozen_prefix }}"
+      SPLUNK_FROZEN_S3_REGION: "{{ splunk_docker_frozen_region }}"
+  no_log: true
+
+- name: Deploy the frozen-archive script
+  ansible.builtin.template:
+    src: cold_to_frozen.py.j2
+    dest: "{{ splunk_docker_frozen_script_path }}"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0750'
+  notify: Restart Splunk container
