@@ -55,6 +55,14 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
   DNS-first `splunk-aio.{PROXMOX_DOMAIN}`). There is **no local-cache step**
   — see "Inventory freshness guarantee" below.
 
+- **`dryvist/homelab-contracts`**: supplies the shared `inventory_resolve`
+  role, pinned by commit in `requirements.yml`. Run
+  `ansible-galaxy role install -r requirements.yml -p roles` before the first
+  converge in a fresh checkout. Add `--force` if `roles/inventory_resolve`
+  already exists — a plain install leaves an older copy in place, and the
+  resolution order differs between versions, so a stale copy changes converge
+  behavior while the pin still reads correct.
+
 #### Inventory freshness guarantee (single-writer / readers-always-latest)
 
 RustFS is the single source of truth; this repo is a **read-only consumer** and
@@ -103,6 +111,30 @@ documented once at
 | `inventory/load_tofu.yml` | Dynamic inventory loader |
 
 ## Commands
+
+`doppler run` supplies `BAO_ADDR` but **not** `BAO_TOKEN`. Without a token the
+loader cannot read the object-storage credential, so it cannot fetch the
+published inventory. It does not stop. It falls back to the static host entry
+in `hosts.yml`, and the run dies later on `'tofu_data' is undefined` — after it
+has already written config. There is no prompt and no warning.
+
+Mint a read token in the same invocation. Reads are pre-authorized, so this
+needs no approval. Never write the token to a file:
+
+```bash
+export BAO_TOKEN=$(doppler run -- bash -c 'curl -sS -X POST \
+  -d "{\"role_id\":\"$OPENBAO_APPROLE_ANSIBLE_ROLE_ID\",\"secret_id\":\"$OPENBAO_APPROLE_ANSIBLE_SECRET_ID\"}" \
+  "$BAO_ADDR/v1/auth/approle/login"' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["auth"]["client_token"])')
+```
+
+To tell which path a run took, read the host name in the play output: the
+dynamic path yields the real inventory name, the static fallback yields the
+placeholder from `hosts.yml`.
+
+This is a *read* credential. It is unrelated to the elevated token that writing
+the desired-state object needs — that path is `flow-lock`, and no converge
+should ever take that lease.
 
 ```bash
 # Full deployment (object storage → Splunk VM, direct target-side pull)
