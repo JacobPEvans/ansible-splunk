@@ -37,7 +37,8 @@ import urllib.request
 # blip aborts the freeze, and while that direction is safe (the bucket stays on
 # disk), it means space is not reclaimed and the same bucket fails again on the
 # next pass. Retry the retryable statuses; fail fast on anything else, since a
-# 403 will not improve by being asked again.
+# 403 will not improve by being asked again. Transport-level URLErrors are
+# retried too - see the handler in put_object.
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 MAX_ATTEMPTS = 5
 
@@ -153,6 +154,13 @@ def put_object(local_path, object_key):
         if exc.code in RETRY_STATUSES:
             return "retryable HTTP %s uploading %s" % (exc.code, object_key)
         return "HTTP %s uploading %s" % (exc.code, object_key)
+    except urllib.error.URLError as exc:
+        # Transport-level failure (DNS, connect, TLS, timeout) rather than an
+        # HTTP response. HTTPError subclasses URLError, so this must stay below
+        # the HTTPError handler. The restore path already retries these; the
+        # freeze path not doing so was an inconsistency, and a freeze that gives
+        # up on one blip leaves the bucket on a disk that is already tight.
+        return "retryable URLError (%s) uploading %s" % (exc.reason, object_key)
     except Exception as exc:  # noqa: BLE001 - any failure must block deletion
         return "%s uploading %s" % (type(exc).__name__, object_key)
     return None
