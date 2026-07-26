@@ -227,15 +227,20 @@ splunk_docker_frozen_dir: ""
 splunk_docker_frozen_bao_addr: "{{ lookup('env', 'BAO_ADDR') | default('', true) }}"
 splunk_docker_frozen_bao_role_id: "{{ lookup('env', 'OPENBAO_APPROLE_ANSIBLE_ROLE_ID') | default('', true) }}"
 splunk_docker_frozen_bao_secret_id: "{{ lookup('env', 'OPENBAO_APPROLE_ANSIBLE_SECRET_ID') | default('', true) }}"
-splunk_docker_frozen_secret_path: secret/data/platform/backblaze
-splunk_docker_frozen_endpoint_field: B2_S3_ENDPOINT
-splunk_docker_frozen_bucket_field: B2_BACKUPS_BUCKET
-splunk_docker_frozen_key_id_field: B2_BACKUPS_KEY_ID
-splunk_docker_frozen_app_key_field: B2_BACKUPS_APP_KEY
-# Object-key prefix. The bucket is shared with other backup workloads, so
-# Splunk's archive is namespaced rather than scattered at the root — it keeps
-# lifecycle rules and accidental deletions scoped to one prefix.
-splunk_docker_frozen_prefix: splunk-frozen
+#
+# The archive lives in its own dedicated B2 bucket (`splunk`), on the
+# `secrets-external` mount that separates SaaS/external credentials from
+# internal ones. This bucket is NOT shared with Postgres backups (those stay
+# on the old `secret/data/platform/backblaze` path, untouched) - a
+# large, continuously-growing index archive does not belong in the same
+# bucket as critical remote backups, and a dedicated bucket gets its own
+# lifecycle policy, size cap, and least-privilege keys instead of borrowing
+# someone else's. The RW key is used here because the freeze path writes.
+splunk_docker_frozen_secret_path: secrets-external/data/platform/backblaze-splunk
+splunk_docker_frozen_endpoint_field: B2_SPLUNK_S3_ENDPOINT
+splunk_docker_frozen_bucket_field: B2_SPLUNK_BUCKET
+splunk_docker_frozen_key_id_field: B2_SPLUNK_RW_KEY_ID
+splunk_docker_frozen_app_key_field: B2_SPLUNK_RW_APP_KEY
 # Left empty on purpose: the script derives the signing region from the
 # endpoint hostname, which is the only place it is authoritative. Setting it
 # here would create a second source of truth that can silently disagree, and a

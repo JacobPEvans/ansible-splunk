@@ -215,6 +215,42 @@ if not any("key id" in line and "app key" in line for line in log_lines):
 
 Path(CONFIG_FILE).unlink()
 
+# --- Object key layout: no prefix, bucket-root <index>/<bucket>/<relpath> --
+#
+# The archive now lives in its own dedicated bucket, so the old
+# "<prefix>/<index>/<bucket>/<file>" layout is redundant - the operator wants
+# objects written directly at the bucket root as "<index>/<bucket>/<file>".
+
+key_mod = load_module(env_vars=CONFIG)
+captured_keys = []
+
+
+def fake_put_object_with_retry(_local_path, object_key):
+    captured_keys.append(object_key)
+    return None
+
+
+key_mod.put_object_with_retry = fake_put_object_with_retry
+
+with tempfile.TemporaryDirectory() as splunk_db:
+    bucket_dir = os.path.join(splunk_db, "main", "db", "db_1_1_0")
+    os.makedirs(bucket_dir)
+    Path(bucket_dir, "Hosts.data").write_bytes(b"x")
+    original_argv = sys.argv[:]
+    sys.argv[1:] = [bucket_dir]
+    try:
+        rc = key_mod.main()
+    finally:
+        sys.argv[:] = original_argv
+
+if rc != 0:
+    errors.append("main() with a stubbed uploader should succeed, got rc=%r" % rc)
+if captured_keys != ["main/db_1_1_0/Hosts.data"]:
+    errors.append(
+        "object key should be exactly '<index>/<bucket>/<relpath>' with no "
+        "prefix, got: %r" % captured_keys
+    )
+
 if errors:
     print("FAIL")
     for error in errors:

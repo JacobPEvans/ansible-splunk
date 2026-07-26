@@ -96,7 +96,6 @@
         {{ splunk_docker_frozen_secret.json.data.data[splunk_docker_frozen_key_id_field] }}
       SPLUNK_FROZEN_S3_APP_KEY: >-
         {{ splunk_docker_frozen_secret.json.data.data[splunk_docker_frozen_app_key_field] }}
-      SPLUNK_FROZEN_S3_PREFIX: "{{ splunk_docker_frozen_prefix }}"
       SPLUNK_FROZEN_S3_REGION: "{{ splunk_docker_frozen_region }}"
   no_log: true
 

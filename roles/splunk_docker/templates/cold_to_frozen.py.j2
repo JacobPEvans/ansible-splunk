@@ -87,7 +87,6 @@ ENDPOINT = _setting("SPLUNK_FROZEN_S3_ENDPOINT")
 BUCKET = _setting("SPLUNK_FROZEN_S3_BUCKET")
 KEY_ID = _setting("SPLUNK_FROZEN_S3_KEY_ID")
 APP_KEY = _setting("SPLUNK_FROZEN_S3_APP_KEY")
-PREFIX = _setting("SPLUNK_FROZEN_S3_PREFIX", "splunk-frozen")
 
 
 def _region_from_endpoint(endpoint):
@@ -267,7 +266,7 @@ def main():
 
     for path in files:
         rel = os.path.relpath(path, bucket_dir)
-        object_key = "%s/%s/%s/%s" % (PREFIX, index_name, bucket_name, rel)
+        object_key = "%s/%s/%s" % (index_name, bucket_name, rel)
         err = put_object_with_retry(path, object_key)
         if err:
             log("FAILED: %s - bucket left on disk for retry" % err)
