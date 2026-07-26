@@ -178,17 +178,25 @@ splunk_docker_index_default_frozen_time_secs: 31536000
 # A cap MUST be sized against the filesystem that holds it, never against the
 # sum of the per-index quotas. A cap larger than its own filesystem enforces
 # nothing: the disk fills before the cap binds. That is precisely the defect
-# this tiering work exists to remove, so verify_volume_capacity.yml asserts the
-# relationship at converge time and fails rather than deploying a cap that
-# cannot bind.
+# this tiering work exists to remove, so verify_volume_capacity.yml checks the
+# relationship at converge time and refuses a cap that cannot bind.
 #
-# These defaults target the intended tiered layout (a dedicated fast volume for
-# hot/warm and a larger, slower volume for cold). They are deliberately NOT
-# sized for the pre-tiering single-disk layout, where both paths land on one
-# filesystem — the preflight will refuse that combination, which is the correct
-# outcome: attach the cold-tier storage, or lower these to fit what exists.
-splunk_docker_volume_hot_warm_max_mb: 409600
-splunk_docker_volume_cold_max_mb: 122880
+# UNSET BY DEFAULT, and that is the deliberate choice. Setting a cap is an
+# irreversible act on a volume already holding data: the moment it binds, Splunk
+# evicts the oldest buckets to get under it. Where that data goes depends
+# entirely on whether the frozen archive below is enabled — archived, or gone.
+#
+# So the cap is opt-in per environment, sized against the real filesystem, and
+# only after the archive is on. An unset cap leaves the volume uncapped, which
+# is exactly the behaviour that existed before volumes were introduced: it
+# enforces nothing, but it claims nothing either.
+#
+# Ordering that avoids data loss:
+#   1. enable splunk_docker_frozen_archive_enabled and confirm buckets archive
+#   2. attach the intended storage
+#   3. set these caps to fit that storage, and let the preflight verify it
+splunk_docker_volume_hot_warm_max_mb: ""
+splunk_docker_volume_cold_max_mb: ""
 
 # Frozen-bucket archive.
 #
