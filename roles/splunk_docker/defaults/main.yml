@@ -190,6 +190,45 @@ splunk_docker_index_default_frozen_time_secs: 31536000
 splunk_docker_volume_hot_warm_max_mb: 409600
 splunk_docker_volume_cold_max_mb: 122880
 
+# Frozen-bucket archive.
+#
+# Splunk DELETES a bucket when it ages out unless told otherwise. That default
+# was inert while no quota could bind, but volume caps make it live: the first
+# time a cap is reached, data starts leaving permanently. Enabling this turns
+# ageing out into archiving.
+#
+# coldToFrozenDir and coldToFrozenScript are mutually exclusive in Splunk, and
+# it silently prefers the Dir form when both are set — so a stray dir would
+# disable the upload without any error. indexes.conf.j2 renders only one, and
+# the template test asserts that.
+splunk_docker_frozen_archive_enabled: false
+splunk_docker_frozen_script_path: "{{ splunk_docker_etc_dir }}/system/local/cold_to_frozen.py"
+# Left empty deliberately. Setting it alongside the script would take priority
+# and silently turn archiving back into local-only retention.
+splunk_docker_frozen_dir: ""
+
+# Where the archive credential lives. The secret is read at converge time and
+# passed to the container through the compose environment, never written to a
+# file of its own.
+splunk_docker_frozen_bao_addr: "{{ lookup('env', 'BAO_ADDR') | default('', true) }}"
+splunk_docker_frozen_bao_role_id: "{{ lookup('env', 'OPENBAO_APPROLE_ANSIBLE_ROLE_ID') | default('', true) }}"
+splunk_docker_frozen_bao_secret_id: "{{ lookup('env', 'OPENBAO_APPROLE_ANSIBLE_SECRET_ID') | default('', true) }}"
+splunk_docker_frozen_secret_path: secret/data/platform/backblaze
+splunk_docker_frozen_endpoint_field: B2_S3_ENDPOINT
+splunk_docker_frozen_bucket_field: B2_BACKUPS_BUCKET
+splunk_docker_frozen_key_id_field: B2_BACKUPS_KEY_ID
+splunk_docker_frozen_app_key_field: B2_BACKUPS_APP_KEY
+# Object-key prefix. The bucket is shared with other backup workloads, so
+# Splunk's archive is namespaced rather than scattered at the root — it keeps
+# lifecycle rules and accidental deletions scoped to one prefix.
+splunk_docker_frozen_prefix: splunk-frozen
+# Left empty on purpose: the script derives the signing region from the
+# endpoint hostname, which is the only place it is authoritative. Setting it
+# here would create a second source of truth that can silently disagree, and a
+# region mismatch surfaces as an opaque signature failure. Override only for an
+# endpoint whose host does not encode its region.
+splunk_docker_frozen_region: ""
+
 # Indexes to create
 splunk_docker_indexes:
   - name: ai
