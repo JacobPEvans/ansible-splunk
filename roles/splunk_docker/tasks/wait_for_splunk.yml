@@ -6,6 +6,9 @@
     url: "{{ 'https' if splunk_docker_web_ssl else 'http' }}://127.0.0.1:{{ splunk_docker_web_port }}/en-US/account/login"
     validate_certs: false
   register: splunk_docker_health
+  # Read-only lookup whose result gates later tasks. Must run under --check
+  # too, or the dry run dies on an undefined result before reaching them.
+  check_mode: false
   until: (splunk_docker_health.status | default(0)) == 200
   retries: 36
   delay: 10

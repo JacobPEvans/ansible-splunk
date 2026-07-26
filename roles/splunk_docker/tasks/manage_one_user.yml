@@ -14,6 +14,11 @@
     status_code: [200, 404]
   register: splunk_docker_user_lookup
   no_log: true
+  # Read-only existence check, and it has to run under --check as well. Skipped,
+  # the create task below evaluates an undefined status and the whole dry run
+  # dies here — so --check could never reach the tasks after this point, which
+  # is most of the role.
+  check_mode: false
 
 # Password is a fresh random string used ONLY at creation — the token is the
 # credential clients use, so the password is never stored or rotated here.
@@ -67,6 +72,9 @@
         validate_certs: false
         status_code: [200]
       register: splunk_docker_token_list
+      # Read-only lookup whose result gates later tasks. Must run under --check
+      # too, or the dry run dies on an undefined result before reaching them.
+      check_mode: false
       no_log: true
 
     - name: "Plan token state for {{ splunk_user.name }}"
@@ -82,6 +90,9 @@
         status_code: [200, 404]
       delegate_to: localhost
       register: splunk_docker_bao_current
+      # Read-only lookup whose result gates later tasks. Must run under --check
+      # too, or the dry run dies on an undefined result before reaching them.
+      check_mode: false
       no_log: true
 
     - name: "Read current OpenBao metadata at {{ splunk_docker_token_openbao_path }}"

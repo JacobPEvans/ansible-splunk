@@ -3,6 +3,14 @@
 # Note: Indexes are configured via the splunk_docker role's indexes.conf template.
 # This playbook exists for backwards compatibility and re-running configuration.
 
+# The role reaches the artifact store using values from the published OpenTofu
+# inventory. Without this import tofu_data is never defined and the run dies
+# partway through on an undefined variable, after having already written config
+# — a half-applied converge, which is worse than one that refuses to start.
+# Every other playbook here imports it; this one was missed.
+- name: Load OpenTofu inventory
+  ansible.builtin.import_playbook: ../inventory/load_tofu.yml
+
 - name: Configure Splunk indexes
   hosts: splunk
   become: true
