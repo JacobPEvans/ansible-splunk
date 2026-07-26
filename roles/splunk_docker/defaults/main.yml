@@ -362,7 +362,29 @@ splunk_docker_indexes:
   - name: otel_traces
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # os: host syslog. Historically a catch-all — measured 2026-07-26 it held
+  # 39.3M events over 13 months from 30+ unrelated hosts, 96.9% of it a single
+  # `syslog` sourcetype. os_proxmox and os_ai below carve out the two domains
+  # that account for most of that volume; what remains here is the long tail,
+  # and it should be driven toward zero rather than treated as a home.
   - name: os
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # os_proxmox: hypervisor syslog (pve*). 38.3% of the os catch-all's daily
+  # volume when measured, the single largest slice, and the one most likely to
+  # be wanted in isolation during a storage or cluster incident.
+  #
+  # Routing happens at the source, in the Cribl Edge syslog pipeline, keyed on
+  # host. Nothing here re-routes anything: a Splunk-side index override would
+  # split the data after the fact and leave the actual routing wrong.
+  - name: os_proxmox
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # os_ai: AI/agent stack syslog (llm-router-*, open-webui, hermes-agent,
+  # agentgateway, agent-exec, llm-light). 35.2% of the catch-all when measured.
+  # Ingest here grows fastest of any os slice, so expect this one to need its
+  # own retention sooner than the others.
+  - name: os_ai
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # os_metrics: per-host OS metric series (CPU/memory/disk/network, incl.
