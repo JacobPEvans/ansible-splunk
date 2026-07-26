@@ -122,6 +122,11 @@
     group: "{{ splunk_docker_group }}"
     mode: '0755'
 
+# Runs before indexes.conf is written so an unbounded cap is caught as a failed
+# converge rather than as a disk-full outage weeks later.
+- name: Verify Splunk volume caps can actually bound their filesystems
+  ansible.builtin.include_tasks: verify_volume_capacity.yml
+
 - name: Deploy indexes.conf
   ansible.builtin.template:
     src: indexes.conf.j2

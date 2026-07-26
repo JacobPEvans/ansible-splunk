@@ -175,10 +175,18 @@ splunk_docker_index_default_frozen_time_secs: 31536000
 #              hot homePath here.
 #   cold     — larger/slower storage (splunk_docker_cold_dir). Only
 #              "large"-tier indexes roll their coldPath out here.
-# Caps are ceilings, not expected steady-state usage — sized above the sum of
-# the per-index maxTotalDataSizeMB values below plus headroom, not against a
-# specific physical disk size (verify against the actual mount before relying
-# on them as a hard backstop).
+# A cap MUST be sized against the filesystem that holds it, never against the
+# sum of the per-index quotas. A cap larger than its own filesystem enforces
+# nothing: the disk fills before the cap binds. That is precisely the defect
+# this tiering work exists to remove, so verify_volume_capacity.yml asserts the
+# relationship at converge time and fails rather than deploying a cap that
+# cannot bind.
+#
+# These defaults target the intended tiered layout (a dedicated fast volume for
+# hot/warm and a larger, slower volume for cold). They are deliberately NOT
+# sized for the pre-tiering single-disk layout, where both paths land on one
+# filesystem — the preflight will refuse that combination, which is the correct
+# outcome: attach the cold-tier storage, or lower these to fit what exists.
 splunk_docker_volume_hot_warm_max_mb: 409600
 splunk_docker_volume_cold_max_mb: 122880
 

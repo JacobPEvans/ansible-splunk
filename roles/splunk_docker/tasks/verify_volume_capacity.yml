@@ -1,0 +1,114 @@
+---
+# Preflight: refuse to deploy volume caps that cannot bound their filesystem.
+#
+# WHY THIS EXISTS: the outage this tiering work fixes was caused by exactly this
+# class of error. Per-index maxTotalDataSizeMB summed to ~2.4 TiB against a
+# 200 GB disk, so no quota could ever bind and nothing rolled to frozen before
+# the partition filled. A maxVolumeDataSizeMB larger than its own filesystem
+# reproduces that bug — the cap looks like a guard, enforces nothing, and the
+# disk fills first.
+#
+# Two distinct failure modes are checked:
+#   1. A single volume's cap exceeds the filesystem holding it.
+#   2. Both volumes resolve to the SAME filesystem (the default cold_dir nests
+#      under the data dir), in which case their caps must be checked COMBINED.
+#      Two 'separate' tiers on one disk is a silent no-op for tiering, and the
+#      combined caps overcommit it.
+#
+# Splunk reads the unprivileged 'available' figure, not 'free', so compare
+# against size_available - see data_disk_reserve.yml for why that distinction
+# caused a four-hour outage.
+
+- name: Resolve the filesystem backing each Splunk volume
+  ansible.builtin.set_fact:
+    splunk_docker_volume_mounts: >-
+      {{
+        splunk_docker_volume_mounts | default({}) | combine({
+          item.key: (
+            ansible_facts.mounts
+            | selectattr('mount', 'in', item.value ~ '/')
+            | sort(attribute='mount')
+            | list | last | default({})
+          )
+        })
+      }}
+  loop:
+    - { key: 'hot_warm', value: '{{ splunk_docker_var_dir }}' }
+    - { key: 'cold', value: '{{ splunk_docker_cold_dir }}' }
+  loop_control:
+    label: "{{ item.key }} -> {{ item.value }}"
+
+- name: Determine whether both volumes share one filesystem
+  ansible.builtin.set_fact:
+    splunk_docker_volumes_share_fs: >-
+      {{
+        splunk_docker_volume_mounts.hot_warm.device | default('a')
+        == splunk_docker_volume_mounts.cold.device | default('b')
+      }}
+
+# Shared filesystem: the caps only mean anything when summed, and tiering is
+# not actually separating anything. Warn loudly rather than fail, because a
+# nested cold dir is a legitimate starting state before a second disk exists.
+- name: Warn when both Splunk volumes resolve to the same filesystem
+  ansible.builtin.debug:
+    msg: >-
+      TIERING IS INERT: volume:hot_warm ({{ splunk_docker_var_dir }}) and
+      volume:cold ({{ splunk_docker_cold_dir }}) are both on
+      {{ splunk_docker_volume_mounts.cold.device | default('the same device') }}.
+      Cold buckets will not move to slower storage, and the two caps
+      ({{ splunk_docker_volume_hot_warm_max_mb }} + {{ splunk_docker_volume_cold_max_mb }}
+      MB) apply to ONE filesystem. Point splunk_docker_cold_dir at a separate
+      mount to get real tiering.
+  when: splunk_docker_volumes_share_fs | bool
+
+- name: Assert each volume cap fits the filesystem holding it
+  ansible.builtin.assert:
+    that:
+      - >-
+        (splunk_docker_volumes_share_fs | bool)
+        or (item.cap | int) <= ((item.mount.size_available | default(0) | int) // 1048576)
+    fail_msg: >-
+      Volume '{{ item.name }}' cap of {{ item.cap }} MB exceeds the
+      {{ (item.mount.size_available | default(0) | int) // 1048576 }} MB available on
+      {{ item.mount.device | default('its filesystem') }}. A cap larger than its own
+      filesystem enforces nothing — the disk fills before the cap binds, which is the
+      exact failure that caused the Splunk search outage. Either shrink the cap or
+      attach the intended storage before converging.
+    success_msg: >-
+      {%- if splunk_docker_volumes_share_fs | bool -%}
+      Volume '{{ item.name }}' not checked individually — both volumes share a
+      filesystem, so the combined check below is the one that applies.
+      {%- else -%}
+      Volume '{{ item.name }}' cap {{ item.cap }} MB fits
+      {{ (item.mount.size_available | default(0) | int) // 1048576 }} MB available.
+      {%- endif -%}
+  loop:
+    - name: hot_warm
+      cap: "{{ splunk_docker_volume_hot_warm_max_mb }}"
+      mount: "{{ splunk_docker_volume_mounts.hot_warm }}"
+    - name: cold
+      cap: "{{ splunk_docker_volume_cold_max_mb }}"
+      mount: "{{ splunk_docker_volume_mounts.cold }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Assert the combined caps fit when both volumes share a filesystem
+  ansible.builtin.assert:
+    that:
+      - >-
+        ((splunk_docker_volume_hot_warm_max_mb | int)
+         + (splunk_docker_volume_cold_max_mb | int))
+        <= ((splunk_docker_volume_mounts.cold.size_available | default(0) | int) // 1048576)
+    fail_msg: >-
+      Both Splunk volumes share
+      {{ splunk_docker_volume_mounts.cold.device | default('one filesystem') }}, so their
+      caps are additive: {{ splunk_docker_volume_hot_warm_max_mb }} +
+      {{ splunk_docker_volume_cold_max_mb }} =
+      {{ (splunk_docker_volume_hot_warm_max_mb | int) + (splunk_docker_volume_cold_max_mb | int) }}
+      MB against only
+      {{ (splunk_docker_volume_mounts.cold.size_available | default(0) | int) // 1048576 }}
+      MB available. Caps that cannot bind are the defect this tiering work exists to
+      remove. Attach the cold-tier disk, or lower the caps to fit this filesystem.
+    success_msg: >-
+      Combined caps fit the shared filesystem.
+  when: splunk_docker_volumes_share_fs | bool
