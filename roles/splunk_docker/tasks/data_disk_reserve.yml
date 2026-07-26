@@ -1,0 +1,105 @@
+---
+# Tune the filesystem reserved-block percentage on the Splunk index volume.
+#
+# WHY: ext4 reserves 5% of a filesystem for the superuser by default. That
+# default targets a ROOT filesystem, where the reserve keeps root able to log in
+# and limits fragmentation. On a dedicated index volume it only hides capacity:
+# splunkd runs as an unprivileged uid (41812), so it can only ever use the
+# 'available' figure, not 'free'.
+#
+# On the 200 GB volume this reserved ~10 GB, which is what pushed Splunk below
+# its own 5000 MB minimum free-space guard and made it refuse every search while
+# `df` still showed ~16 GB free. The guard reads 'available'; operators read
+# 'free'; the two disagreed by exactly the reservation.
+#
+# Splunk enforces retention itself (volume caps + frozenTimePeriodInSecs), so
+# the reserve buys no protection here that Splunk is not already providing.
+
+# The index volume is not necessarily mounted exactly at splunk_docker_var_dir
+# (it is mounted a level up, at splunk_docker_data_dir, on the current VM), so
+# match the deepest mount that CONTAINS the var directory rather than requiring
+# an exact match. Sorting mount paths lexicographically puts a directory after
+# every one of its prefixes, so the last match is the deepest one. Worst case
+# this resolves to '/', which is still the filesystem actually holding the data.
+- name: Resolve the device backing the Splunk var directory
+  ansible.builtin.set_fact:
+    splunk_docker_var_mount: >-
+      {{
+        ansible_facts.mounts
+        | selectattr('mount', 'in', splunk_docker_var_dir ~ '/')
+        | sort(attribute='mount')
+        | list | last | default({})
+      }}
+
+# Only ext2/3/4 expose reserved blocks via tune2fs. Anything else (xfs, zfs)
+# has no equivalent knob and must be skipped rather than guessed at.
+- name: Determine whether the reserve is tunable on this filesystem
+  ansible.builtin.set_fact:
+    splunk_docker_reserve_tunable: >-
+      {{
+        splunk_docker_var_mount.device is defined
+        and splunk_docker_var_mount.fstype | default('') in ['ext2', 'ext3', 'ext4']
+      }}
+
+- name: Warn when the index volume is not a separate tunable filesystem
+  ansible.builtin.debug:
+    msg: >-
+      Skipping reserved-block tuning: {{ splunk_docker_var_dir }} is
+      {{ 'not a separate mount' if splunk_docker_var_mount.device is not defined
+         else 'fstype ' ~ splunk_docker_var_mount.fstype ~ ', which has no reserved-block setting' }}.
+  when: not (splunk_docker_reserve_tunable | bool)
+
+- name: Read the current reserved block count
+  ansible.builtin.command:
+    cmd: "tune2fs -l {{ splunk_docker_var_mount.device }}"
+  register: splunk_docker_tune2fs_state
+  changed_when: false
+  # Read-only probe: must run under --check too, or the tasks below have no
+  # output to parse and the dry run fails instead of reporting the real plan.
+  check_mode: false
+  when: splunk_docker_reserve_tunable | bool
+
+- name: Compute current and target reserved block counts
+  ansible.builtin.set_fact:
+    splunk_docker_reserved_now: >-
+      {{
+        splunk_docker_tune2fs_state.stdout
+        | regex_search('Reserved block count:\s+(\d+)', '\1')
+        | first | int
+      }}
+    splunk_docker_blocks_total: >-
+      {{
+        splunk_docker_tune2fs_state.stdout
+        | regex_search('Block count:\s+(\d+)', '\1')
+        | first | int
+      }}
+  when: splunk_docker_reserve_tunable | bool
+
+# tune2fs -m takes a percentage but stores a block count, so compare block
+# counts rather than percentages: that is what actually changed on disk, and it
+# keeps the task honest about idempotency instead of always reporting changed.
+- name: Set the reserved-block percentage on the Splunk index volume
+  ansible.builtin.command:
+    cmd: >-
+      tune2fs -m {{ splunk_docker_data_disk_reserved_percent }}
+      {{ splunk_docker_var_mount.device }}
+  register: splunk_docker_tune2fs_apply
+  changed_when: true
+  when:
+    - splunk_docker_reserve_tunable | bool
+    - (splunk_docker_reserved_now | int)
+      != ((splunk_docker_blocks_total | int)
+          * (splunk_docker_data_disk_reserved_percent | int) / 100) | round | int
+
+- name: Report reclaimed capacity
+  ansible.builtin.debug:
+    msg: >-
+      Reserved blocks on {{ splunk_docker_var_mount.device }}:
+      {{ splunk_docker_reserved_now }} ->
+      ~{{ ((splunk_docker_blocks_total | int)
+           * (splunk_docker_data_disk_reserved_percent | int) / 100) | round | int }}
+      ({{ splunk_docker_data_disk_reserved_percent }}% of
+      {{ splunk_docker_blocks_total }} blocks).
+  when:
+    - splunk_docker_reserve_tunable | bool
+    - splunk_docker_tune2fs_apply is changed

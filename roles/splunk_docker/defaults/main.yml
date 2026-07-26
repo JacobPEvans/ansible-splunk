@@ -144,6 +144,15 @@ splunk_docker_etc_dir: "{{ splunk_docker_data_dir }}/etc"
 # Splunk configuration directory (for compose and configs)
 splunk_docker_config_dir: /opt/splunk-config
 
+# Reserved-block percentage on the filesystem holding splunk_docker_var_dir.
+# The ext4 default of 5% reserves capacity for the superuser, but splunkd runs
+# unprivileged (uid 41812) and so can only use the 'available' figure. On the
+# index volume that reserve is pure loss, and large enough to trip Splunk's own
+# minimum free-space guard while `df` still reports plenty free. Splunk enforces
+# retention itself, so the reserve protects nothing here. Set to 0 to disable
+# entirely; the tuning step is skipped on filesystems without the setting.
+splunk_docker_data_disk_reserved_percent: 1
+
 # Index retention defaults
 # 100 GiB in MiB: 100 * 1024 = 102400 MiB (approx. "100GB" index size)
 # 365 days in seconds: 365 * 24 * 60 * 60 = 31536000 seconds
