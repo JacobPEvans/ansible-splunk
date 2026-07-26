@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.3](https://github.com/dryvist/ansible-splunk/compare/v0.49.2...v0.49.3) (2026-07-26)
+
+
+### Bug Fixes
+
+* **splunk_docker:** cut unifi retention to 90d to reclaim disk ([#399](https://github.com/dryvist/ansible-splunk/issues/399)) ([72a97e2](https://github.com/dryvist/ansible-splunk/commit/72a97e2be311d1ab56880e3523fa2fbc65e99e26))
+
 ## [0.49.2](https://github.com/dryvist/ansible-splunk/compare/v0.49.1...v0.49.2) (2026-07-26)
 
 
