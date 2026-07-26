@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.47.1](https://github.com/dryvist/ansible-splunk/compare/v0.47.0...v0.47.1) (2026-07-26)
+
+
+### Bug Fixes
+
+* **splunk_docker:** make volume caps opt-in so the guard cannot block itself ([#388](https://github.com/dryvist/ansible-splunk/issues/388)) ([f2c068d](https://github.com/dryvist/ansible-splunk/commit/f2c068d75f9cad6b60eec267b0e5c2caa0c0bed5))
+
 ## [0.47.0](https://github.com/dryvist/ansible-splunk/compare/v0.46.0...v0.47.0) (2026-07-26)
 
 
