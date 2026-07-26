@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.5](https://github.com/dryvist/ansible-splunk/compare/v0.49.4...v0.49.5) (2026-07-26)
+
+
+### Bug Fixes
+
+* **splunk_docker:** fall back to a config file for frozen-archive creds ([#403](https://github.com/dryvist/ansible-splunk/issues/403)) ([75950fa](https://github.com/dryvist/ansible-splunk/commit/75950faf492d314129b9afe2a3408bfa535ecc04))
+
 ## [0.49.4](https://github.com/dryvist/ansible-splunk/compare/v0.49.3...v0.49.4) (2026-07-26)
 
 
