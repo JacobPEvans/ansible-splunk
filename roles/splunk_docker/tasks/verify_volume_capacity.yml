@@ -38,13 +38,35 @@
   loop_control:
     label: "{{ item.key }} -> {{ item.value }}"
 
-- name: Determine whether both volumes share one filesystem
+# A path that resolves to no mount at all is UNKNOWN capacity, not zero. Any
+# environment without real mount facts (a test container, a host where the
+# volume is not yet attached) must skip the capacity assertions rather than
+# fail them — treating "cannot determine" as "0 MB available" turns a guard
+# into a false alarm, which is the same defect class the guard exists to catch.
+- name: Determine whether volume capacity is verifiable
   ansible.builtin.set_fact:
+    splunk_docker_volume_caps_verifiable: >-
+      {{
+        (splunk_docker_volume_mounts.hot_warm.size_available is defined)
+        and (splunk_docker_volume_mounts.cold.size_available is defined)
+      }}
     splunk_docker_volumes_share_fs: >-
       {{
-        splunk_docker_volume_mounts.hot_warm.device | default('a')
-        == splunk_docker_volume_mounts.cold.device | default('b')
+        (splunk_docker_volume_mounts.hot_warm.device is defined)
+        and (splunk_docker_volume_mounts.cold.device is defined)
+        and (splunk_docker_volume_mounts.hot_warm.device
+             == splunk_docker_volume_mounts.cold.device)
       }}
+
+- name: Report when volume capacity cannot be verified
+  ansible.builtin.debug:
+    msg: >-
+      Skipping volume capacity checks: could not resolve a filesystem for
+      {{ splunk_docker_var_dir }} and/or {{ splunk_docker_cold_dir }} from mount
+      facts. This is expected in a container without the real volumes attached.
+      The caps are NOT validated here - verify them on the real host before
+      relying on them.
+  when: not (splunk_docker_volume_caps_verifiable | bool)
 
 # Shared filesystem: the caps only mean anything when summed, and tiering is
 # not actually separating anything. Warn loudly rather than fail, because a
@@ -59,7 +81,9 @@
       ({{ splunk_docker_volume_hot_warm_max_mb }} + {{ splunk_docker_volume_cold_max_mb }}
       MB) apply to ONE filesystem. Point splunk_docker_cold_dir at a separate
       mount to get real tiering.
-  when: splunk_docker_volumes_share_fs | bool
+  when:
+    - splunk_docker_volume_caps_verifiable | bool
+    - splunk_docker_volumes_share_fs | bool
 
 - name: Assert each volume cap fits the filesystem holding it
   ansible.builtin.assert:
@@ -91,6 +115,7 @@
       mount: "{{ splunk_docker_volume_mounts.cold }}"
   loop_control:
     label: "{{ item.name }}"
+  when: splunk_docker_volume_caps_verifiable | bool
 
 - name: Assert the combined caps fit when both volumes share a filesystem
   ansible.builtin.assert:
@@ -111,4 +136,6 @@
       remove. Attach the cold-tier disk, or lower the caps to fit this filesystem.
     success_msg: >-
       Combined caps fit the shared filesystem.
-  when: splunk_docker_volumes_share_fs | bool
+  when:
+    - splunk_docker_volume_caps_verifiable | bool
+    - splunk_docker_volumes_share_fs | bool
