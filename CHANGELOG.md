@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.2](https://github.com/dryvist/ansible-splunk/compare/v0.49.1...v0.49.2) (2026-07-26)
+
+
+### Bug Fixes
+
+* **splunk_docker:** retry transport failures in the freeze upload ([#396](https://github.com/dryvist/ansible-splunk/issues/396)) ([fd061a6](https://github.com/dryvist/ansible-splunk/commit/fd061a6c913f5db6e723c486113aebd2c6434fa1))
+
 ## [0.49.1](https://github.com/dryvist/ansible-splunk/compare/v0.49.0...v0.49.1) (2026-07-26)
 
 
