@@ -346,6 +346,122 @@
       changed_when: false
       failed_when: false
 
+    # ---------------------------------------------------------------------
+    # Disk headroom.
+    #
+    # Splunk's minFreeSpace is a halt, not a warning — when free space crosses
+    # it, indexing and search stop and the first symptom is the outage. Printing
+    # `df` above told an operator nothing unless they happened to read it. These
+    # thresholds fail the validation while there is still room to act.
+    #
+    # size_available, not size_total - size_used: splunkd runs unprivileged
+    # (uid 41812) and can only use the available figure, so the reserved-block
+    # gap is real to Splunk even though `df` shows it as free.
+    # ---------------------------------------------------------------------
+    - name: Resolve the filesystem holding the Splunk index data
+      ansible.builtin.set_fact:
+        splunk_docker_data_mount: >-
+          {{
+            ansible_facts.mounts
+            | selectattr('mount', 'in', (splunk_docker_var_dir
+                | default(_splunk_docker_defaults.splunk_docker_var_dir)) ~ '/')
+            | sort(attribute='mount')
+            | list | last | default({})
+          }}
+
+    # A path that resolves to no mount is UNKNOWN capacity, not zero. Reporting
+    # "0 MB free" for a host whose volume is simply not attached would be a
+    # false alarm — the same defect class this check exists to catch.
+    - name: Record that disk headroom could not be measured
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'Index volume headroom (unmeasurable — no mount facts for '
+             + (splunk_docker_var_dir | default(_splunk_docker_defaults.splunk_docker_var_dir)) + ')',
+             'passed': true}] }}
+      when: splunk_docker_data_mount.size_available is not defined
+
+    - name: Record index volume headroom against the fail threshold
+      vars:
+        free_mb: "{{ (splunk_docker_data_mount.size_available | int) // 1048576 }}"
+        fail_mb: >-
+          {{ splunk_docker_disk_headroom_fail_mb
+             | default(_splunk_docker_defaults.splunk_docker_disk_headroom_fail_mb) }}
+        min_free_mb: >-
+          {{ splunk_docker_min_free_space_mb
+             | default(_splunk_docker_defaults.splunk_docker_min_free_space_mb) }}
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{
+               'check': 'Index volume headroom ' + free_mb | string + ' MB free on '
+                        + (splunk_docker_data_mount.device | default('the index volume'))
+                        + ' (fail below ' + fail_mb | string + ' MB; Splunk halts at '
+                        + min_free_mb | string + ' MB)',
+               'passed': (free_mb | int) >= (fail_mb | int)
+             }] }}
+      when: splunk_docker_data_mount.size_available is defined
+
+    - name: Warn when index volume headroom is shrinking toward the halt threshold
+      vars:
+        free_mb: "{{ (splunk_docker_data_mount.size_available | int) // 1048576 }}"
+        warn_mb: >-
+          {{ splunk_docker_disk_headroom_warn_mb
+             | default(_splunk_docker_defaults.splunk_docker_disk_headroom_warn_mb) }}
+        fail_mb: >-
+          {{ splunk_docker_disk_headroom_fail_mb
+             | default(_splunk_docker_defaults.splunk_docker_disk_headroom_fail_mb) }}
+      ansible.builtin.debug:
+        msg: >-
+          HEADROOM WARNING: {{ free_mb }} MB free on
+          {{ splunk_docker_data_mount.device | default('the index volume') }} is below the
+          {{ warn_mb }} MB warn threshold. This is still above the {{ fail_mb }} MB fail
+          threshold, so nothing is broken yet — act now rather than at the halt line.
+          Check the freeze path first: retention that cannot evict is the usual cause.
+      when:
+        - splunk_docker_data_mount.size_available is defined
+        - (free_mb | int) < (warn_mb | int)
+        - (free_mb | int) >= (fail_mb | int)
+
+    # ---------------------------------------------------------------------
+    # Freeze-path health.
+    #
+    # When coldToFrozenScript exits non-zero, Splunk KEEPS the bucket it just
+    # decided to evict. Retention stops enforcing silently: every quota still
+    # reads correct, the volume fills anyway, and the only evidence is in
+    # splunkd.log. There is no counter, health-report item, or REST endpoint
+    # that surfaces a failed freeze, which is why this greps a log.
+    # ---------------------------------------------------------------------
+    - name: Scan splunkd.log for freeze failures
+      community.docker.docker_container_exec:
+        container: splunk
+        user: root
+        command: >-
+          grep -cE
+          "{{ (splunk_docker_frozen_failure_patterns
+               | default(_splunk_docker_defaults.splunk_docker_frozen_failure_patterns))
+              | join('|') }}"
+          /opt/splunk/var/log/splunk/splunkd.log
+      register: splunk_docker_freeze_failures
+      changed_when: false
+      # grep exits 1 on no match, which is the healthy case here.
+      failed_when: false
+      when: >-
+        (splunk_docker_frozen_archive_enabled
+         | default(_splunk_docker_defaults.splunk_docker_frozen_archive_enabled)) | bool
+
+    - name: Record freeze-path health
+      vars:
+        failure_count: "{{ splunk_docker_freeze_failures.stdout | default('0') | trim | int }}"
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{
+               'check': 'Frozen archive succeeding (' + failure_count | string
+                        + ' freeze failures in the current splunkd.log)',
+               'passed': (failure_count | int) == 0
+             }] }}
+      when:
+        - splunk_docker_freeze_failures is defined
+        - splunk_docker_freeze_failures.skipped is not defined
+
     - name: Display validation summary
       ansible.builtin.debug:
         msg: |
