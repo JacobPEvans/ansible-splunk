@@ -198,6 +198,44 @@ splunk_docker_index_default_frozen_time_secs: 31536000
 splunk_docker_volume_hot_warm_max_mb: ""
 splunk_docker_volume_cold_max_mb: ""
 
+# Runtime headroom alarm on the filesystem holding splunk_docker_var_dir.
+#
+# WHY THIS IS SEPARATE FROM verify_volume_capacity.yml: that check is a
+# PREFLIGHT. It refuses to deploy a cap that could never bind. It says nothing
+# about what the disk is doing days later, and the caps above are unset by
+# default anyway — so on a real host today, nothing at all watches free space.
+#
+# Splunk's own guard is minFreeSpace, and it is a HALT, not a warning: when
+# free space crosses it, indexing and search stop. The first signal an operator
+# gets is the outage. These thresholds exist to fire well above that line,
+# while there is still time to archive, resize, or retune.
+#
+# Literal MB, not expressions over splunk_docker_min_free_space_mb. validate.yml
+# loads these defaults into a NAMESPACE (_splunk_docker_defaults) to survive the
+# vars_files precedence trap, and a Jinja default that referenced a sibling
+# default would resolve against the play scope, where that sibling does not
+# exist. Keep the arithmetic in the comment, the value on the key.
+#   warn = 6x minFreeSpace, fail = 3x minFreeSpace
+splunk_docker_min_free_space_mb: 5000
+splunk_docker_disk_headroom_warn_mb: 30000
+splunk_docker_disk_headroom_fail_mb: 15000
+
+# Freeze-path health check.
+#
+# A coldToFrozenScript that exits non-zero makes Splunk KEEP the bucket it just
+# decided to evict. Retention silently stops enforcing, the volume fills, and
+# nothing reports it — the failures land in splunkd.log and nowhere else. That
+# is the exact sequence that filled the index volume: the archive upload failed
+# for days while every quota looked correctly configured.
+#
+# Scanning splunkd.log is deliberate. The condition is only ever visible there;
+# there is no counter, no health-report item, and no REST endpoint that exposes
+# a failed freeze.
+splunk_docker_frozen_failure_patterns:
+  - "coldToFrozenScript.*exited with non-zero"
+  - "refusing to freeze"
+  - "bucket left on disk for retry"
+
 # Frozen-bucket archive.
 #
 # Splunk DELETES a bucket when it ages out unless told otherwise. That default
