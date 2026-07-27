@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.7](https://github.com/dryvist/ansible-splunk/compare/v0.49.6...v0.49.7) (2026-07-27)
+
+
+### Bug Fixes
+
+* **splunk_docker:** shorten cold_to_frozen upload timeout to 60s ([#407](https://github.com/dryvist/ansible-splunk/issues/407)) ([bc0d5b3](https://github.com/dryvist/ansible-splunk/commit/bc0d5b3f13b56b547e70ac584feb54c5b75608dd))
+
 ## [0.49.6](https://github.com/dryvist/ansible-splunk/compare/v0.49.5...v0.49.6) (2026-07-26)
 
 
