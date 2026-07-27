@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.8](https://github.com/dryvist/ansible-splunk/compare/v0.49.7...v0.49.8) (2026-07-27)
+
+
+### Bug Fixes
+
+* **splunk_docker:** alarm on index-volume headroom and freeze failures ([#412](https://github.com/dryvist/ansible-splunk/issues/412)) ([e594f78](https://github.com/dryvist/ansible-splunk/commit/e594f78f287b749c97d93590bf197edf4020ce29))
+
 ## [0.49.7](https://github.com/dryvist/ansible-splunk/compare/v0.49.6...v0.49.7) (2026-07-27)
 
 
