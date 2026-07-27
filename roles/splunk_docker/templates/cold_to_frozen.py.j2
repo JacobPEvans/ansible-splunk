@@ -42,6 +42,12 @@ import urllib.request
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 MAX_ATTEMPTS = 5
 
+# Each uploaded file is small, so a single request that has not completed in
+# this many seconds is stalled, not merely slow. Freezing buckets happens
+# sequentially, so one stalled request blocks every later bucket behind it -
+# keep this short so a stall costs one bounded retry cycle, not a long hang.
+REQUEST_TIMEOUT_SECONDS = 60
+
 # splunkd invokes coldToFrozenScript with a restricted environment - the
 # compose-injected SPLUNK_FROZEN_S3_* vars a manual `docker exec` sees are not
 # present on the path that actually matters. CONFIG_PATH is the fallback:
@@ -185,7 +191,7 @@ def put_object(local_path, object_key):
     req.add_header("Content-Length", str(len(body)))
 
     try:
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
             if resp.status not in (200, 201):
                 return "unexpected status %s for %s" % (resp.status, object_key)
     except urllib.error.HTTPError as exc:

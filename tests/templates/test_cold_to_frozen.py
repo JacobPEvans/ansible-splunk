@@ -78,11 +78,13 @@ mod = load_module(env_vars=CONFIG)
 
 errors = []
 calls = []
+timeouts = []
 
 
 def fake_urlopen(raise_with):
-    def _open(req, **_kwargs):
+    def _open(req, **kwargs):
         calls.append(req.full_url)
+        timeouts.append(kwargs.get("timeout"))
         raise raise_with
 
     return _open
@@ -96,6 +98,7 @@ with tempfile.NamedTemporaryFile(suffix=".tsidx", delete=False) as handle:
 def run(raise_with, retry=False):
     """Call put_object (or put_object_with_retry) with urlopen stubbed out."""
     del calls[:]
+    del timeouts[:]
     original = mod.urllib.request.urlopen
     mod.urllib.request.urlopen = fake_urlopen(raise_with)
     try:
@@ -117,6 +120,18 @@ URL_ERROR = urllib.error.URLError("connection refused")
 result = run(URL_ERROR)
 if not (result or "").startswith("retryable"):
     errors.append("URLError must be retryable, got: %r" % result)
+
+# 1b. The per-request timeout must be short (a stalled upload should not hang
+#     for the old 300s), and the value actually reaching urlopen() must be the
+#     module constant - not just a constant that exists unused.
+if not (0 < mod.REQUEST_TIMEOUT_SECONDS <= 60):
+    errors.append(
+        "REQUEST_TIMEOUT_SECONDS must be <= 60, got: %r" % mod.REQUEST_TIMEOUT_SECONDS
+    )
+if timeouts != [mod.REQUEST_TIMEOUT_SECONDS]:
+    errors.append(
+        "urlopen must be called with timeout=REQUEST_TIMEOUT_SECONDS, got: %r" % timeouts
+    )
 
 # 2. HTTPError subclasses URLError. If the handlers are ordered wrongly the
 #    URLError branch swallows every HTTP status and 403 becomes retryable.
