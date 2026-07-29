@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.9](https://github.com/dryvist/ansible-splunk/compare/v0.49.8...v0.49.9) (2026-07-29)
+
+
+### Bug Fixes
+
+* **splunk_docker:** assert the MCP 202 patch actually landed ([#414](https://github.com/dryvist/ansible-splunk/issues/414)) ([0821479](https://github.com/dryvist/ansible-splunk/commit/0821479be0abbf23ddbb87b2929122fd6d0b1a20))
+
 ## [0.49.8](https://github.com/dryvist/ansible-splunk/compare/v0.49.7...v0.49.8) (2026-07-27)
 
 
