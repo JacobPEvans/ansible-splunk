@@ -35,6 +35,14 @@
       when:
         - splunk_docker_mcp_app_entry is not none
         - splunk_docker_mcp_app_dir.stat.exists | default(false)
+      vars:
+        # Defined once and shared by the patch and its post-state assert, so the
+        # check can never drift from the pattern actually applied.
+        splunk_docker_mcp_message_py: >-
+          {{ splunk_docker_etc_dir }}/apps/{{
+          splunk_docker_mcp_app_entry.app_dir }}/bin/mcp_message.py
+        splunk_docker_mcp_202_anchor: >-
+          Processing notifications/initialized request.\)\s*\n\s*status_code =
       block:
         - name: Ensure MCP Server local directory exists
           ansible.builtin.file:
@@ -64,10 +72,40 @@
         # (the pattern's trailing 200 no longer matches once flipped to 202).
         - name: Patch MCP Server notifications/initialized to return 202 (proxy compat)
           ansible.builtin.replace:
-            path: "{{ splunk_docker_etc_dir }}/apps/{{ splunk_docker_mcp_app_entry.app_dir }}/bin/mcp_message.py"
-            regexp: '(Processing notifications/initialized request.\)\s*\n\s*status_code = )200'
+            path: "{{ splunk_docker_mcp_message_py }}"
+            regexp: "({{ splunk_docker_mcp_202_anchor }} )200"
             replace: '\g<1>202'
           notify: Restart Splunk container
+
+        # `replace` reports changed=false when its regexp matches NOTHING, which
+        # is also the steady state once patched — the two are indistinguishable
+        # from converge output. So an upstream refactor of this handler silently
+        # drops the patch, MCP goes back to 200 + empty body, and the proxy 500s
+        # every session with nothing anywhere saying why.
+        #
+        # Assert the POST state, not the absence of the pre state: absence is
+        # equally true when the shape changed and nothing was patched.
+        #
+        # Reuses the same anchor as the patch above rather than restating it, so
+        # the check cannot drift from what is actually applied.
+        - name: Read the patched MCP Server message handler
+          ansible.builtin.slurp:
+            src: "{{ splunk_docker_mcp_message_py }}"
+          register: splunk_docker_mcp_message_source
+          changed_when: false
+
+        - name: Assert the MCP Server 202 patch is installed
+          ansible.builtin.assert:
+            quiet: true
+            that:
+              - >-
+                (splunk_docker_mcp_message_source.content | b64decode)
+                is search(splunk_docker_mcp_202_anchor ~ ' 202')
+            fail_msg: >-
+              The MCP Server app's notifications/initialized handler no longer
+              matches the pinned patch anchor, so the 202 patch was not applied.
+              A strict MCP proxy will 500 on every session until the anchor is
+              updated to the app's current source.
 
     - name: Skip MCP configuration (app not installed)
       ansible.builtin.debug:
