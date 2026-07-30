@@ -79,12 +79,16 @@ mod = load_module(env_vars=CONFIG)
 errors = []
 calls = []
 timeouts = []
+bodies = []
+headers = []
 
 
 def fake_urlopen(raise_with):
     def _open(req, **kwargs):
         calls.append(req.full_url)
         timeouts.append(kwargs.get("timeout"))
+        bodies.append(req.data)
+        headers.append({k.lower(): v for k, v in req.headers.items()})
         raise raise_with
 
     return _open
@@ -99,6 +103,8 @@ def run(raise_with, retry=False):
     """Call put_object (or put_object_with_retry) with urlopen stubbed out."""
     del calls[:]
     del timeouts[:]
+    del bodies[:]
+    del headers[:]
     original = mod.urllib.request.urlopen
     mod.urllib.request.urlopen = fake_urlopen(raise_with)
     try:
@@ -132,6 +138,41 @@ if timeouts != [mod.REQUEST_TIMEOUT_SECONDS]:
     errors.append(
         "urlopen must be called with timeout=REQUEST_TIMEOUT_SECONDS, got: %r" % timeouts
     )
+
+# 1c. THE REGRESSION GUARD. The body must be streamed from a file object, never
+#     handed over as bytes.
+#
+#     A bytes body makes http.client issue one sendall() for the whole object,
+#     and CPython applies the socket timeout to that entire sendall. Bucket
+#     files reach hundreds of MB, so on a link slow enough that one file
+#     exceeds the budget, every large bucket fails, stays on disk, size caps
+#     stop binding, and the index volume fills until splunkd pauses indexing
+#     and refuses searches. Sending from a file handle bounds the timeout to
+#     one chunk instead, so slow-but-progressing uploads complete at any size.
+#
+#     This also keeps peak memory at one block rather than the whole file.
+if len(bodies) != 1:
+    errors.append("expected exactly one request body, got %d" % len(bodies))
+else:
+    body = bodies[0]
+    if isinstance(body, (bytes, bytearray)):
+        errors.append(
+            "request body must be a file object, not bytes - a bytes body "
+            "restores the single-sendall timeout bug that took Splunk down"
+        )
+    elif not hasattr(body, "read"):
+        errors.append("request body must be a readable file object, got: %r" % type(body))
+
+# 1d. Streaming requires an explicit Content-Length: urllib cannot infer one
+#     from a file object, and without it http.client switches to chunked
+#     transfer-encoding, which this SigV4 signature form does not cover.
+if headers:
+    sent_length = headers[0].get("Content-length".lower())
+    expected = str(os.path.getsize(PAYLOAD))
+    if sent_length != expected:
+        errors.append(
+            "Content-Length must be the file size (%s), got: %r" % (expected, sent_length)
+        )
 
 # 2. HTTPError subclasses URLError. If the handlers are ordered wrongly the
 #    URLError branch swallows every HTTP status and 403 becomes retryable.
@@ -212,7 +253,7 @@ if both_mod.BUCKET != CONFIG["SPLUNK_FROZEN_S3_BUCKET"]:
 #    that runs when neither source is populated).
 missing_mod = load_module(env_vars={}, config_path="/nonexistent/cold_to_frozen_creds.conf")
 log_lines = []
-missing_mod.log = lambda msg: log_lines.append(msg)
+setattr(missing_mod, "log", log_lines.append)
 with tempfile.TemporaryDirectory() as bucket_dir:
     Path(bucket_dir, "file.tsidx").write_bytes(b"x")
     original_argv = sys.argv[:]
@@ -245,7 +286,7 @@ def fake_put_object_with_retry(_local_path, object_key):
     return None
 
 
-key_mod.put_object_with_retry = fake_put_object_with_retry
+setattr(key_mod, "put_object_with_retry", fake_put_object_with_retry)
 
 with tempfile.TemporaryDirectory() as splunk_db:
     bucket_dir = os.path.join(splunk_db, "main", "db", "db_1_1_0")
@@ -260,10 +301,54 @@ with tempfile.TemporaryDirectory() as splunk_db:
 
 if rc != 0:
     errors.append("main() with a stubbed uploader should succeed, got rc=%r" % rc)
-if captured_keys != ["main/db_1_1_0/Hosts.data"]:
+if captured_keys[:1] != ["main/db_1_1_0/Hosts.data"]:
     errors.append(
         "object key should be exactly '<index>/<bucket>/<relpath>' with no "
         "prefix, got: %r" % captured_keys
+    )
+
+# --- Completion marker: written last, and only when everything succeeded ----
+#
+# Files upload one at a time, so an interrupted freeze leaves a partial prefix
+# that a LIST cannot distinguish from a complete bucket - the live store
+# already holds one such half-uploaded bucket. Restore keys off this marker,
+# so it must be the LAST object written and must never appear for a bucket
+# whose files did not all land.
+
+if captured_keys[-1:] != ["main/db_1_1_0/%s" % key_mod.ARCHIVE_MARKER_NAME]:
+    errors.append(
+        "the completion marker must be the last object written, got: %r" % captured_keys
+    )
+
+# A failed file upload must abort before any marker is written.
+fail_mod = load_module(env_vars=CONFIG)
+fail_keys = []
+
+
+def failing_put_object_with_retry(_local_path, object_key):
+    fail_keys.append(object_key)
+    return "retryable URLError (timed out) uploading %s" % object_key
+
+
+setattr(fail_mod, "put_object_with_retry", failing_put_object_with_retry)
+setattr(fail_mod, "log", lambda _msg: None)
+
+with tempfile.TemporaryDirectory() as splunk_db:
+    bucket_dir = os.path.join(splunk_db, "main", "db", "db_2_2_0")
+    os.makedirs(bucket_dir)
+    Path(bucket_dir, "Hosts.data").write_bytes(b"x")
+    original_argv = sys.argv[:]
+    sys.argv[1:] = [bucket_dir]
+    try:
+        fail_rc = fail_mod.main()
+    finally:
+        sys.argv[:] = original_argv
+
+if fail_rc != 1:
+    errors.append("a failed upload must exit non-zero so Splunk keeps the bucket, got %r" % fail_rc)
+if any(key.endswith(fail_mod.ARCHIVE_MARKER_NAME) for key in fail_keys):
+    errors.append(
+        "no completion marker may be written when a file failed, got: %r" % fail_keys
     )
 
 if errors:

@@ -29,6 +29,7 @@ import hashlib
 import hmac
 import os
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -42,11 +43,28 @@ import urllib.request
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 MAX_ATTEMPTS = 5
 
-# Each uploaded file is small, so a single request that has not completed in
-# this many seconds is stalled, not merely slow. Freezing buckets happens
-# sequentially, so one stalled request blocks every later bucket behind it -
-# keep this short so a stall costs one bounded retry cycle, not a long hang.
+# Socket timeout, applied PER SOCKET OPERATION - not to the whole transfer.
+#
+# That distinction is load-bearing. A bytes body makes http.client issue one
+# sendall() for the entire object, and CPython enforces the socket timeout
+# across a whole sendall(). Bucket files reach hundreds of MB, so on any link
+# slow enough that one file takes longer than this budget, EVERY large bucket
+# fails, exits non-zero, and is left on disk for retry forever - retention
+# stops reclaiming, size caps stop binding, and the index volume fills until
+# splunkd pauses indexing and refuses searches. That is not hypothetical; it is
+# what this constant previously caused.
+#
+# Sending from a file object makes http.client transmit in blocksize chunks, so
+# the budget applies to a single chunk. A chunk that cannot move within it is a
+# genuinely stalled connection, which is the condition worth aborting on.
+# Slow-but-progressing uploads now succeed at any file size, so this value does
+# not need to scale with bucket size or link speed.
 REQUEST_TIMEOUT_SECONDS = 60
+
+# Read size for the payload hash pass. The send granularity is separate and is
+# http.client's own blocksize; it is left at the default deliberately, since
+# overriding it means subclassing the connection class for no measurable gain.
+HASH_BLOCK_SIZE = 1024 * 1024
 
 # splunkd invokes coldToFrozenScript with a restricted environment - the
 # compose-injected SPLUNK_FROZEN_S3_* vars a manual `docker exec` sees are not
@@ -137,15 +155,32 @@ def _signing_key(secret, datestamp, region, service):
     return _sign(k, "aws4_request")
 
 
+def _file_sha256(path):
+    """Hash a file without holding it in memory.
+
+    A bucket .tsidx can be hundreds of MB and this runs inside the Splunk
+    container on a box that is, by definition, already under pressure when a
+    freeze fires. Reading the whole file to hash it spikes RSS by the file size
+    for no reason - the hash only needs a rolling read.
+    """
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(HASH_BLOCK_SIZE), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def put_object(local_path, object_key):
     """Upload one file. Returns None on success, or an error string."""
     size = os.path.getsize(local_path)
     if size > MAX_SINGLE_PUT_BYTES:
         return "%s is %d bytes, above the single-request limit" % (local_path, size)
 
-    with open(local_path, "rb") as fh:
-        body = fh.read()
-    payload_hash = hashlib.sha256(body).hexdigest()
+    # Two passes over the file: hash, then send. Both stream, so peak memory is
+    # one block regardless of bucket size. SigV4 needs the payload hash up
+    # front, and UNSIGNED-PAYLOAD is deliberately not used - the hash is the
+    # only end-to-end integrity check this path has.
+    payload_hash = _file_sha256(local_path)
 
     host = ENDPOINT.split("://", 1)[-1].rstrip("/")
     url = "%s/%s/%s" % (ENDPOINT.rstrip("/"), BUCKET, object_key)
@@ -183,17 +218,25 @@ def put_object(local_path, object_key):
         % (KEY_ID, scope, signed_headers, signature)
     )
 
-    req = urllib.request.Request(url, data=body, method="PUT")
-    req.add_header("Host", host)
-    req.add_header("x-amz-date", amzdate)
-    req.add_header("x-amz-content-sha256", payload_hash)
-    req.add_header("Authorization", authorization)
-    req.add_header("Content-Length", str(len(body)))
-
     try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
-            if resp.status not in (200, 201):
-                return "unexpected status %s for %s" % (resp.status, object_key)
+        # Send straight from the file handle. http.client then transmits in its
+        # own blocksize chunks, so the socket timeout bounds ONE chunk instead
+        # of the whole object - see REQUEST_TIMEOUT_SECONDS. Passing bytes here
+        # instead is what made every large bucket unfreezable.
+        with open(local_path, "rb") as fh:
+            req = urllib.request.Request(url, data=fh, method="PUT")
+            req.add_header("Host", host)
+            req.add_header("x-amz-date", amzdate)
+            req.add_header("x-amz-content-sha256", payload_hash)
+            req.add_header("Authorization", authorization)
+            # Required explicitly: urllib cannot infer a length from a file
+            # object, and without it http.client falls back to chunked
+            # transfer-encoding, which this SigV4 signature form does not cover.
+            req.add_header("Content-Length", str(size))
+
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
+                if resp.status not in (200, 201):
+                    return "unexpected status %s for %s" % (resp.status, object_key)
     except urllib.error.HTTPError as exc:
         # Deliberately does not include the response body verbatim; it can echo
         # request metadata. The status and key are enough to diagnose.
@@ -225,6 +268,44 @@ def put_object_with_retry(local_path, object_key):
         # cannot simply be replayed.
         time.sleep(2 ** attempt)
     return err
+
+
+ARCHIVE_MARKER_NAME = "_ARCHIVE_COMPLETE"
+
+
+def put_completion_marker(index_name, bucket_name, bucket_dir, files):
+    """Publish the marker that makes a bucket's archive complete.
+
+    Files are uploaded one at a time, so an interrupted freeze leaves a partial
+    prefix in the store that looks exactly like an archived bucket from a LIST -
+    the store already holds one such half-uploaded bucket from before this path
+    worked. Restore must treat any bucket without this marker as incomplete
+    rather than trusting object presence.
+
+    Written last, on purpose: it is only true once every file above succeeded.
+    """
+    manifest = "".join(
+        "%s %d\n" % (os.path.relpath(path, bucket_dir), os.path.getsize(path))
+        for path in sorted(files)
+    )
+    body = "files=%d\n%s" % (len(files), manifest)
+
+    # The marker is a few hundred bytes, so a temp file costs nothing - unlike
+    # the bucket payload itself, which is streamed precisely to avoid needing
+    # scratch space on a volume that is under pressure whenever a freeze runs.
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".manifest", delete=False
+        ) as tmp:
+            tmp.write(body)
+            tmp_path = tmp.name
+        return put_object_with_retry(
+            tmp_path, "%s/%s/%s" % (index_name, bucket_name, ARCHIVE_MARKER_NAME)
+        )
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def main():
@@ -277,6 +358,15 @@ def main():
         if err:
             log("FAILED: %s - bucket left on disk for retry" % err)
             return 1
+
+    err = put_completion_marker(index_name, bucket_name, bucket_dir, files)
+    if err:
+        # Every file is stored but the bucket is not yet provably complete.
+        # Exiting non-zero keeps it on disk, which costs space and re-uploads
+        # next pass - the cheap direction. Reporting success here would leave a
+        # bucket that restore cannot verify.
+        log("FAILED: %s - marker not written, bucket left on disk" % err)
+        return 1
 
     log("archived %s (%d files)" % (bucket_name, len(files)))
     return 0
