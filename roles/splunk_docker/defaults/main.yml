@@ -310,26 +310,22 @@ splunk_docker_indexes:
   - name: firewall
     tier: large
     home_max_size_mb: 20480
-    # SIZE is the control here, not time. Measured 2026-07-26: this index held
-    # 82,489 MB spanning only 44 days, so no realistic frozenTimePeriodInSecs
-    # evicts any of it — there is no old data, the volume is simply larger than
-    # the disk. Capping is what bounds it.
+    # SIZE is the control here, not time. This index holds no old data — the
+    # volume is simply large — so no realistic frozenTimePeriodInSecs evicts any
+    # of it. Capping is what bounds it. An index sitting AT its cap stops
+    # consuming new disk: it rolls the oldest bucket to frozen as new data
+    # arrives, holding the index flat.
     #
-    # An index sitting AT its cap stops consuming new disk: it rolls the oldest
-    # bucket to frozen as new data arrives. So this both reclaims ~12 GB now and
-    # holds the index flat afterwards.
-    #
-    # Sizing (disk 200,704 MB total, 11,264 MB free, ~4,198 MB/day ingest,
-    # 5,000 MB reserved for Splunk's own minFreeSpace guard):
-    #   need 7 days => (7 * 4198) + 5000 ~= 34,400 MB free
-    #   firewall 82,489 -> 70,000 frees 12,489 MB
-    #   unifi    51,072 -> 35,000 frees 16,072 MB   (see the unifi entry)
-    #   => ~39,800 MB free, ~34,800 above the guard = 8.3 days even if growth
-    #      stays at the full 4,198 MB/day, and far longer once both caps bind.
+    # 70,000 was an emergency value chosen when hot/warm and cold shared one
+    # 200 GB filesystem that had reached 97% full. That constraint is gone: the
+    # two tiers now sit on separate dedicated 450 GB volumes, so the cap no
+    # longer has to be whatever the filesystem could survive. 102,400 MB
+    # (100 GB) leaves real headroom over the ~88 GB currently held, and at the
+    # measured ~1.4 GB/day for this index is roughly 72 days of retention.
     #
     # Eviction is archival, not deletion: coldToFrozenScript uploads each bucket
-    # to B2 first, verified end-to-end against a real cold bucket the same day.
-    max_size_mb: 70000
+    # before it is removed.
+    max_size_mb: 102400
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: gemini
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
@@ -472,16 +468,18 @@ splunk_docker_indexes:
   - name: unifi
     tier: large
     home_max_size_mb: 15360
-    # Size, not time — see the sizing math on the firewall entry above.
-    # 51,072 -> 35,000 frees 16,072 MB. home_max_size_mb (15,360) is the
-    # hot/warm floor, so the cold tier settles around 19,600 MB.
+    # Size, not time — see the sizing note on the firewall entry above.
+    # 35,000 was the matching emergency value from the same 200 GB squeeze and
+    # is likewise no longer necessary: 51,200 MB (50 GB) clears the ~49 GB
+    # currently held. home_max_size_mb (15,360) is the hot/warm floor, so the
+    # cold tier takes the remainder.
     #
-    # A time threshold was tried here first and measured useless: the 35,777 MB
-    # of cold data sits in 42 buckets that are almost all ~40 days old (one
-    # 1 MB bucket is 181 days). Every threshold from 45d to 120d evicts the
-    # same 1 MB, because a bucket's age is its NEWEST event and buckets span
-    # wide time ranges. The 180-day "span" was misleading.
-    max_size_mb: 35000
+    # A time threshold was tried here first and measured useless: the cold data
+    # sits in buckets that are almost all the same age, so every threshold from
+    # 45d to 120d evicts the same single 1 MB bucket. A bucket's age is its
+    # NEWEST event and buckets span wide time ranges, which made the apparent
+    # 180-day "span" misleading.
+    max_size_mb: 51200
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
     # The Cribl Edge unifi_fw pipeline splits FW/IPS events out of the UniFi
     # syslog stream and stamps index=firewall on them, but they still arrive
