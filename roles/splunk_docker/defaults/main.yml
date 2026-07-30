@@ -249,6 +249,11 @@ splunk_docker_frozen_failure_patterns:
 # the template test asserts that.
 splunk_docker_frozen_archive_enabled: false
 splunk_docker_frozen_script_path: "{{ splunk_docker_etc_dir }}/system/local/cold_to_frozen.py"
+# The restore half of the archive. Deployed beside the freeze script so it sees
+# the same credential file; splunkd never calls it, it is run by an operator.
+# Its own default for that file matches splunk_docker_frozen_config_path below,
+# and SPLUNK_FROZEN_CONFIG_PATH overrides it if the layout ever moves.
+splunk_docker_frozen_restore_script_path: "{{ splunk_docker_etc_dir }}/system/local/restore_from_frozen.py"
 # splunkd invokes coldToFrozenScript with a restricted environment, so the
 # compose-injected SPLUNK_FROZEN_S3_* vars it sees under `docker exec` are not
 # visible to the script when splunkd runs it. This file is the fallback the
