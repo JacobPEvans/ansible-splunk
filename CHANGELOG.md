@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.51.0](https://github.com/dryvist/ansible-splunk/compare/v0.50.0...v0.51.0) (2026-07-31)
+
+
+### Features
+
+* **splunk_docker:** raise firewall and unifi index caps to round values ([#417](https://github.com/dryvist/ansible-splunk/issues/417)) ([7cc2595](https://github.com/dryvist/ansible-splunk/commit/7cc2595cf8d4dd7741e188d26f11a3029bad4af5))
+
+
+### Bug Fixes
+
+* **splunk_docker:** stream frozen-bucket uploads and make restore usable ([#416](https://github.com/dryvist/ansible-splunk/issues/416)) ([e5c72cf](https://github.com/dryvist/ansible-splunk/commit/e5c72cf140e1bf230211a18dde982ccb0ddf9130))
+
 ## [0.50.0](https://github.com/dryvist/ansible-splunk/compare/v0.49.10...v0.50.0) (2026-07-31)
 
 
