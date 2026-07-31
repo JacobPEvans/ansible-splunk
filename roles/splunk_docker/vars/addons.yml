@@ -75,7 +75,7 @@ splunk_docker_addons:
 
   # --- object-storage, no Splunkbase match (manual upload; sync skips) ---
   # Hurricane Labs' Automox add-on was removed from Splunkbase. The archive is
-  # still served from object storage but must be re-uploaded manually with `mc cp` when
+  # still served from object storage but must be re-uploaded manually with `aws s3 cp` when
   # a new version is needed.
   - {filename: hurricane-labs-add-on-for-automox.tar, app_dir: TA-automox}
 
@@ -86,8 +86,9 @@ splunk_docker_addons:
   # directly via ansible.builtin.unarchive) and upload to object storage with the
   # version-free filename:
   #   tar -cf slack-add-on-for-splunk.tar -C ~/git/splunk TA-slack-add-on-for-splunk
-  #   mc cp slack-add-on-for-splunk.tar homelab/splunk-addons/slack-add-on-for-splunk.tar
-  #   mc tag set homelab/splunk-addons/slack-add-on-for-splunk.tar "version=3.0.0"
+  #   aws s3 cp slack-add-on-for-splunk.tar s3://splunk-addons/slack-add-on-for-splunk.tar
+  #   aws s3api put-object-tagging --bucket splunk-addons \
+  #     --key slack-add-on-for-splunk.tar --tagging 'TagSet=[{Key=version,Value=3.0.0}]'
   - {filename: slack-add-on-for-splunk.tar, app_dir: TA-slack-add-on-for-splunk}
 
   # --- GitHub Releases: JacobPEvans/<repo>/releases/latest ---

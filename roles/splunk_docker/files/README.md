@@ -31,12 +31,19 @@ Every installed add-on is listed in `../vars/addons.yml`. Each entry has:
 
 ### Adding / rotating an add-on
 
+Uploads use the AWS CLI against the object store. Export
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from
+`OBJECT_STORAGE_ROOT_USER` / `OBJECT_STORAGE_ROOT_PASSWORD`, plus
+`AWS_ENDPOINT_URL` pointing at the object-storage service and any
+`AWS_DEFAULT_REGION`.
+
 ```bash
 # Upload with a version-free filename
-mc cp ~/Downloads/splunk-db-connect_425.tar homelab/splunk-addons/splunk-db-connect.tar
+aws s3 cp ~/Downloads/splunk-db-connect_425.tar s3://splunk-addons/splunk-db-connect.tar
 
 # Tag with the version (and any other metadata you want searchable)
-mc tag set homelab/splunk-addons/splunk-db-connect.tar "version=4.2.5"
+aws s3api put-object-tagging --bucket splunk-addons --key splunk-db-connect.tar \
+  --tagging 'TagSet=[{Key=version,Value=4.2.5}]'
 
 # If this is a new add-on, also add an entry to vars/addons.yml.
 # Nothing else. The Splunk VM pulls from object storage on the next playbook run.
@@ -53,6 +60,6 @@ for f in ~/Downloads/*.tar; do
   base=$(basename "$f")
   # strip _NNN or -X.Y.Z version suffix before the extension
   stripped=$(echo "$base" | sed -E 's/([_-][0-9]+([.+][0-9a-z]+)*)(\.(tar|tgz|spl))$/\3/')
-  mc cp "$f" "homelab/splunk-addons/$stripped"
+  aws s3 cp "$f" "s3://splunk-addons/$stripped"
 done
 ```

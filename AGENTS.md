@@ -189,7 +189,7 @@ multiple endpoints, keep these speed options in mind:
 ### Adding custom add-ons
 
 1. Package the custom add-on as a version-free `.tar` archive.
-2. Upload the archive to object storage (e.g. using `mc cp`) and tag it with `version=X.Y.Z`.
+2. Upload the archive to object storage (e.g. using `aws s3 cp`) and tag it with `version=X.Y.Z`.
 3. Add the entry to `roles/splunk_docker/vars/addons.yml` without a `splunkbase_id`.
 4. Re-run `doppler run -- ansible-playbook playbooks/site.yml`.
 
@@ -205,8 +205,8 @@ from Doppler.
 - Bucket: `splunk-addons` (anonymous read on internal network).
 - Add-ons with `artifact_store: true` in `vars/custom_addons.yml`
   auto-download.
-- Upload new versions via `mc cp` — filenames are version-free,
-  versions tracked via object tags.
+- Upload new versions via `aws s3 cp` — filenames are version-free,
+  versions tracked via object tags (`aws s3api put-object-tagging`).
 - A direct `sync-splunkbase.yml` run also archives each exposed Splunkbase
   release under `archive/splunkbase/<id>/<version>/<filename>` and verifies its
   SHA-256 before publishing `archive/catalog.json`. This integrity-sensitive

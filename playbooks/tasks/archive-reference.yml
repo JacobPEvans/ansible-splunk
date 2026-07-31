@@ -20,11 +20,14 @@
 - name: Check whether the immutable reference archive exists
   ansible.builtin.command:
     argv:
-      - mc
-      - stat
-      - --json
-      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
-  environment: "{{ mc_env }}"
+      - aws
+      - s3api
+      - head-object
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ splunk_reference_key }}"
+  environment: "{{ s3_env }}"
   register: splunk_reference_object_stat
   changed_when: false
   failed_when: false
@@ -35,7 +38,7 @@
     that:
       - >-
         splunk_reference_object_stat.rc == 0
-        or 'NoSuchKey' in (splunk_reference_object_stat.stdout | default(''))
+        or 'NoSuchKey' in (splunk_reference_object_stat.stderr | default(''))
         or 'not found' in (splunk_reference_object_stat.stderr | default('') | lower)
         or 'does not exist' in (splunk_reference_object_stat.stderr | default('') | lower)
     fail_msg: >-
@@ -68,11 +71,12 @@
 - name: Copy existing immutable reference for verification
   ansible.builtin.command:
     argv:
-      - mc
+      - aws
+      - s3
       - cp
-      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+      - "s3://{{ object_storage_bucket }}/{{ splunk_reference_key }}"
       - "{{ splunk_reference_local_file }}"
-  environment: "{{ mc_env }}"
+  environment: "{{ s3_env }}"
   when: splunk_reference_exists | bool
   changed_when: false
   no_log: true
@@ -86,11 +90,12 @@
 - name: Upload newly downloaded immutable reference
   ansible.builtin.command:
     argv:
-      - mc
+      - aws
+      - s3
       - cp
       - "{{ splunk_reference_local_file }}"
-      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
-  environment: "{{ mc_env }}"
+      - "s3://{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+  environment: "{{ s3_env }}"
   when: not splunk_reference_exists | bool
   changed_when: true
   no_log: true
@@ -98,14 +103,20 @@
 - name: Tag newly uploaded immutable reference checksum
   ansible.builtin.command:
     argv:
-      - mc
-      - tag
-      - set
-      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
-      - >-
-        sha256={{ splunk_reference_local_stat.stat.checksum }}&source=github_tarball&commit={{
-        splunk_reference_archive.commit }}&license_status={{ splunk_reference_archive.license_status }}
-  environment: "{{ mc_env }}"
+      - aws
+      - s3api
+      - put-object-tagging
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ splunk_reference_key }}"
+      - --tagging
+      - "{{ {'TagSet': [
+             {'Key': 'sha256', 'Value': splunk_reference_local_stat.stat.checksum},
+             {'Key': 'source', 'Value': 'github_tarball'},
+             {'Key': 'commit', 'Value': splunk_reference_archive.commit},
+             {'Key': 'license_status', 'Value': splunk_reference_archive.license_status}]} | to_json }}"
+  environment: "{{ s3_env }}"
   when: not splunk_reference_exists | bool
   changed_when: true
   no_log: true
@@ -113,11 +124,12 @@
 - name: Copy newly uploaded immutable reference for verification
   ansible.builtin.command:
     argv:
-      - mc
+      - aws
+      - s3
       - cp
-      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+      - "s3://{{ object_storage_bucket }}/{{ splunk_reference_key }}"
       - "{{ splunk_reference_local_file }}.verified"
-  environment: "{{ mc_env }}"
+  environment: "{{ s3_env }}"
   when: not splunk_reference_exists | bool
   changed_when: false
   no_log: true
@@ -143,12 +155,18 @@
 - name: Read immutable reference checksum tag
   ansible.builtin.command:
     argv:
-      - mc
-      - tag
-      - list
-      - --json
-      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
-  environment: "{{ mc_env }}"
+      - aws
+      - s3api
+      - get-object-tagging
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ splunk_reference_key }}"
+      - --query
+      - TagSet[?Key=='sha256'].Value
+      - --output
+      - text
+  environment: "{{ s3_env }}"
   register: splunk_reference_tag_query
   changed_when: false
   no_log: true
@@ -158,7 +176,7 @@
     that:
       - splunk_reference_tag_query.rc == 0
       - >-
-        ((splunk_reference_tag_query.stdout | from_json).tagset.sha256 | default(''))
+        (splunk_reference_tag_query.stdout | default('') | trim)
         == splunk_reference_local_stat.stat.checksum
     fail_msg: >-
       Immutable reference {{ splunk_reference_key }} does not have the expected

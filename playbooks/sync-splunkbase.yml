@@ -42,12 +42,15 @@
     splunkbase_api: "{{ splunkbase_api_url | default('https://splunkbase.splunk.com') }}"
     splunkbase_sync_tmpdir: /tmp/splunkbase-sync
     object_storage_bucket: splunk-addons
-    # mc resolves the `homelab` alias from this env var — no persisted alias file.
-    mc_env:
-      MC_HOST_homelab: >-
-        http://{{ lookup('env', 'OBJECT_STORAGE_ROOT_USER') }}:{{
-        lookup('env', 'OBJECT_STORAGE_ROOT_PASSWORD') }}@{{
-        hostvars['localhost']['tofu_data']['containers']['s3']['ip'] }}:{{
+    # aws reads credentials and the endpoint from the environment — nothing is
+    # ever written to ~/.aws. The region is unused by the object store but the
+    # SigV4 signer refuses to run without one.
+    s3_env:
+      AWS_ACCESS_KEY_ID: "{{ lookup('env', 'OBJECT_STORAGE_ROOT_USER') }}"
+      AWS_SECRET_ACCESS_KEY: "{{ lookup('env', 'OBJECT_STORAGE_ROOT_PASSWORD') }}"
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: >-
+        http://{{ hostvars['localhost']['tofu_data']['containers']['s3']['ip'] }}:{{
         hostvars['localhost']['tofu_data']['constants']['service_ports']['object_storage_s3'] }}
 
   tasks:
@@ -63,25 +66,25 @@
           OBJECT_STORAGE_ROOT_USER, OBJECT_STORAGE_ROOT_PASSWORD. Run via
           `doppler run -- ansible-playbook …` so Doppler injects secrets.
 
-    # Without this, an absent `mc` surfaces as rc=2 from every object-storage
+    # Without this, an absent `aws` surfaces as rc=2 from every object-storage
     # command, which the tag-query validation below reports as an object-storage
     # fault - sending the reader to check connectivity, credentials, and bucket
     # existence, none of which are wrong. Fail once, here, naming the real cause.
     - name: Look for the object-storage client
       ansible.builtin.command:
-        cmd: mc --version
+        cmd: aws --version
       changed_when: false
       failed_when: false
-      register: mc_preflight
+      register: s3_client_preflight
 
     - name: Assert the object-storage client is installed
       ansible.builtin.assert:
         that:
-          - mc_preflight.rc == 0
+          - s3_client_preflight.rc == 0
         fail_msg: >-
-          `mc` is not on PATH. Every object-storage command below would exit 2
+          `aws` is not on PATH. Every object-storage command below would exit 2
           ("executable not found"), which reads as an object-storage fault but
-          is not one. Install the client into the dev shell and re-run.
+          is not one. Install the AWS CLI into the dev shell and re-run.
         quiet: true
 
     - name: Load Splunk add-on registry
@@ -194,13 +197,26 @@
                      | selectattr('install', 'equalto', true) | list))
                  | rejectattr('desired_version', 'equalto', '') | list }}
 
-        # `mc tag list --json` returns nonzero for a missing object ("NoSuchKey"
-        # in stdout) — expected, drives a sync. Any other nonzero (auth/network/
-        # bucket) must fail loud, validated in the next task.
+        # `aws s3api get-object-tagging` returns nonzero for a missing object
+        # ("NoSuchKey" in stderr) — expected, drives a sync. Any other nonzero
+        # (auth/network/bucket) must fail loud, validated in the next task.
+        # `--query`/`--output text` reduces the reply to the bare tag value, or
+        # empty when the object carries no `version` tag.
         - name: Query current object-storage version tag for each entry
           ansible.builtin.command:
-            cmd: "mc tag list --json homelab/{{ object_storage_bucket }}/{{ item.filename }}"
-          environment: "{{ mc_env }}"
+            argv:
+              - aws
+              - s3api
+              - get-object-tagging
+              - --bucket
+              - "{{ object_storage_bucket }}"
+              - --key
+              - "{{ item.filename }}"
+              - --query
+              - TagSet[?Key=='version'].Value
+              - --output
+              - text
+          environment: "{{ s3_env }}"
           loop: "{{ splunkbase_desired }}"
           loop_control:
             label: "{{ item.filename }}"
@@ -212,9 +228,11 @@
         - name: Validate query errors are only missing-object cases
           ansible.builtin.assert:
             that:
-              - item.rc == 0 or 'NoSuchKey' in (item.stdout | default(''))
+              - >-
+                item.rc == 0
+                or 'NoSuchKey' in ((item.stdout | default('')) ~ (item.stderr | default('')))
             fail_msg: >-
-              mc tag list failed for {{ item.item.filename }} with rc={{ item.rc }}.
+              get-object-tagging failed for {{ item.item.filename }} with rc={{ item.rc }}.
               Not a "missing object" — check object-storage connectivity,
               OBJECT_STORAGE_ROOT_USER/PASSWORD, and bucket existence.
             quiet: true
@@ -226,14 +244,11 @@
           ansible.builtin.set_fact:
             splunkbase_plan: >-
               {{ splunkbase_plan | default([]) + [item.item | combine({
-                'current_version': (
-                  (item.stdout | default('{}') | from_json).tagset.version
-                  | default('') | trim
-                ) if item.rc == 0 else '',
+                'current_version': (item.stdout | default('') | trim) if item.rc == 0 else '',
                 'needs_sync': (
                   item.rc != 0
-                  or ((item.stdout | default('{}') | from_json).tagset.version
-                      | default('') | trim) != (item.item.desired_version | string | trim)
+                  or (item.stdout | default('') | trim)
+                     != (item.item.desired_version | string | trim)
                 ),
               })] }}
           loop: "{{ object_storage_tag_query.results }}"
@@ -304,23 +319,36 @@
 
         - name: Upload synced archives to object storage
           ansible.builtin.command:
-            cmd: >-
-              mc cp
-              {{ splunkbase_sync_tmpdir }}/{{ item.filename }}
-              homelab/{{ object_storage_bucket }}/{{ item.filename }}
-          environment: "{{ mc_env }}"
+            argv:
+              - aws
+              - s3
+              - cp
+              - "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
+              - "s3://{{ object_storage_bucket }}/{{ item.filename }}"
+          environment: "{{ s3_env }}"
           loop: "{{ splunkbase_to_sync }}"
           loop_control:
             label: "{{ item.filename }}"
           changed_when: true
 
+        # put-object-tagging replaces the whole tag set, matching the previous
+        # client's semantics. The tagging document is built as JSON so a version
+        # string can never be mistaken for shorthand syntax.
         - name: Tag object-storage objects with version + splunkbase_id
           ansible.builtin.command:
-            cmd: >-
-              mc tag set
-              homelab/{{ object_storage_bucket }}/{{ item.filename }}
-              version={{ item.desired_version | string | trim }}&splunkbase_id={{ item.splunkbase_id }}
-          environment: "{{ mc_env }}"
+            argv:
+              - aws
+              - s3api
+              - put-object-tagging
+              - --bucket
+              - "{{ object_storage_bucket }}"
+              - --key
+              - "{{ item.filename }}"
+              - --tagging
+              - "{{ {'TagSet': [
+                     {'Key': 'version', 'Value': item.desired_version | string | trim},
+                     {'Key': 'splunkbase_id', 'Value': item.splunkbase_id | string}]} | to_json }}"
+          environment: "{{ s3_env }}"
           loop: "{{ splunkbase_to_sync }}"
           loop_control:
             label: "{{ item.filename }}"
@@ -355,11 +383,13 @@
 
         - name: Publish manifest.json to object storage
           ansible.builtin.command:
-            cmd: >-
-              mc cp
-              {{ splunkbase_sync_tmpdir }}/manifest.json
-              homelab/{{ object_storage_bucket }}/manifest.json
-          environment: "{{ mc_env }}"
+            argv:
+              - aws
+              - s3
+              - cp
+              - "{{ splunkbase_sync_tmpdir }}/manifest.json"
+              - "s3://{{ object_storage_bucket }}/manifest.json"
+          environment: "{{ s3_env }}"
           changed_when: true
 
         - name: Remove manifest from controller tmpdir
@@ -385,8 +415,19 @@
 
     - name: Query final object-storage version tags
       ansible.builtin.command:
-        cmd: "mc tag list --json homelab/{{ object_storage_bucket }}/{{ item.filename }}"
-      environment: "{{ mc_env }}"
+        argv:
+          - aws
+          - s3api
+          - get-object-tagging
+          - --bucket
+          - "{{ object_storage_bucket }}"
+          - --key
+          - "{{ item.filename }}"
+          - --query
+          - TagSet[?Key=='version'].Value
+          - --output
+          - text
+      environment: "{{ s3_env }}"
       loop: "{{ splunkbase_desired | default([]) }}"
       loop_control:
         label: "{{ item.filename }}"
@@ -400,14 +441,12 @@
       ansible.builtin.assert:
         that:
           - item.rc == 0
-          - >-
-            ((item.stdout | default('{}', true) | from_json).tagset.version
-            | default('') | trim) == (item.item.desired_version | string | trim)
+          - (item.stdout | default('') | trim) == (item.item.desired_version | string | trim)
         fail_msg: >-
           object-storage version mismatch for {{ item.item.filename }}:
           expected {{ item.item.desired_version }}, got
-          {{ ((item.stdout | default('{}', true) | from_json).tagset.version
-             | default('(missing)') | trim) if item.rc == 0 else '(missing object)' }}.
+          {{ ((item.stdout | default('') | trim) or '(missing)')
+             if item.rc == 0 else '(missing object)' }}.
         quiet: true
       loop: "{{ object_storage_final_tag_query.results | default([]) }}"
       loop_control:
@@ -416,8 +455,13 @@
 
     - name: Read published object-storage manifest
       ansible.builtin.command:
-        cmd: "mc cat homelab/{{ object_storage_bucket }}/manifest.json"
-      environment: "{{ mc_env }}"
+        argv:
+          - aws
+          - s3
+          - cp
+          - "s3://{{ object_storage_bucket }}/manifest.json"
+          - "-"
+      environment: "{{ s3_env }}"
       register: object_storage_manifest_verify
       changed_when: false
       failed_when: false
@@ -561,21 +605,24 @@
         - name: Publish immutable archive catalog
           ansible.builtin.command:
             argv:
-              - mc
+              - aws
+              - s3
               - cp
               - "{{ splunkbase_sync_tmpdir }}/archive-catalog.json"
-              - "homelab/{{ object_storage_bucket }}/archive/catalog.json"
-          environment: "{{ mc_env }}"
+              - "s3://{{ object_storage_bucket }}/archive/catalog.json"
+          environment: "{{ s3_env }}"
           changed_when: true
           no_log: true
 
         - name: Read published immutable archive catalog
           ansible.builtin.command:
             argv:
-              - mc
-              - cat
-              - "homelab/{{ object_storage_bucket }}/archive/catalog.json"
-          environment: "{{ mc_env }}"
+              - aws
+              - s3
+              - cp
+              - "s3://{{ object_storage_bucket }}/archive/catalog.json"
+              - "-"
+          environment: "{{ s3_env }}"
           register: splunkbase_archive_catalog_verify
           changed_when: false
           no_log: true

@@ -28,11 +28,14 @@
 - name: Check whether the immutable Splunkbase archive exists
   ansible.builtin.command:
     argv:
-      - mc
-      - stat
-      - --json
-      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
-  environment: "{{ mc_env }}"
+      - aws
+      - s3api
+      - head-object
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ splunkbase_archive_key }}"
+  environment: "{{ s3_env }}"
   register: splunkbase_archive_object_stat
   changed_when: false
   failed_when: false
@@ -43,7 +46,7 @@
     that:
       - >-
         splunkbase_archive_object_stat.rc == 0
-        or 'NoSuchKey' in (splunkbase_archive_object_stat.stdout | default(''))
+        or 'NoSuchKey' in (splunkbase_archive_object_stat.stderr | default(''))
         or 'not found' in (splunkbase_archive_object_stat.stderr | default('') | lower)
         or 'does not exist' in (splunkbase_archive_object_stat.stderr | default('') | lower)
     fail_msg: >-
@@ -80,11 +83,12 @@
 - name: Copy an existing immutable archive for verification
   ansible.builtin.command:
     argv:
-      - mc
+      - aws
+      - s3
       - cp
-      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+      - "s3://{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
       - "{{ splunkbase_archive_local_file }}"
-  environment: "{{ mc_env }}"
+  environment: "{{ s3_env }}"
   when: splunkbase_archive_exists | bool
   changed_when: false
   no_log: true
@@ -118,11 +122,12 @@
 - name: Upload newly downloaded immutable archive
   ansible.builtin.command:
     argv:
-      - mc
+      - aws
+      - s3
       - cp
       - "{{ splunkbase_archive_local_file }}"
-      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
-  environment: "{{ mc_env }}"
+      - "s3://{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+  environment: "{{ s3_env }}"
   when:
     - not splunkbase_archive_exists | bool
     - splunkbase_archive_available | bool
@@ -132,14 +137,19 @@
 - name: Tag newly uploaded immutable archive checksum
   ansible.builtin.command:
     argv:
-      - mc
-      - tag
-      - set
-      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
-      - >-
-        sha256={{ splunkbase_archive_local_stat.stat.checksum }}&splunkbase_id={{
-        splunkbase_archive_release.splunkbase_id }}&version={{ splunkbase_archive_release.name }}
-  environment: "{{ mc_env }}"
+      - aws
+      - s3api
+      - put-object-tagging
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ splunkbase_archive_key }}"
+      - --tagging
+      - "{{ {'TagSet': [
+             {'Key': 'sha256', 'Value': splunkbase_archive_local_stat.stat.checksum},
+             {'Key': 'splunkbase_id', 'Value': splunkbase_archive_release.splunkbase_id | string},
+             {'Key': 'version', 'Value': splunkbase_archive_release.name | string}]} | to_json }}"
+  environment: "{{ s3_env }}"
   when:
     - not splunkbase_archive_exists | bool
     - splunkbase_archive_available | bool
@@ -149,11 +159,12 @@
 - name: Copy newly uploaded immutable archive for verification
   ansible.builtin.command:
     argv:
-      - mc
+      - aws
+      - s3
       - cp
-      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+      - "s3://{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
       - "{{ splunkbase_archive_local_file }}.verified"
-  environment: "{{ mc_env }}"
+  environment: "{{ s3_env }}"
   when:
     - not splunkbase_archive_exists | bool
     - splunkbase_archive_available | bool
@@ -185,12 +196,18 @@
 - name: Read immutable archive checksum tag
   ansible.builtin.command:
     argv:
-      - mc
-      - tag
-      - list
-      - --json
-      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
-  environment: "{{ mc_env }}"
+      - aws
+      - s3api
+      - get-object-tagging
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ splunkbase_archive_key }}"
+      - --query
+      - TagSet[?Key=='sha256'].Value
+      - --output
+      - text
+  environment: "{{ s3_env }}"
   register: splunkbase_archive_tag_query
   when: >-
     splunkbase_archive_available | bool
@@ -202,7 +219,7 @@
     that:
       - splunkbase_archive_tag_query.rc == 0
       - >-
-        ((splunkbase_archive_tag_query.stdout | from_json).tagset.sha256 | default(''))
+        (splunkbase_archive_tag_query.stdout | default('') | trim)
         == splunkbase_archive_local_stat.stat.checksum
     fail_msg: >-
       Immutable archive {{ splunkbase_archive_key }} does not have the expected
