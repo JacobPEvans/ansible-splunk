@@ -40,10 +40,37 @@ COMMON_VARS = {
 }
 
 
-def render(indexes, **overrides):
+# Splunk's own indexes. Restated by the role so they sit inside the hot/warm
+# volume instead of escaping its cap.
+# db_dir is deliberately NOT the index name for these three. Splunk's stock
+# directories differ (_internal->_internaldb, _audit->audit, main->defaultdb),
+# and deriving the path from the index name instead would silently repoint
+# every one of them at an empty directory, orphaning the existing buckets.
+SYSTEM_INDEXES = [
+    {"name": "_internal", "db_dir": "_internaldb", "max_size_mb": 20480,
+     "frozen_time_secs": 2592000},
+    {"name": "_audit", "db_dir": "audit", "max_size_mb": 10240,
+     "frozen_time_secs": 31536000},
+    {"name": "main", "db_dir": "defaultdb", "max_size_mb": 10240,
+     "frozen_time_secs": 2592000},
+]
+
+
+def render(indexes, system_indexes=None, **overrides):
+    """Render the template.
+
+    `system_indexes` defaults to the fixture rather than to nothing: an
+    undefined name makes Jinja iterate an empty sequence in silence, so every
+    assertion about those stanzas would pass without the template emitting
+    one. Pass [] explicitly to test the empty case.
+    """
     variables = dict(COMMON_VARS)
     variables.update(overrides)
-    return template.render(splunk_docker_indexes=indexes, **variables)
+    if system_indexes is None:
+        system_indexes = SYSTEM_INDEXES
+    return template.render(splunk_docker_indexes=indexes,
+                           splunk_docker_system_indexes=system_indexes,
+                           **variables)
 
 
 errors = []
@@ -152,8 +179,10 @@ for idx in all_names:
 else:
     print("PASS: each index stanza references only its own paths")
 
-# Test 8: empty index list produces no index stanzas (volume stanzas still render)
-result_empty = render([])
+# Test 8: empty index list produces no index stanzas (volume stanzas still render).
+# Both lists are emptied: this asserts the managed-index loop emits nothing, and
+# the system-index loop is asserted separately above.
+result_empty = render([], system_indexes=[])
 spurious = [line for line in result_empty.splitlines()
             if line.startswith("[") and not line.startswith("[volume:")]
 if spurious:
@@ -221,6 +250,51 @@ elif "coldToFrozenScript" in frozen_dir_only:
     errors.append("FAIL: coldToFrozenScript emitted while the archive is disabled")
 else:
     print("PASS: dir-only configuration emits coldToFrozenDir alone")
+
+# Test: Splunk's own indexes are bound to the hot/warm volume.
+#
+# Without these stanzas Splunk puts them under $SPLUNK_DB but OUTSIDE volume
+# management, each keeping the stock 500000 MB ceiling — so the volume cap
+# bounds only part of the filesystem it names, and the guard underneath is a
+# halt rather than a warning.
+sys_names = [i["name"] for i in SYSTEM_INDEXES]
+missing_sys = [n for n in sys_names if f"[{n}]" not in result]
+if missing_sys:
+    errors.append(f"FAIL: system indexes absent from indexes.conf: {missing_sys} — "
+                  "they would fall outside the volume cap with the stock ceiling")
+else:
+    print(f"PASS: all {len(SYSTEM_INDEXES)} system index stanzas present")
+
+for si in SYSTEM_INDEXES:
+    body = stanza_body(result, si["name"], sys_names + all_names)
+    if f"homePath = volume:hot_warm/{si['db_dir']}/db" not in body:
+        errors.append(f"FAIL: system index '{si['name']}' homePath not on volume:hot_warm — "
+                      "it would escape the volume cap")
+    if f"coldPath = volume:hot_warm/{si['db_dir']}/colddb" not in body:
+        errors.append(f"FAIL: system index '{si['name']}' coldPath not on volume:hot_warm")
+    # The stock directory must be preserved. Deriving it from the index name
+    # points the index at a directory that does not exist and abandons the
+    # buckets already on disk.
+    if si["db_dir"] != si["name"] and f"/{si['name']}/db" in body:
+        errors.append(f"FAIL: system index '{si['name']}' path derived from the index name "
+                      f"instead of its stock directory '{si['db_dir']}' — existing buckets "
+                      "would be orphaned")
+    if f"maxTotalDataSizeMB = {si['max_size_mb']}" not in body:
+        errors.append(f"FAIL: system index '{si['name']}' wrong maxTotalDataSizeMB")
+    if "coldToFrozenScript" in body or "coldToFrozenDir" in body:
+        errors.append(f"FAIL: system index '{si['name']}' emits a freeze target; "
+                      "operational telemetry ages out rather than being archived")
+if not missing_sys:
+    print("PASS: system indexes bound to volume:hot_warm, capped, and not archived")
+
+# The archive script must still reach the real indexes when enabled, even now
+# that system stanzas are rendered ahead of them.
+sys_with_archive = render(FROZEN_INDEXES, splunk_docker_frozen_archive_enabled=True)
+if sys_with_archive.count("coldToFrozenScript") != len(FROZEN_INDEXES):
+    errors.append("FAIL: coldToFrozenScript count does not match the archived index count — "
+                  "system stanzas must not take or shed the freeze target")
+else:
+    print("PASS: freeze target lands on the archived indexes only")
 
 if errors:
     print()
