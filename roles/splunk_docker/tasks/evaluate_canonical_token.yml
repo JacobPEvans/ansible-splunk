@@ -1,25 +1,21 @@
 ---
-- name: "Evaluate canonical JWT claims for {{ splunk_user.name }}"
-  vars:
-    claims: "{{ splunk_docker_canonical_jwt_claims }}"
-    expires_text: "{{ claims.get('exp', '') | string }}"
-    not_before_text: "{{ claims.get('nbr', '') | string }}"
-    token_id: "{{ claims.get('jti', '') }}"
-    probe_username: >-
-      {{ (((splunk_docker_bao_token_probe.json | default({}, true)).get('entry', [])
-           | first | default({}, true)).get('content', {}).get('username', '')) }}
+# Decide whether the token published in OpenBao is still the one good token.
+#
+# This used to decode the published string as a JWT and compare its claims.
+# /services/mcp_token does not return a JWT - it returns an opaque two-segment
+# token - so the decode could never succeed, the token was judged invalid on
+# every run, and the role reminted on every converge. See probe_mcp_token.yml.
+#
+# Identity comes from the server instead, and needs no decoding. The eligible
+# list is already filtered server-side on sub, aud, status, exp and nbr. So if
+# exactly one token is eligible for this user and audience, and the published
+# string authenticates against that audience's endpoint, the published string
+# IS that token - nothing else could have authenticated.
+
+- name: "Evaluate the published token for {{ splunk_user.name }}"
   ansible.builtin.set_fact:
     splunk_docker_bao_token_valid: >-
-      {{ (splunk_docker_canonical_jwt_decode_valid | bool)
-         and (splunk_docker_bao_token_probe.status | default(0) | int == 200)
-         and (probe_username == splunk_user.name)
-         and (claims.get('sub', '') == splunk_user.name)
-         and (claims.get('aud', '') == splunk_docker_token_audience)
-         and (token_id is string) and (token_id | length > 0)
-         and (expires_text is match('^[0-9]+$'))
-         and (not_before_text is match('^[0-9]+$'))
-         and (expires_text | int == 0 or expires_text | int > ansible_date_time.epoch | int)
-         and (not_before_text | int <= ansible_date_time.epoch | int)
-         and (splunk_docker_eligible_tokens | length == 1)
-         and ((splunk_docker_eligible_tokens | first).name == token_id) }}
+      {{ (splunk_docker_bao_published_token | default('', true) | length > 0)
+         and (splunk_docker_mcp_probe_ok | bool)
+         and (splunk_docker_eligible_tokens | length == 1) }}
   no_log: true

@@ -1,4 +1,16 @@
 ---
+# Verify the Splunk MCP publication contract.
+#
+# This suite previously built a synthetic three-segment JWT and asserted the
+# role could decode it. It passed continuously while the role failed on every
+# real converge, because /services/mcp_token does not issue a JWT - it issues
+# an opaque two-segment token. The fixture invented a shape the server never
+# produces, so the test proved only that the role agreed with the fixture.
+#
+# The fixtures below now match what Splunk actually returns: opaque tokens, and
+# identity read from the token LISTING (which is where sub/aud/exp/nbr really
+# live). Liveness is a probe result, injected as a fact here so these stay
+# offline unit tests.
 - name: Verify the canonical Splunk MCP publication contract
   hosts: localhost
   gather_facts: false
@@ -11,35 +23,13 @@
     splunk_user:
       name: hermes
       roles: [admin]
-    jwt_header_segment: >-
-      {{ '{"alg":"HS512","typ":"JWT"}' | b64encode
-         | replace('+', '-') | replace('/', '_') | regex_replace('=+$', '') }}
-    valid_claims: { sub: hermes, aud: mcp, nbr: 1500, exp: 3000, jti: live-future-expiry }
-    wrong_audience_claims: { sub: hermes, aud: api, nbr: 1500, exp: 3000, jti: live-future-expiry }
-    mismatched_jti_claims: { sub: hermes, aud: mcp, nbr: 1500, exp: 3000, jti: concurrent-token }
-    minted_claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000, jti: minted-jti }
-    valid_canonical_jwt: >-
-      {{ jwt_header_segment }}.{{ valid_claims | to_json | b64encode
-         | replace('+', '-') | replace('/', '_') | regex_replace('=+$', '') }}.signature
-    wrong_audience_jwt: >-
-      {{ jwt_header_segment }}.{{ wrong_audience_claims | to_json | b64encode
-         | replace('+', '-') | replace('/', '_') | regex_replace('=+$', '') }}.signature
-    mismatched_jti_jwt: >-
-      {{ jwt_header_segment }}.{{ mismatched_jti_claims | to_json | b64encode
-         | replace('+', '-') | replace('/', '_') | regex_replace('=+$', '') }}.signature
-    minted_jwt: >-
-      {{ jwt_header_segment }}.{{ minted_claims | to_json | b64encode
-         | replace('+', '-') | replace('/', '_') | regex_replace('=+$', '') }}.signature
+    # Shape-accurate: two base64 segments, nothing decodable as claims.
+    opaque_published_token: "SxN4GfO1z8nHrDw27vxmm33J6dDBrT4DcAkS70GC/Rw==.hqPQrCebYFj7goVTm5yUll2x2Su6/Ag=="
+    opaque_minted_token: "Zm9vYmFyYmF6cXV4MDAwMTExMjIyMzMzNDQ0NTU1/Ng==.c2lnbmF0dXJlLWJ5dGVzLWhlcmUtZm9y/Zg=="
     existing_secret:
       SIBLING_FIELD: preserve-me
       SPLUNK_MCP_URL: https://old.example.test/services/mcp
-      SPLUNK_MCP_TOKEN: "{{ valid_canonical_jwt }}"
-    splunk_docker_bao_token_probe:
-      status: 200
-      json:
-        entry:
-          - content:
-              username: hermes
+      SPLUNK_MCP_TOKEN: "{{ opaque_published_token }}"
     splunk_docker_token_list:
       json:
         entry:
@@ -87,64 +77,57 @@
         sole_eligible_token: "{{ [splunk_docker_eligible_tokens | first] }}"
         duplicate_eligible_tokens: "{{ splunk_docker_eligible_tokens }}"
 
-    - name: Decode valid canonical JWT
+    # A live probe plus exactly one eligible token is what proves the published
+    # string is that token. Nothing else could have authenticated.
+    - name: Evaluate a published token that probes live
       vars:
-        splunk_docker_jwt_to_decode: "{{ valid_canonical_jwt }}"
-      ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/decode_jwt.yml
-
-    - name: Record valid canonical JWT decode
-      ansible.builtin.set_fact:
-        splunk_docker_canonical_jwt_claims: "{{ splunk_docker_decoded_jwt_claims }}"
-        splunk_docker_canonical_jwt_decode_valid: "{{ splunk_docker_jwt_decode_valid }}"
-
-    - name: Evaluate valid canonical JWT
-      vars:
+        splunk_docker_bao_published_token: "{{ opaque_published_token }}"
+        splunk_docker_mcp_probe_ok: true
         splunk_docker_eligible_tokens: "{{ sole_eligible_token }}"
       ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/evaluate_canonical_token.yml
 
-    - name: Save valid canonical JWT result
+    - name: Save live-probe evaluation result
       ansible.builtin.set_fact:
         valid_canonical_token: "{{ splunk_docker_bao_token_valid }}"
 
-    - name: Decode same-user wrong-audience JWT
+    # The failure this replaces: the old code read a 401 from the wrong
+    # endpoint as proof of death and reminted every run.
+    - name: Evaluate a published token that fails its probe
       vars:
-        splunk_docker_jwt_to_decode: "{{ wrong_audience_jwt }}"
-      ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/decode_jwt.yml
-
-    - name: Record wrong-audience JWT decode
-      ansible.builtin.set_fact:
-        splunk_docker_canonical_jwt_claims: "{{ splunk_docker_decoded_jwt_claims }}"
-        splunk_docker_canonical_jwt_decode_valid: "{{ splunk_docker_jwt_decode_valid }}"
-
-    - name: Evaluate same-user wrong-audience JWT
-      vars:
+        splunk_docker_bao_published_token: "{{ opaque_published_token }}"
+        splunk_docker_mcp_probe_ok: false
         splunk_docker_eligible_tokens: "{{ sole_eligible_token }}"
       ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/evaluate_canonical_token.yml
 
-    - name: Save wrong-audience JWT result
+    - name: Save failed-probe evaluation result
       ansible.builtin.set_fact:
-        wrong_audience_token: "{{ splunk_docker_bao_token_valid }}"
+        dead_probe_token: "{{ splunk_docker_bao_token_valid }}"
 
-    - name: Decode mismatched-jti JWT
+    - name: Evaluate an empty published token
       vars:
-        splunk_docker_jwt_to_decode: "{{ mismatched_jti_jwt }}"
-      ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/decode_jwt.yml
-
-    - name: Record mismatched-jti JWT decode
-      ansible.builtin.set_fact:
-        splunk_docker_canonical_jwt_claims: "{{ splunk_docker_decoded_jwt_claims }}"
-        splunk_docker_canonical_jwt_decode_valid: "{{ splunk_docker_jwt_decode_valid }}"
-
-    - name: Evaluate mismatched-jti JWT
-      vars:
+        splunk_docker_bao_published_token: ""
+        splunk_docker_mcp_probe_ok: true
         splunk_docker_eligible_tokens: "{{ sole_eligible_token }}"
       ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/evaluate_canonical_token.yml
 
-    - name: Save mismatched-jti JWT result
+    - name: Save empty-token evaluation result
       ansible.builtin.set_fact:
-        mismatched_jti_token: "{{ splunk_docker_bao_token_valid }}"
+        empty_published_token: "{{ splunk_docker_bao_token_valid }}"
 
-    - name: Exercise delivery planning for valid canonical identity
+    # Ambiguity is not health: with two eligible tokens a live probe cannot say
+    # which one was published, so the state must be rebuilt.
+    - name: Evaluate with more than one eligible token
+      vars:
+        splunk_docker_bao_published_token: "{{ opaque_published_token }}"
+        splunk_docker_mcp_probe_ok: true
+        splunk_docker_eligible_tokens: "{{ duplicate_eligible_tokens }}"
+      ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/evaluate_canonical_token.yml
+
+    - name: Save ambiguous-inventory evaluation result
+      ansible.builtin.set_fact:
+        ambiguous_inventory_token: "{{ splunk_docker_bao_token_valid }}"
+
+    - name: Exercise delivery planning for a healthy published token
       vars:
         splunk_docker_bao_token_valid: "{{ valid_canonical_token }}"
         splunk_docker_eligible_tokens: "{{ sole_eligible_token }}"
@@ -154,9 +137,9 @@
       ansible.builtin.set_fact:
         valid_delivery_mint_required: "{{ splunk_docker_token_mint_required }}"
 
-    - name: Exercise delivery recovery for wrong-audience identity
+    - name: Exercise delivery recovery for a dead published token
       vars:
-        splunk_docker_bao_token_valid: "{{ wrong_audience_token }}"
+        splunk_docker_bao_token_valid: "{{ dead_probe_token }}"
         splunk_docker_eligible_tokens: "{{ sole_eligible_token }}"
       ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/plan_token_delivery.yml
 
@@ -174,47 +157,68 @@
       ansible.builtin.set_fact:
         orphan_recovery_mint_required: "{{ splunk_docker_token_mint_required }}"
 
-    - name: Decode minted JWT
-      vars:
-        splunk_docker_jwt_to_decode: "{{ minted_jwt }}"
-      ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/decode_jwt.yml
-
-    - name: Record minted JWT identity
-      ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/record_minted_identity.yml
-
-    - name: Provide exact and concurrent post-mint tokens
+    # The mint response has no id, so identity comes from the listing diff.
+    # A token minted concurrently by someone else must not be mistaken for ours.
+    - name: Provide post-mint listing with a concurrently minted token
       ansible.builtin.set_fact:
         splunk_docker_token_list_after_mint:
           json:
-            entry:
-              - name: concurrent-jti
-                content:
-                  claims: { sub: hermes, aud: mcp }
-              - name: minted-jti
-                content:
-                  claims: { sub: hermes, aud: mcp }
+            entry: >-
+              {{ splunk_docker_token_list.json.entry
+                 + [{'name': 'minted-id',
+                     'content': {'status': 'enabled',
+                                 'claims': {'sub': 'hermes', 'aud': 'mcp', 'nbr': 2000, 'exp': 3000}}}] }}
 
-    - name: Verify exact minted JWT identity amid concurrency
+    - name: Record minted identity from the listing diff
+      ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/record_minted_identity.yml
+
+    - name: Save minted identity result
+      ansible.builtin.set_fact:
+        derived_minted_id: "{{ splunk_docker_new_token_id }}"
+        derived_minted_count: "{{ splunk_docker_minted_id_count }}"
+        derived_minted_claims: "{{ splunk_docker_minted_claims }}"
+
+    - name: Verify minted identity with a live probe
+      vars:
+        splunk_docker_mcp_probe_ok: true
       ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/verify_minted_identity.yml
 
-    - name: Exercise jti mismatch rejection
+    # A token that cannot authenticate must never reach OpenBao, however
+    # convincing its claims look.
+    - name: Exercise rejection of a minted token that fails its probe
       block:
-        - name: Point at absent minted JWT identity
-          ansible.builtin.set_fact:
-            splunk_docker_new_token_id: absent-jti
-
-        - name: Verify absent minted JWT identity
+        - name: Verify minted identity with a failed probe
+          vars:
+            splunk_docker_mcp_probe_ok: false
           ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/verify_minted_identity.yml
       rescue:
-        - name: Record jti mismatch rejection
+        - name: Record failed-probe rejection
           ansible.builtin.set_fact:
-            minted_jti_mismatch_rejected: true
+            minted_dead_probe_rejected: true
+
+    # set_fact outranks task vars, so the count recorded above has to be
+    # overridden with another set_fact - a `vars:` block here would be ignored
+    # and the case would silently pass without ever being exercised.
+    - name: Exercise rejection when two tokens appeared during the mint
+      block:
+        - name: Simulate an ambiguous listing diff
+          ansible.builtin.set_fact:
+            splunk_docker_minted_id_count: 2
+
+        - name: Verify minted identity with an ambiguous diff
+          vars:
+            splunk_docker_mcp_probe_ok: true
+          ansible.builtin.include_tasks: ../../roles/splunk_docker/tasks/verify_minted_identity.yml
+      rescue:
+        - name: Record ambiguous-diff rejection
+          ansible.builtin.set_fact:
+            minted_ambiguous_rejected: true
 
     - name: Exercise missing published token safety check
       vars:
-        splunk_docker_new_token_id: minted-jti
+        splunk_docker_new_token_id: minted-id
         splunk_docker_eligible_tokens:
-          - name: concurrent-jti
+          - name: concurrent-id
             content:
               status: enabled
               claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
@@ -228,15 +232,15 @@
 
     - name: Provide published and concurrently minted eligible tokens
       ansible.builtin.set_fact:
-        splunk_docker_new_token_id: minted-jti
+        splunk_docker_new_token_id: minted-id
         splunk_docker_token_list:
           json:
             entry:
-              - name: concurrent-jti
+              - name: concurrent-id
                 content:
                   status: enabled
                   claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
-              - name: minted-jti
+              - name: minted-id
                 content:
                   status: enabled
                   claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
@@ -257,11 +261,11 @@
         splunk_docker_token_list:
           json:
             entry:
-              - name: concurrent-jti
+              - name: concurrent-id
                 content:
                   status: disabled
                   claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
-              - name: minted-jti
+              - name: minted-id
                 content:
                   status: enabled
                   claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
@@ -292,7 +296,7 @@
         recovered_merge: >-
           {{ splunk_docker_bao_source_data | combine({
                splunk_docker_url_openbao_key: splunk_docker_mcp_url,
-               splunk_docker_token_openbao_key: minted_jwt
+               splunk_docker_token_openbao_key: opaque_minted_token
              }) }}
 
     - name: Load managed-user task structure
@@ -315,7 +319,6 @@
         token_metadata_task: "{{ token_workflow | selectattr('name', 'search', '^Read current OpenBao metadata') | first }}"
         token_undelete_task: "{{ token_workflow | selectattr('name', 'search', '^Undelete current OpenBao') | first }}"
         token_recovered_read_task: "{{ token_workflow | selectattr('name', 'search', '^Re-read recovered OpenBao') | first }}"
-        token_probe_task: "{{ token_workflow | selectattr('name', 'search', '^Validate canonical OpenBao token') | first }}"
         mint_publish_owner: "{{ token_workflow | selectattr('name', 'search', '^Mint and publish replacement') | first }}"
         token_post_publish_list_task: "{{ token_workflow | selectattr('name', 'search', '^Re-list eligible tokens after publication') | first }}"
         token_revoke_task: "{{ token_workflow | selectattr('name', 'search', '^Revoke noncanonical eligible tokens') | first }}"
@@ -331,13 +334,20 @@
         token_post_mint_list_task: "{{ mint_publish_owner.block | selectattr('name', 'search', '^Re-list tokens after minting') | first }}"
         token_cleanup_task: "{{ mint_publish_owner.rescue | selectattr('name', 'search', '^Remove unpublished replacement') | first }}"
 
+    - name: Extract the probe task from its own file
+      ansible.builtin.set_fact:
+        probe_tasks: "{{ lookup('ansible.builtin.file', '../../roles/splunk_docker/tasks/probe_mcp_token.yml') | from_yaml }}"
+
+    - name: Extract the probe request
+      ansible.builtin.set_fact:
+        probe_request: "{{ probe_tasks | selectattr('name', 'search', '^Probe the MCP endpoint') | first }}"
+
     - name: Extract ordered top-level names
       ansible.builtin.set_fact:
         token_metadata_name: "{{ token_workflow_names | select('search', '^Read current OpenBao metadata') | first }}"
         token_undelete_name: "{{ token_workflow_names | select('search', '^Undelete current OpenBao') | first }}"
         token_recovered_read_name: "{{ token_workflow_names | select('search', '^Re-read recovered OpenBao') | first }}"
         token_state_name: "{{ token_workflow_names | select('search', '^Extract canonical OpenBao state') | first }}"
-        token_decode_name: "{{ token_workflow_names | select('search', '^Decode canonical OpenBao token') | first }}"
         token_probe_name: "{{ token_workflow_names | select('search', '^Validate canonical OpenBao token') | first }}"
         token_evaluate_name: "{{ token_workflow_names | select('search', '^Evaluate canonical OpenBao token') | first }}"
         token_delivery_name: "{{ token_workflow_names | select('search', '^Plan token delivery') | first }}"
@@ -353,10 +363,10 @@
     - name: Extract ordered mint-publication names
       ansible.builtin.set_fact:
         token_mint_name: "{{ mint_publish_names | select('search', '^Mint authorization token') | first }}"
-        minted_decode_name: "{{ mint_publish_names | select('search', '^Decode minted JWT') | first }}"
-        minted_record_name: "{{ mint_publish_names | select('search', '^Record minted JWT identity') | first }}"
         token_post_mint_list_name: "{{ mint_publish_names | select('search', '^Re-list tokens after minting') | first }}"
-        minted_verify_name: "{{ mint_publish_names | select('search', '^Verify minted JWT identity') | first }}"
+        minted_record_name: "{{ mint_publish_names | select('search', '^Record minted token identity') | first }}"
+        minted_probe_name: "{{ mint_publish_names | select('search', '^Probe minted token') | first }}"
+        minted_verify_name: "{{ mint_publish_names | select('search', '^Verify minted token identity') | first }}"
         token_publish_name: "{{ mint_publish_names | select('search', '^Publish ') | first }}"
         token_cleanup_name: "{{ mint_publish_rescue_names | select('search', '^Remove unpublished replacement') | first }}"
         token_failure_name: "{{ mint_publish_rescue_names | select('search', '^Fail replacement publication') | first }}"
@@ -367,20 +377,39 @@
           - matching_ids == ['live-future-expiry', 'live-no-expiry', 'future-not-before', 'expired', 'disabled', 'missing-not-before', 'invalid-not-before']
           - eligible_ids == ['live-future-expiry', 'live-no-expiry']
           - valid_canonical_token
-          - not wrong_audience_token
-          - not mismatched_jti_token
+          - not dead_probe_token
+          - not empty_published_token
+          - not ambiguous_inventory_token
           - not valid_delivery_mint_required
           - invalid_delivery_mint_required
           - orphan_recovery_mint_required
-          - minted_jti_mismatch_rejected | default(false)
+          # Identity is derived from the listing diff, never from the token.
+          - derived_minted_id == 'minted-id'
+          - derived_minted_count | int == 1
+          - derived_minted_claims.sub == 'hermes'
+          - derived_minted_claims.aud == 'mcp'
+          - minted_dead_probe_rejected | default(false)
+          - minted_ambiguous_rejected | default(false)
           - missing_published_token_rejected | default(false)
-          - concurrent_cleanup_ids == ['concurrent-jti']
-          - final_eligible_ids == ['minted-jti']
+          - concurrent_cleanup_ids == ['concurrent-id']
+          - final_eligible_ids == ['minted-id']
           - recovered_cas | int == 14
-          - recovered_published_token == valid_canonical_jwt
+          - recovered_published_token == opaque_published_token
           - recovered_source_data.SIBLING_FIELD == 'preserve-me'
           - recovered_merge.SIBLING_FIELD == 'preserve-me'
-          - recovered_merge.SPLUNK_MCP_TOKEN == minted_jwt
+          - recovered_merge.SPLUNK_MCP_TOKEN == opaque_minted_token
+          # The probe must target the MCP endpoint, not a general REST path:
+          # an aud=mcp token answers 401 everywhere else, and reading that as
+          # death is what caused a remint on every converge.
+          - probe_request['ansible.builtin.uri'].url is search('/services/mcp')
+          - probe_request['ansible.builtin.uri'].url is not search('current-context')
+          - probe_request['ansible.builtin.uri'].method == 'POST'
+          # Revocation must name the id in the query string. Splunk answers 200
+          # for a request that names no real id and deletes nothing.
+          - token_cleanup_task['ansible.builtin.uri'].url is search('id=')
+          - token_revoke_task['ansible.builtin.uri'].url is search('id=')
+          - token_cleanup_task['ansible.builtin.uri'].body is not defined
+          - token_revoke_task['ansible.builtin.uri'].body is not defined
           - token_undelete_task['ansible.builtin.uri'].url is search('/undelete/')
           - token_publish_task['ansible.builtin.uri'].body.data is search('splunk_docker_bao_source_data')
           - token_current_secret_task.delegate_to == 'localhost'
@@ -394,7 +423,6 @@
           - token_publish_task.delegate_to == 'localhost'
           - token_publish_task['ansible.builtin.uri'].validate_certs | bool
           - token_list_task.delegate_to is not defined
-          - token_probe_task.delegate_to is not defined
           - token_mint_task.delegate_to is not defined
           - token_post_mint_list_task.delegate_to is not defined
           - token_cleanup_task.delegate_to is not defined
@@ -407,8 +435,7 @@
           - token_workflow_names.index(token_metadata_name) < token_workflow_names.index(token_undelete_name)
           - token_workflow_names.index(token_undelete_name) < token_workflow_names.index(token_recovered_read_name)
           - token_workflow_names.index(token_recovered_read_name) < token_workflow_names.index(token_state_name)
-          - token_workflow_names.index(token_state_name) < token_workflow_names.index(token_decode_name)
-          - token_workflow_names.index(token_decode_name) < token_workflow_names.index(token_probe_name)
+          - token_workflow_names.index(token_state_name) < token_workflow_names.index(token_probe_name)
           - token_workflow_names.index(token_probe_name) < token_workflow_names.index(token_evaluate_name)
           - token_workflow_names.index(token_evaluate_name) < token_workflow_names.index(token_delivery_name)
           - token_workflow_names.index(token_delivery_name) < token_workflow_names.index(mint_publish_name)
@@ -419,10 +446,11 @@
           - token_workflow_names.index(token_revoke_name) < token_workflow_names.index(token_final_list_name)
           - token_workflow_names.index(token_final_list_name) < token_workflow_names.index(token_final_plan_name)
           - token_workflow_names.index(token_final_plan_name) < token_workflow_names.index(token_final_assert_name)
-          - mint_publish_names.index(token_mint_name) < mint_publish_names.index(minted_decode_name)
-          - mint_publish_names.index(minted_decode_name) < mint_publish_names.index(minted_record_name)
-          - mint_publish_names.index(minted_record_name) < mint_publish_names.index(token_post_mint_list_name)
-          - mint_publish_names.index(token_post_mint_list_name) < mint_publish_names.index(minted_verify_name)
+          # The listing must be refreshed BEFORE identity is derived from it.
+          - mint_publish_names.index(token_mint_name) < mint_publish_names.index(token_post_mint_list_name)
+          - mint_publish_names.index(token_post_mint_list_name) < mint_publish_names.index(minted_record_name)
+          - mint_publish_names.index(minted_record_name) < mint_publish_names.index(minted_probe_name)
+          - mint_publish_names.index(minted_probe_name) < mint_publish_names.index(minted_verify_name)
           - mint_publish_names.index(minted_verify_name) < mint_publish_names.index(token_publish_name)
           - mint_publish_rescue_names.index(token_cleanup_name) < mint_publish_rescue_names.index(token_failure_name)
         fail_msg: Splunk MCP OpenBao publication contract is invalid

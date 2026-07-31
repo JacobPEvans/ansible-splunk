@@ -1,0 +1,52 @@
+---
+# Prove a token works by USING it, against the endpoint its audience names.
+#
+# The obvious probe - GET /services/authentication/current-context - does not
+# work here and never did. Splunk enforces the `aud` claim, and a token minted
+# by /services/mcp_token carries aud=mcp, so every ordinary REST path answers
+# 401 for it. The role read that 401 as "the published token is dead" and
+# reminted on every single converge.
+#
+# The MCP endpoint speaks JSON-RPC, so the cheapest real request is
+# `initialize`: it is read-only, needs no session, and a 200 carrying a
+# `result` proves the token authenticated AND that the server is serving.
+# Sets splunk_docker_mcp_probe_ok.
+
+- name: "Reset MCP probe state for {{ splunk_user.name }}"
+  ansible.builtin.set_fact:
+    splunk_docker_mcp_probe_ok: false
+  no_log: true
+
+- name: "Probe the MCP endpoint for {{ splunk_user.name }}"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/mcp"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ splunk_docker_token_to_probe }}"
+      Accept: "application/json, text/event-stream"
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      id: 1
+      method: initialize
+      params:
+        protocolVersion: "2024-11-05"
+        capabilities: {}
+        clientInfo:
+          name: ansible-splunk
+          version: "1"
+    validate_certs: false
+    status_code: [200, 401, 403, 404, 405]
+  register: splunk_docker_mcp_probe
+  when: splunk_docker_token_to_probe | default('', true) | length > 0
+  # Read-only liveness check whose result gates minting. It must run under
+  # --check too, or the dry run evaluates an undefined result.
+  check_mode: false
+  no_log: true
+
+- name: "Record MCP probe outcome for {{ splunk_user.name }}"
+  ansible.builtin.set_fact:
+    splunk_docker_mcp_probe_ok: >-
+      {{ (splunk_docker_mcp_probe.status | default(0) | int == 200)
+         and ((splunk_docker_mcp_probe.json | default({}, true)).get('result', none) is not none) }}
+  no_log: true
