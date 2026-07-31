@@ -16,7 +16,7 @@ roles:
   - name: inventory_resolve
     src: https://github.com/dryvist/homelab-contracts.git
     scm: git
-    version: 9aba451e9de0956f9c308d72a65e86924e243f23
+    version: c5e139cb7ccb286016020dd85c2f1d9c3b5a376f
 
   # Official Splunk Ansible role - use for REST API-based app management
   # and future cluster topology (indexer cluster, SHC) expansion.
