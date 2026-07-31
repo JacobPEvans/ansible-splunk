@@ -37,7 +37,7 @@ provides guidelines and information for contributors.
 4. Install Ansible collections:
 
    ```bash
-   ansible-galaxy collection install -r requirements.yml
+   ansible-galaxy install -r requirements.yml
    ```
 
 ## Testing

@@ -129,3 +129,9 @@ GEMINI.local.md
 AGENTS.local.md
 .aider*
 .specstory/
+
+# Galaxy-fetched roles (roles_path=roles installs them here; not vendored).
+# requirements.yml pins both by commit/tag, so these are reproducible artifacts,
+# not source — and without these entries they sit untracked and committable.
+/roles/inventory_resolve/
+/roles/splunk.splunk/
