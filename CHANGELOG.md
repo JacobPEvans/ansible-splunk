@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.10](https://github.com/dryvist/ansible-splunk/compare/v0.49.9...v0.49.10) (2026-07-31)
+
+
+### Bug Fixes
+
+* **inventory:** stop restating the Splunk VM hostname outside deployment.json ([#418](https://github.com/dryvist/ansible-splunk/issues/418)) ([67895b1](https://github.com/dryvist/ansible-splunk/commit/67895b13c4cc1fa11729bf3edad0edca085066d4))
+
 ## [0.49.9](https://github.com/dryvist/ansible-splunk/compare/v0.49.8...v0.49.9) (2026-07-29)
 
 
