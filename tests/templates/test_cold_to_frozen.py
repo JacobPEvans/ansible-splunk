@@ -211,6 +211,17 @@ if CONCURRENCY < 2 or "--transfers" not in flat or "--s3-upload-concurrency" not
 if "--config" not in flat or os.devnull not in flat:
     errors.append("rclone must be pinned to no on-disk config, got: %r" % flat)
 
+# The destination bucket must never be probed for or created. rclone ensures a
+# bucket exists before writing unless told not to, and that needs a create
+# permission the archive credential deliberately lacks — it is scoped to one
+# existing bucket. Observed live: the endpoint answered the probe 403 and
+# rclone treated it as fatal, so every upload failed before a byte moved,
+# while the bucket it was asking about already existed.
+if "--s3-no-check-bucket" not in flat:
+    errors.append("rclone must not probe for or create the bucket; a scoped "
+                  "credential cannot create one and the probe fails the "
+                  "upload, got: %r" % flat)
+
 # --- Config resolution: environment vs credential file ---------------------
 #
 # splunkd invokes the script with a restricted environment, so the file is the
