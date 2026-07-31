@@ -110,6 +110,18 @@
 # visible there without modifying or rebuilding the vendor image - and it
 # survives an image upgrade, which anything pip-installed into the container
 # would not.
+# The published archive is a zip, and unarchive shells out to an external
+# extractor for that format rather than handling it in-process. The VM image
+# does not carry one, so without this the download succeeds and the unpack
+# fails on a missing binary - which reads as a corrupt archive rather than an
+# absent dependency, and leaves the previous archive script in place.
+- name: Ensure the archive extractor is present
+  ansible.builtin.apt:
+    name: unzip
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Create the frozen-archive tool directory
   ansible.builtin.file:
     path: "{{ splunk_docker_frozen_bin_dir }}"
