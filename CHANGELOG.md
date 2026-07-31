@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.52.0](https://github.com/dryvist/ansible-splunk/compare/v0.51.3...v0.52.0) (2026-07-31)
+
+
+### Features
+
+* **splunk:** cap the index volumes now the archive is proven ([#430](https://github.com/dryvist/ansible-splunk/issues/430)) ([7f9b513](https://github.com/dryvist/ansible-splunk/commit/7f9b513cfb48ef873a2a90cc3139fb310a719602))
+
+
+### Bug Fixes
+
+* **splunkbase:** fail on a missing object-storage client, not on storage ([#429](https://github.com/dryvist/ansible-splunk/issues/429)) ([156b907](https://github.com/dryvist/ansible-splunk/commit/156b907e4ec400e20a6d5fae76870bdbbb5a7cce))
+
 ## [0.51.3](https://github.com/dryvist/ansible-splunk/compare/v0.51.2...v0.51.3) (2026-07-31)
 
 
