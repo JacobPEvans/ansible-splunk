@@ -67,6 +67,7 @@ def load_module(env_vars=None, config_path=""):
     rendered = env.get_template("cold_to_frozen.py.j2").render(
         ansible_managed="test render",
         splunk_docker_frozen_config_path=config_path,
+        splunk_docker_frozen_upload_timeout_seconds=900,
     )
     module = types.ModuleType("cold_to_frozen")
     module.__dict__["__name__"] = "cold_to_frozen"
@@ -127,12 +128,16 @@ result = run(URL_ERROR)
 if not (result or "").startswith("retryable"):
     errors.append("URLError must be retryable, got: %r" % result)
 
-# 1b. The per-request timeout must be short (a stalled upload should not hang
-#     for the old 300s), and the value actually reaching urlopen() must be the
-#     module constant - not just a constant that exists unused.
-if not (0 < mod.REQUEST_TIMEOUT_SECONDS <= 60):
+# 1b. The timeout bounds ONE streamed chunk, so it is a stall detector, not a
+#     transfer budget - an upper bound tuned to how long an object should take
+#     is what previously failed every large bucket. It still must be finite and
+#     not absurd (a tolerance past an hour is a hang, not a timeout), and the
+#     value actually reaching urlopen() must be the module constant - not just a
+#     constant that exists unused.
+if not (0 < mod.REQUEST_TIMEOUT_SECONDS <= 3600):
     errors.append(
-        "REQUEST_TIMEOUT_SECONDS must be <= 60, got: %r" % mod.REQUEST_TIMEOUT_SECONDS
+        "REQUEST_TIMEOUT_SECONDS must be in (0, 3600], got: %r"
+        % mod.REQUEST_TIMEOUT_SECONDS
     )
 if timeouts != [mod.REQUEST_TIMEOUT_SECONDS]:
     errors.append(

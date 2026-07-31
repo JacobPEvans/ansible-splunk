@@ -59,7 +59,16 @@ MAX_ATTEMPTS = 5
 # genuinely stalled connection, which is the condition worth aborting on.
 # Slow-but-progressing uploads now succeed at any file size, so this value does
 # not need to scale with bucket size or link speed.
-REQUEST_TIMEOUT_SECONDS = 60
+#
+# It does need to tolerate the archive link's real behaviour. Measured against
+# the offsite endpoint: 318 KB/s sustained, and bursty enough that a single
+# chunk can sit unmoved for minutes without the connection being dead. At 60s
+# every large bucket still died - on a stall rather than on total size. The
+# budget is therefore a stall detector, not a throughput budget, and is sized
+# for the worst observed stall. Worst case per file is this value multiplied by
+# MAX_ATTEMPTS; a slow success beats a fast failure, because a failure leaves
+# the bucket on disk forever.
+REQUEST_TIMEOUT_SECONDS = {{ splunk_docker_frozen_upload_timeout_seconds | int }}
 
 # Read size for the payload hash pass. The send granularity is separate and is
 # http.client's own blocksize; it is left at the default deliberately, since
