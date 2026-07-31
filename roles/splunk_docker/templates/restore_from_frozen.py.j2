@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+# {{ ansible_managed }}
+"""Restore an archived Splunk bucket from S3-compatible object storage.
+
+This is the other half of the freeze path. Archiving is only a backup if the
+restore has been exercised, so this ships alongside the freeze script rather
+than being left as prose in a runbook.
+
+USAGE
+    restore_from_frozen.py list [<index>]
+    restore_from_frozen.py fetch <index> <bucket_id> <destination_dir>
+
+AFTER FETCHING, to make the data searchable again:
+    1. Move the bucket into the index's thawedPath.
+    2. Run:  splunk rebuild <bucket_dir>
+    3. Restart splunkd.
+    Thawed data is exempt from the ageing scheme, so remove it by hand when
+    you are done with it or it stays forever.
+
+Credentials resolve exactly as the freeze script resolves them: the environment
+first, then the credential file it writes (override the location with
+SPLUNK_FROZEN_CONFIG_PATH). Reading only the environment meant a restore run
+where a freeze runs found no credentials at all.
+
+A bucket is only restorable once the freeze wrote its completion marker, so a
+partial upload is refused rather than rebuilt into a bucket that looks intact.
+
+Transfers go through the same rclone binary the freeze path uses, so downloads
+get the same retry and integrity handling and there is no second S3
+implementation to keep correct.
+
+Nothing is written to disk except the bucket files you asked for.
+"""
+
+import os
+import subprocess
+import sys
+
+CONFIG_PATH = os.environ.get(
+    "SPLUNK_FROZEN_CONFIG_PATH", "{{ splunk_docker_frozen_config_path }}"
+)
+RCLONE = "{{ splunk_docker_frozen_rclone_path }}"
+TRANSFERS = {{ splunk_docker_frozen_upload_concurrency | int }}
+TIMEOUT = "{{ splunk_docker_frozen_upload_timeout_seconds | int }}s"
+
+ARCHIVE_MARKER_NAME = "_ARCHIVE_COMPLETE"
+
+REMOTE = "archive"
+
+
+def _read_config_file(path):
+    """Parse simple KEY=value lines. Blank lines and '#' comments are ignored."""
+    values = {}
+    try:
+        with open(path, "r") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return values
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip()
+    return values
+
+
+_FILE_CONFIG = _read_config_file(CONFIG_PATH)
+
+
+def _setting(name, default=""):
+    value = os.environ.get(name, "")
+    if value:
+        return value
+    return _FILE_CONFIG.get(name, default)
+
+
+ENDPOINT = _setting("SPLUNK_FROZEN_S3_ENDPOINT")
+BUCKET = _setting("SPLUNK_FROZEN_S3_BUCKET")
+KEY_ID = _setting("SPLUNK_FROZEN_S3_KEY_ID")
+APP_KEY = _setting("SPLUNK_FROZEN_S3_APP_KEY")
+REGION = _setting("SPLUNK_FROZEN_S3_REGION")
+
+
+# Deliberately duplicated from the freeze script rather than shared. Both run
+# inside the Splunk container as standalone files dropped into a config volume;
+# a shared module would mean putting an importable package into a vendor image,
+# which is the dependency both scripts exist to avoid.
+def rclone_env():
+    env = dict(os.environ)
+    prefix = "RCLONE_CONFIG_%s_" % REMOTE.upper()
+    env.update(
+        {
+            prefix + "TYPE": "s3",
+            prefix + "PROVIDER": "Other",
+            prefix + "ENDPOINT": ENDPOINT,
+            prefix + "ACCESS_KEY_ID": KEY_ID,
+            prefix + "SECRET_ACCESS_KEY": APP_KEY,
+            prefix + "REGION": REGION,
+        }
+    )
+    return env
+
+
+def run_rclone(args, capture=False):
+    """Run rclone. Returns (ok, stdout_text)."""
+    cmd = [
+        RCLONE,
+        # No on-disk rclone config: everything comes from the environment, so a
+        # stray config file cannot redirect a restore at another store.
+        "--config",
+        os.devnull,
+        "--timeout",
+        TIMEOUT,
+        "--transfers",
+        str(TRANSFERS),
+        "--retries",
+        "5",
+        "--stats",
+        "0",
+    ] + args
+    result = subprocess.run(
+        cmd,
+        env=rclone_env(),
+        stdout=subprocess.PIPE,
+        stderr=None if not capture else subprocess.PIPE,
+    )
+    out = (result.stdout or b"").decode("utf-8", "replace")
+    return result.returncode == 0, out
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 2
+    for name, value in (("endpoint", ENDPOINT), ("bucket", BUCKET), ("key id", KEY_ID)):
+        if not value:
+            print("missing config: %s" % name)
+            return 1
+
+    action = sys.argv[1]
+
+    if action == "list":
+        scope = (sys.argv[2] + "/") if len(sys.argv) > 2 else ""
+        ok, out = run_rclone(
+            [
+                "lsf",
+                "%s:%s/%s" % (REMOTE, BUCKET, scope),
+                "--dirs-only",
+                "--recursive",
+                "--max-depth",
+                "1" if scope else "2",
+            ],
+            capture=True,
+        )
+        if not ok:
+            print("could not list the archive")
+            return 1
+        # A recursive listing returns the intermediate index directories too
+        # ("main/" as well as "main/db_1_1_0/"), and printing those would offer
+        # an index name where a bucket id is expected. Keep only full
+        # <index>/<bucket> pairs.
+        depth = 0 if scope else 1
+        entries = sorted(
+            scope + line.rstrip("/")
+            for line in out.splitlines()
+            if line.strip() and line.rstrip("/").count("/") == depth
+        )
+        for entry in entries:
+            print(entry)
+        print("\n%d archived bucket(s)" % len(entries))
+        return 0
+
+    if action == "fetch":
+        if len(sys.argv) < 5:
+            print("usage: restore_from_frozen.py fetch <index> <bucket_id> <dest_dir>")
+            return 2
+        index, bucket_id, dest = sys.argv[2], sys.argv[3], sys.argv[4]
+        prefix = "%s:%s/%s/%s" % (REMOTE, BUCKET, index, bucket_id)
+
+        # A freeze uploads many files concurrently, so an interrupted one leaves
+        # a prefix that lists exactly like a finished archive. Rebuilding from
+        # that yields a bucket that looks restored and is not - the worst
+        # possible failure for an archive. Trust the marker, not the listing.
+        ok, out = run_rclone(["lsf", prefix], capture=True)
+        if not ok or not out.strip():
+            print("nothing archived under %s/%s" % (index, bucket_id))
+            return 1
+        if ARCHIVE_MARKER_NAME not in out.split():
+            print(
+                "refusing to restore %s/%s: no %s marker, so this archive is "
+                "incomplete (an interrupted freeze left a partial upload)."
+                % (index, bucket_id, ARCHIVE_MARKER_NAME)
+            )
+            return 1
+
+        target = os.path.join(dest, bucket_id)
+        os.makedirs(target, exist_ok=True)
+        # The marker is archive bookkeeping, not bucket content - restoring it
+        # would leave a stray file in a directory 'splunk rebuild' is about to
+        # read.
+        ok, _ = run_rclone(
+            ["copy", prefix, target, "--exclude", "/" + ARCHIVE_MARKER_NAME, "--progress"]
+        )
+        if not ok:
+            print("restore failed; %s may be incomplete" % target)
+            return 1
+
+        restored = sum(len(files) for _root, _dirs, files in os.walk(target))
+        print(
+            "\n%d file(s) into %s\nNow: move it under the index thawedPath, run "
+            "'splunk rebuild <dir>', restart splunkd, and remember thawed data "
+            "never ages out on its own." % (restored, target)
+        )
+        return 0
+
+    print("unknown action: %s" % action)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

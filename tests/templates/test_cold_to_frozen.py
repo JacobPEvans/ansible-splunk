@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Test the cold_to_frozen.py.j2 upload retry classification.
+Test the cold_to_frozen.py.j2 freeze contract.
 
-The freeze script must distinguish three outcomes, because Splunk deletes a
-bucket only when the script exits 0:
+Splunk deletes a bucket only when this script exits 0, so the properties worth
+guarding are the ones that decide whether data survives:
 
-  transport failure (URLError) -> retryable, bounded retry, then give up safely
-  retryable HTTP (429/5xx)     -> retryable
-  terminal HTTP (403 etc.)     -> fail immediately, no retry
+  - every failure path exits non-zero, so the bucket stays on disk
+  - the completion marker is written last, and never when anything failed
+  - credentials reach rclone through the environment, never on a command line
+  - transfers are actually concurrent, which is what makes the archive keep up
 
-Getting URLError wrong is the expensive case: a single connect/DNS/TLS blip
-would abandon the bucket on a disk that is already tight, and the same bucket
-fails again on the next pass.
+The upload itself is rclone's job now; these tests check how it is invoked
+rather than re-testing S3.
 
 Run from repo root:
   python3 tests/templates/test_cold_to_frozen.py
@@ -21,8 +21,6 @@ import os
 import sys
 import tempfile
 import types
-import urllib.error
-from email.message import Message
 from pathlib import Path
 
 try:
@@ -41,8 +39,8 @@ SETTING_KEYS = (
     "SPLUNK_FROZEN_S3_APP_KEY",
 )
 
-# The script reads its config from the environment at import time, so the
-# values have to be in place before the module body executes.
+# The script reads its config at import time, so the values have to be in place
+# before the module body executes.
 CONFIG = {
     "SPLUNK_FROZEN_S3_ENDPOINT": "https://s3.us-east-005.example.invalid",
     "SPLUNK_FROZEN_S3_BUCKET": "test-bucket",
@@ -50,14 +48,15 @@ CONFIG = {
     "SPLUNK_FROZEN_S3_APP_KEY": "test-app-key",
 }
 
+RCLONE_PATH = "/opt/splunk/etc/system/local/bin/rclone"
+CONCURRENCY = 8
+
 
 def load_module(env_vars=None, config_path=""):
     """Render and exec the template with a controlled env and config path.
 
-    Splunkd's restricted environment is exactly what env_vars={} simulates:
-    the module must then fall back to reading config_path. Every call clears
-    the four settings from os.environ first so scenarios cannot leak into
-    each other via process-wide state.
+    Each call produces an independent module, so cases cannot leak into each
+    other via process-wide state.
     """
     for key in SETTING_KEYS:
         os.environ.pop(key, None)
@@ -67,7 +66,9 @@ def load_module(env_vars=None, config_path=""):
     rendered = env.get_template("cold_to_frozen.py.j2").render(
         ansible_managed="test render",
         splunk_docker_frozen_config_path=config_path,
+        splunk_docker_frozen_rclone_path=RCLONE_PATH,
         splunk_docker_frozen_upload_timeout_seconds=900,
+        splunk_docker_frozen_upload_concurrency=CONCURRENCY,
     )
     module = types.ModuleType("cold_to_frozen")
     module.__dict__["__name__"] = "cold_to_frozen"
@@ -75,291 +76,178 @@ def load_module(env_vars=None, config_path=""):
     return module
 
 
-mod = load_module(env_vars=CONFIG)
+def make_bucket(root, name="db_1_1_0", index="main", files=("Hosts.data",)):
+    bucket_dir = os.path.join(root, index, "db", name)
+    os.makedirs(bucket_dir)
+    for filename in files:
+        Path(bucket_dir, filename).write_bytes(b"x")
+    return bucket_dir
+
+
+def run_main(module, bucket_dir):
+    original_argv = sys.argv[:]
+    sys.argv[1:] = [bucket_dir]
+    try:
+        return module.main()
+    finally:
+        sys.argv[:] = original_argv
+
+
+def record_calls(module, fail_on=None):
+    """Replace run_rclone with a recorder. fail_on matches the rclone verb."""
+    calls = []
+
+    def _run(args, stdin_data=None):
+        calls.append(args)
+        if fail_on and args and args[0] == fail_on:
+            return "rclone exited 1: simulated"
+        return None
+
+    setattr(module, "run_rclone", _run)
+    setattr(module, "log", lambda _msg: None)
+    return calls
+
 
 errors = []
-calls = []
-timeouts = []
-bodies = []
-headers = []
 
-
-def fake_urlopen(raise_with):
-    def _open(req, **kwargs):
-        calls.append(req.full_url)
-        timeouts.append(kwargs.get("timeout"))
-        bodies.append(req.data)
-        headers.append({k.lower(): v for k, v in req.headers.items()})
-        raise raise_with
-
-    return _open
-
-
-with tempfile.NamedTemporaryFile(suffix=".tsidx", delete=False) as handle:
-    handle.write(b"bucket payload")
-    PAYLOAD = handle.name
-
-
-def run(raise_with, retry=False):
-    """Call put_object (or put_object_with_retry) with urlopen stubbed out."""
-    del calls[:]
-    del timeouts[:]
-    del bodies[:]
-    del headers[:]
-    original = mod.urllib.request.urlopen
-    mod.urllib.request.urlopen = fake_urlopen(raise_with)
-    try:
-        fn = mod.put_object_with_retry if retry else mod.put_object
-        return fn(PAYLOAD, "prefix/index/bucket/file.tsidx")
-    finally:
-        mod.urllib.request.urlopen = original
-
-
-HTTP_ERROR_503 = urllib.error.HTTPError(
-    "https://example.invalid", 503, "Service Unavailable", Message(), None
-)
-HTTP_ERROR_403 = urllib.error.HTTPError(
-    "https://example.invalid", 403, "Forbidden", Message(), None
-)
-URL_ERROR = urllib.error.URLError("connection refused")
-
-# 1. A transport failure must be classified retryable.
-result = run(URL_ERROR)
-if not (result or "").startswith("retryable"):
-    errors.append("URLError must be retryable, got: %r" % result)
-
-# 1b. The timeout bounds ONE streamed chunk, so it is a stall detector, not a
-#     transfer budget - an upper bound tuned to how long an object should take
-#     is what previously failed every large bucket. It still must be finite and
-#     not absurd (a tolerance past an hour is a hang, not a timeout), and the
-#     value actually reaching urlopen() must be the module constant - not just a
-#     constant that exists unused.
-if not (0 < mod.REQUEST_TIMEOUT_SECONDS <= 3600):
-    errors.append(
-        "REQUEST_TIMEOUT_SECONDS must be in (0, 3600], got: %r"
-        % mod.REQUEST_TIMEOUT_SECONDS
-    )
-if timeouts != [mod.REQUEST_TIMEOUT_SECONDS]:
-    errors.append(
-        "urlopen must be called with timeout=REQUEST_TIMEOUT_SECONDS, got: %r" % timeouts
-    )
-
-# 1c. THE REGRESSION GUARD. The body must be streamed from a file object, never
-#     handed over as bytes.
-#
-#     A bytes body makes http.client issue one sendall() for the whole object,
-#     and CPython applies the socket timeout to that entire sendall. Bucket
-#     files reach hundreds of MB, so on a link slow enough that one file
-#     exceeds the budget, every large bucket fails, stays on disk, size caps
-#     stop binding, and the index volume fills until splunkd pauses indexing
-#     and refuses searches. Sending from a file handle bounds the timeout to
-#     one chunk instead, so slow-but-progressing uploads complete at any size.
-#
-#     This also keeps peak memory at one block rather than the whole file.
-if len(bodies) != 1:
-    errors.append("expected exactly one request body, got %d" % len(bodies))
-else:
-    body = bodies[0]
-    if isinstance(body, (bytes, bytearray)):
-        errors.append(
-            "request body must be a file object, not bytes - a bytes body "
-            "restores the single-sendall timeout bug that took Splunk down"
-        )
-    elif not hasattr(body, "read"):
-        errors.append("request body must be a readable file object, got: %r" % type(body))
-
-# 1d. Streaming requires an explicit Content-Length: urllib cannot infer one
-#     from a file object, and without it http.client switches to chunked
-#     transfer-encoding, which this SigV4 signature form does not cover.
-if headers:
-    sent_length = headers[0].get("Content-length".lower())
-    expected = str(os.path.getsize(PAYLOAD))
-    if sent_length != expected:
-        errors.append(
-            "Content-Length must be the file size (%s), got: %r" % (expected, sent_length)
-        )
-
-# 2. HTTPError subclasses URLError. If the handlers are ordered wrongly the
-#    URLError branch swallows every HTTP status and 403 becomes retryable.
-result = run(HTTP_ERROR_403)
-if (result or "").startswith("retryable"):
-    errors.append("HTTP 403 must NOT be retryable (handler ordering), got: %r" % result)
-if "403" not in (result or ""):
-    errors.append("HTTP 403 error string must name the status, got: %r" % result)
-
-# 3. Retryable HTTP statuses still classify as before.
-result = run(HTTP_ERROR_503)
-if not (result or "").startswith("retryable"):
-    errors.append("HTTP 503 must be retryable, got: %r" % result)
-
-# 4. The retry loop actually retries a URLError, and bounds itself.
-result = run(URL_ERROR, retry=True)
-if len(calls) != mod.MAX_ATTEMPTS:
-    errors.append(
-        "URLError should be attempted MAX_ATTEMPTS (%d) times, got %d"
-        % (mod.MAX_ATTEMPTS, len(calls))
-    )
-if result is None:
-    errors.append("exhausted retries must return an error, not success")
-
-# 5. A terminal status must not burn retries.
-result = run(HTTP_ERROR_403, retry=True)
-if len(calls) != 1:
-    errors.append("HTTP 403 should be attempted once, got %d" % len(calls))
-
-Path(PAYLOAD).unlink()
-
-# --- Config resolution: environment vs. credential file -------------------
-#
-# splunkd invokes coldToFrozenScript with a restricted environment, so the
-# compose-injected env vars a manual `docker exec` sees are absent on the
-# real path. The script must fall back to reading CONFIG_PATH, and the
-# environment must still win when both are present (preserves the existing
-# manual/canary invocation).
-
-with tempfile.NamedTemporaryFile(
-    mode="w", suffix=".conf", delete=False
-) as handle:
-    handle.write(
-        "# comment line, ignored\n"
-        "\n"
-        "SPLUNK_FROZEN_S3_ENDPOINT=https://s3.us-east-005.file.invalid\n"
-        "SPLUNK_FROZEN_S3_BUCKET=file-bucket\n"
-        "SPLUNK_FROZEN_S3_KEY_ID=file-key-id\n"
-        "SPLUNK_FROZEN_S3_APP_KEY=file-app-key\n"
-    )
-    CONFIG_FILE = handle.name
-
-# 6. No environment at all (splunkd's real invocation) -> resolved from file.
-file_mod = load_module(env_vars={}, config_path=CONFIG_FILE)
-if file_mod.ENDPOINT != "https://s3.us-east-005.file.invalid":
-    errors.append("ENDPOINT should resolve from the config file, got: %r" % file_mod.ENDPOINT)
-if file_mod.BUCKET != "file-bucket":
-    errors.append("BUCKET should resolve from the config file, got: %r" % file_mod.BUCKET)
-if file_mod.KEY_ID != "file-key-id":
-    errors.append("KEY_ID should resolve from the config file, got: %r" % file_mod.KEY_ID)
-if file_mod.APP_KEY != "file-app-key":
-    errors.append("APP_KEY should resolve from the config file, got: %r" % file_mod.APP_KEY)
-
-# 7. Both present -> the environment wins (the manual/canary path is unchanged).
-both_mod = load_module(env_vars=CONFIG, config_path=CONFIG_FILE)
-if both_mod.ENDPOINT != CONFIG["SPLUNK_FROZEN_S3_ENDPOINT"]:
-    errors.append(
-        "environment must win over the config file, got ENDPOINT=%r" % both_mod.ENDPOINT
-    )
-if both_mod.BUCKET != CONFIG["SPLUNK_FROZEN_S3_BUCKET"]:
-    errors.append(
-        "environment must win over the config file, got BUCKET=%r" % both_mod.BUCKET
-    )
-
-# 8. Missing in both -> still refuses, and the message still names the
-#    missing keys (main() re-reads the module-level globals it already
-#    resolved at import time, so this exercises the same missing-config path
-#    that runs when neither source is populated).
-missing_mod = load_module(env_vars={}, config_path="/nonexistent/cold_to_frozen_creds.conf")
-log_lines = []
-setattr(missing_mod, "log", log_lines.append)
-with tempfile.TemporaryDirectory() as bucket_dir:
-    Path(bucket_dir, "file.tsidx").write_bytes(b"x")
-    original_argv = sys.argv[:]
-    sys.argv[1:] = [bucket_dir]
-    try:
-        rc = missing_mod.main()
-    finally:
-        sys.argv[:] = original_argv
-if rc != 1:
-    errors.append("missing config in both env and file should refuse (exit 1), got %r" % rc)
-if not any("refusing to freeze" in line and "endpoint" in line for line in log_lines):
-    errors.append("missing-config message should name 'endpoint', got: %r" % log_lines)
-if not any("key id" in line and "app key" in line for line in log_lines):
-    errors.append("missing-config message should name 'key id' and 'app key', got: %r" % log_lines)
-
-Path(CONFIG_FILE).unlink()
-
-# --- Object key layout: no prefix, bucket-root <index>/<bucket>/<relpath> --
-#
-# The archive now lives in its own dedicated bucket, so the old
-# "<prefix>/<index>/<bucket>/<file>" layout is redundant - the operator wants
-# objects written directly at the bucket root as "<index>/<bucket>/<file>".
-
-key_mod = load_module(env_vars=CONFIG)
-captured_keys = []
-
-
-def fake_put_object_with_retry(_local_path, object_key):
-    captured_keys.append(object_key)
-    return None
-
-
-setattr(key_mod, "put_object_with_retry", fake_put_object_with_retry)
-
-with tempfile.TemporaryDirectory() as splunk_db:
-    bucket_dir = os.path.join(splunk_db, "main", "db", "db_1_1_0")
-    os.makedirs(bucket_dir)
-    Path(bucket_dir, "Hosts.data").write_bytes(b"x")
-    original_argv = sys.argv[:]
-    sys.argv[1:] = [bucket_dir]
-    try:
-        rc = key_mod.main()
-    finally:
-        sys.argv[:] = original_argv
+# --- The happy path: copy, then marker, in that order ----------------------
+mod = load_module(env_vars=CONFIG)
+calls = record_calls(mod)
+with tempfile.TemporaryDirectory() as root:
+    bucket_dir = make_bucket(root)
+    rc = run_main(mod, bucket_dir)
 
 if rc != 0:
-    errors.append("main() with a stubbed uploader should succeed, got rc=%r" % rc)
-if captured_keys[:1] != ["main/db_1_1_0/Hosts.data"]:
-    errors.append(
-        "object key should be exactly '<index>/<bucket>/<relpath>' with no "
-        "prefix, got: %r" % captured_keys
-    )
+    errors.append("a successful archive must exit 0, got %r" % rc)
+verbs = [call[0] for call in calls]
+if verbs != ["copy", "rcat"]:
+    errors.append("expected a copy then a marker rcat, got: %r" % verbs)
+if calls and not calls[0][2].endswith("main/db_1_1_0"):
+    # Keys land at the bucket root as <index>/<bucket>/<relpath>, with no extra
+    # prefix - restore and every runbook path assume that layout.
+    errors.append("copy destination must be <bucket>/<index>/<id>, got: %r" % calls[0][2])
+if calls and mod.ARCHIVE_MARKER_NAME not in calls[-1][1]:
+    errors.append("the last call must write the completion marker, got: %r" % calls[-1])
 
-# --- Completion marker: written last, and only when everything succeeded ----
+# --- A failed copy must abort before any marker is written -----------------
 #
-# Files upload one at a time, so an interrupted freeze leaves a partial prefix
-# that a LIST cannot distinguish from a complete bucket - the live store
-# already holds one such half-uploaded bucket. Restore keys off this marker,
-# so it must be the LAST object written and must never appear for a bucket
-# whose files did not all land.
-
-if captured_keys[-1:] != ["main/db_1_1_0/%s" % key_mod.ARCHIVE_MARKER_NAME]:
-    errors.append(
-        "the completion marker must be the last object written, got: %r" % captured_keys
-    )
-
-# A failed file upload must abort before any marker is written.
+# This is the expensive one to get wrong: a marker on an incomplete prefix makes
+# restore trust a bucket that is missing files.
 fail_mod = load_module(env_vars=CONFIG)
-fail_keys = []
-
-
-def failing_put_object_with_retry(_local_path, object_key):
-    fail_keys.append(object_key)
-    return "retryable URLError (timed out) uploading %s" % object_key
-
-
-setattr(fail_mod, "put_object_with_retry", failing_put_object_with_retry)
-setattr(fail_mod, "log", lambda _msg: None)
-
-with tempfile.TemporaryDirectory() as splunk_db:
-    bucket_dir = os.path.join(splunk_db, "main", "db", "db_2_2_0")
-    os.makedirs(bucket_dir)
-    Path(bucket_dir, "Hosts.data").write_bytes(b"x")
-    original_argv = sys.argv[:]
-    sys.argv[1:] = [bucket_dir]
-    try:
-        fail_rc = fail_mod.main()
-    finally:
-        sys.argv[:] = original_argv
+fail_calls = record_calls(fail_mod, fail_on="copy")
+with tempfile.TemporaryDirectory() as root:
+    bucket_dir = make_bucket(root, name="db_2_2_0")
+    fail_rc = run_main(fail_mod, bucket_dir)
 
 if fail_rc != 1:
-    errors.append("a failed upload must exit non-zero so Splunk keeps the bucket, got %r" % fail_rc)
-if any(key.endswith(fail_mod.ARCHIVE_MARKER_NAME) for key in fail_keys):
-    errors.append(
-        "no completion marker may be written when a file failed, got: %r" % fail_keys
-    )
+    errors.append("a failed copy must exit non-zero so Splunk keeps the bucket, got %r" % fail_rc)
+if any(call[0] == "rcat" for call in fail_calls):
+    errors.append("no completion marker may be written when the copy failed")
+
+# --- A failed marker write must also fail the bucket -----------------------
+#
+# Every file is stored at that point, but nothing can prove it, and restore
+# refuses an unmarked bucket. Reporting success would strand the data.
+marker_mod = load_module(env_vars=CONFIG)
+record_calls(marker_mod, fail_on="rcat")
+with tempfile.TemporaryDirectory() as root:
+    bucket_dir = make_bucket(root, name="db_3_3_0")
+    marker_rc = run_main(marker_mod, bucket_dir)
+
+if marker_rc != 1:
+    errors.append("a failed marker write must exit non-zero, got %r" % marker_rc)
+
+# --- An empty bucket directory is never reported as archived ---------------
+empty_mod = load_module(env_vars=CONFIG)
+record_calls(empty_mod)
+with tempfile.TemporaryDirectory() as root:
+    empty_dir = os.path.join(root, "main", "db", "db_4_4_0")
+    os.makedirs(empty_dir)
+    empty_rc = run_main(empty_mod, empty_dir)
+
+if empty_rc != 1:
+    errors.append("an empty bucket must not be reported as archived, got %r" % empty_rc)
+
+# --- Credentials go through the environment, never a command line ----------
+#
+# A command line is visible to every other process on the host, and rclone
+# accepts credentials either way - so this is a real choice that must not
+# silently regress.
+cred_mod = load_module(env_vars=CONFIG)
+rclone_env = cred_mod.rclone_env()
+if rclone_env.get("RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY") != CONFIG["SPLUNK_FROZEN_S3_APP_KEY"]:
+    errors.append("the app key must be passed to rclone through the environment")
+if rclone_env.get("RCLONE_CONFIG_ARCHIVE_ENDPOINT") != CONFIG["SPLUNK_FROZEN_S3_ENDPOINT"]:
+    errors.append("the endpoint must be passed to rclone through the environment")
+
+argv_calls = []
+
+
+def _capture_argv(cmd, **kwargs):
+    argv_calls.append(cmd)
+
+    class _Result(object):
+        returncode = 0
+        stdout = b""
+        stderr = b""
+
+    return _Result()
+
+
+setattr(cred_mod, "subprocess", types.SimpleNamespace(run=_capture_argv, PIPE=-1))
+cred_mod.run_rclone(["copy", "/tmp/x", "archive:b/i/d"])
+flat = " ".join(argv_calls[0])
+for secret in (CONFIG["SPLUNK_FROZEN_S3_APP_KEY"], CONFIG["SPLUNK_FROZEN_S3_KEY_ID"]):
+    if secret in flat:
+        errors.append("a credential appeared on the rclone command line")
+
+# --- Concurrency and config isolation are load-bearing flags ---------------
+#
+# Single-stream upload is what made archiving slower than data arrived: the
+# endpoint throttles per connection. And a stray on-disk rclone config must not
+# be able to redirect the archive somewhere else.
+if CONCURRENCY < 2 or "--transfers" not in flat or "--s3-upload-concurrency" not in flat:
+    errors.append("uploads must run concurrently, got: %r" % flat)
+if "--config" not in flat or os.devnull not in flat:
+    errors.append("rclone must be pinned to no on-disk config, got: %r" % flat)
+
+# --- Config resolution: environment vs credential file ---------------------
+#
+# splunkd invokes the script with a restricted environment, so the file is the
+# path that matters in production; the environment must still win so a manual
+# canary run behaves the same way.
+with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as fh:
+    for key, value in CONFIG.items():
+        fh.write("%s=%s\n" % (key, value))
+    file_config_path = fh.name
+
+try:
+    file_mod = load_module(env_vars={}, config_path=file_config_path)
+    if file_mod.BUCKET != CONFIG["SPLUNK_FROZEN_S3_BUCKET"]:
+        errors.append("with no environment, settings must resolve from the credential file")
+
+    override = dict(CONFIG, SPLUNK_FROZEN_S3_BUCKET="from-environment")
+    both_mod = load_module(env_vars=override, config_path=file_config_path)
+    if both_mod.BUCKET != "from-environment":
+        errors.append("the environment must win over the credential file")
+finally:
+    os.unlink(file_config_path)
+
+# Missing in both places must refuse rather than proceed: the alternative is
+# letting Splunk delete an unarchived bucket.
+missing_mod = load_module(env_vars={}, config_path="/nonexistent/cold_to_frozen.conf")
+record_calls(missing_mod)
+with tempfile.TemporaryDirectory() as root:
+    bucket_dir = make_bucket(root, name="db_5_5_0")
+    missing_rc = run_main(missing_mod, bucket_dir)
+
+if missing_rc != 1:
+    errors.append("missing credentials must refuse the freeze, got %r" % missing_rc)
 
 if errors:
-    print("FAIL")
+    print("FAIL:")
     for error in errors:
         print("  - %s" % error)
     sys.exit(1)
 
-print("PASS: cold_to_frozen retry classification and config resolution")
+print("PASS: cold_to_frozen freeze contract, credential handling, and rclone invocation")

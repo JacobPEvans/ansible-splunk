@@ -11,85 +11,61 @@
 #   disk. That is the safe direction: a stuck bucket costs space, a false
 #   success costs the data.
 #
+# WHY RCLONE RATHER THAN OUR OWN S3 CLIENT
+#   This used to sign, stream, and retry S3 requests by hand. That code was
+#   correct and still lost: it uploaded one file at a time over one connection,
+#   and the offsite endpoint throttles per connection, so archiving ran slower
+#   than data arrived. Measured there: 318 KB/s on a single connection against
+#   1.64 MB/s across eight. Fixing it properly means multipart uploads with
+#   parallel parts - a substantial amount of protocol code to own and test.
+#
+#   rclone already does that, plus retry, integrity verification, and a native
+#   B2 backend if the archive ever moves off the S3 API. It ships as a single
+#   static binary installed into the config volume, which is bind-mounted into
+#   this container - so nothing is added to the vendor image and nothing breaks
+#   on the next image bump. Avoiding a dependency in the image was the original
+#   reason for hand-rolling; a static binary in a mounted volume answers that
+#   without owning the protocol.
+#
 # WHY PER-FILE UPLOAD RATHER THAN A TARBALL
 #   Freezing happens precisely when a volume is under pressure. Building a
 #   tarball first would need room for a second copy of the bucket at the moment
-#   there is least room to spare. Uploading each file streams straight from
+#   there is least room to spare. Copying the directory streams straight from
 #   disk and needs no scratch space.
-#
-# WHY NO SDK
-#   This runs inside the Splunk container, invoked by splunkd, with whatever
-#   interpreter that image ships. Adding a dependency means installing into a
-#   vendor image and keeping that working across upgrades. Request signing is a
-#   documented algorithm and the standard library covers it, so there is
-#   nothing to install and nothing to break on the next image bump.
 
-import datetime
-import hashlib
-import hmac
 import os
+import subprocess
 import sys
-import tempfile
-import time
-import urllib.error
-import urllib.request
 
-# Object stores return transient 429/5xx under load. Without retry a momentary
-# blip aborts the freeze, and while that direction is safe (the bucket stays on
-# disk), it means space is not reclaimed and the same bucket fails again on the
-# next pass. Retry the retryable statuses; fail fast on anything else, since a
-# 403 will not improve by being asked again. Transport-level URLErrors are
-# retried too - see the handler in put_object.
-RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
-MAX_ATTEMPTS = 5
-
-# Socket timeout, applied PER SOCKET OPERATION - not to the whole transfer.
-#
-# That distinction is load-bearing. A bytes body makes http.client issue one
-# sendall() for the entire object, and CPython enforces the socket timeout
-# across a whole sendall(). Bucket files reach hundreds of MB, so on any link
-# slow enough that one file takes longer than this budget, EVERY large bucket
-# fails, exits non-zero, and is left on disk for retry forever - retention
-# stops reclaiming, size caps stop binding, and the index volume fills until
-# splunkd pauses indexing and refuses searches. That is not hypothetical; it is
-# what this constant previously caused.
-#
-# Sending from a file object makes http.client transmit in blocksize chunks, so
-# the budget applies to a single chunk. A chunk that cannot move within it is a
-# genuinely stalled connection, which is the condition worth aborting on.
-# Slow-but-progressing uploads now succeed at any file size, so this value does
-# not need to scale with bucket size or link speed.
-#
-# It does need to tolerate the archive link's real behaviour. Measured against
-# the offsite endpoint: 318 KB/s sustained, and bursty enough that a single
-# chunk can sit unmoved for minutes without the connection being dead. At 60s
-# every large bucket still died - on a stall rather than on total size. The
-# budget is therefore a stall detector, not a throughput budget, and is sized
-# for the worst observed stall. Worst case per file is this value multiplied by
-# MAX_ATTEMPTS; a slow success beats a fast failure, because a failure leaves
-# the bucket on disk forever.
-REQUEST_TIMEOUT_SECONDS = {{ splunk_docker_frozen_upload_timeout_seconds | int }}
-
-# Read size for the payload hash pass. The send granularity is separate and is
-# http.client's own blocksize; it is left at the default deliberately, since
-# overriding it means subclassing the connection class for no measurable gain.
-HASH_BLOCK_SIZE = 1024 * 1024
-
-# splunkd invokes coldToFrozenScript with a restricted environment - the
-# compose-injected SPLUNK_FROZEN_S3_* vars a manual `docker exec` sees are not
-# present on the path that actually matters. CONFIG_PATH is the fallback:
-# simple KEY=value lines written by frozen_archive.yml next to this script,
-# in the same config volume. The environment is checked first so the manual
-# invocation used to canary this script keeps working unchanged.
 CONFIG_PATH = "{{ splunk_docker_frozen_config_path }}"
+RCLONE = "{{ splunk_docker_frozen_rclone_path }}"
+
+# Concurrency, both across files and across the parts of one file. The endpoint
+# throttles per connection, so this is the setting that governs throughput.
+# Lower it for an on-network target, where one connection is already fast and
+# extra connections only add contention.
+TRANSFERS = {{ splunk_docker_frozen_upload_concurrency | int }}
+
+# Below this a file is sent whole; above it rclone splits it into concurrent
+# parts. Bucket files run to hundreds of MB, which is the case single-stream
+# upload handled worst.
+UPLOAD_CUTOFF = "64M"
+
+# Stall tolerance for one transfer, not a budget for the whole object. A value
+# tuned to how long a bucket "should" take is what previously failed every
+# large bucket and left it on disk forever.
+TIMEOUT = "{{ splunk_docker_frozen_upload_timeout_seconds | int }}s"
+
+ARCHIVE_MARKER_NAME = "_ARCHIVE_COMPLETE"
+
+REMOTE = "archive"
 
 
 def _read_config_file(path):
     """Parse simple KEY=value lines. Blank lines and '#' comments are ignored.
 
-    Deliberately not INI/JSON - this script has no third-party dependencies
-    and the config has no nesting, so the simplest parser that works is the
-    right one.
+    Deliberately not INI/JSON - the config has no nesting, so the simplest
+    parser that works is the right one.
     """
     values = {}
     try:
@@ -110,6 +86,13 @@ _FILE_CONFIG = _read_config_file(CONFIG_PATH)
 
 
 def _setting(name, default=""):
+    """Environment first, then the config file.
+
+    splunkd invokes this with a restricted environment, so the compose-injected
+    variables are invisible on the path that actually matters - the config file
+    is what makes real evictions work. The environment stays checked first so a
+    manual `docker exec` canary run keeps behaving the same way.
+    """
     value = os.environ.get(name, "")
     if value:
         return value
@@ -120,201 +103,84 @@ ENDPOINT = _setting("SPLUNK_FROZEN_S3_ENDPOINT")
 BUCKET = _setting("SPLUNK_FROZEN_S3_BUCKET")
 KEY_ID = _setting("SPLUNK_FROZEN_S3_KEY_ID")
 APP_KEY = _setting("SPLUNK_FROZEN_S3_APP_KEY")
-
-
-def _region_from_endpoint(endpoint):
-    """Derive the signing region from the endpoint host.
-
-    The region is part of the endpoint hostname, so carrying it as a separate
-    setting just creates a second place to be wrong — and a mismatch fails
-    signature verification with an error that says nothing about regions. A
-    self-test against the real endpoint caught exactly that: a plausible
-    default disagreed with the host the credential actually belongs to.
-    """
-    host = endpoint.split("://", 1)[-1].strip("/")
-    parts = host.split(".")
-    if len(parts) >= 3 and parts[0] == "s3":
-        return parts[1]
-    return ""
-
-
-REGION = os.environ.get("SPLUNK_FROZEN_S3_REGION", "") or _region_from_endpoint(ENDPOINT)
-
-# A single PUT is capped by the service. Buckets are normally far below this,
-# but a bucket that exceeds it must fail loudly rather than upload a truncated
-# object that looks like a successful archive.
-MAX_SINGLE_PUT_BYTES = 5 * 1024 * 1024 * 1024
+# Optional. Endpoints that encode their region in the hostname need nothing
+# here, and rclone signs with whatever it is given.
+REGION = _setting("SPLUNK_FROZEN_S3_REGION")
 
 
 def log(msg):
-    # splunkd captures stderr from this script into splunkd.log, so this is
-    # where an operator will actually look when a freeze goes wrong.
+    """Write to stderr.
+
+    splunkd captures this script's stderr into splunkd.log, so it is where an
+    operator will actually look when a freeze goes wrong.
+    """
     sys.stderr.write("cold_to_frozen: %s\n" % msg)
     sys.stderr.flush()
 
 
-def _sign(key, msg):
-    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+def rclone_env():
+    """Configure the remote entirely through the environment.
 
-
-def _signing_key(secret, datestamp, region, service):
-    k = _sign(("AWS4" + secret).encode("utf-8"), datestamp)
-    k = _sign(k, region)
-    k = _sign(k, service)
-    return _sign(k, "aws4_request")
-
-
-def _file_sha256(path):
-    """Hash a file without holding it in memory.
-
-    A bucket .tsidx can be hundreds of MB and this runs inside the Splunk
-    container on a box that is, by definition, already under pressure when a
-    freeze fires. Reading the whole file to hash it spikes RSS by the file size
-    for no reason - the hash only needs a rolling read.
+    rclone reads RCLONE_CONFIG_<REMOTE>_<OPTION>, so there is no config file to
+    write, no credential on any command line, and nothing left on disk beyond
+    the credential file the role already manages.
     """
-    digest = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(HASH_BLOCK_SIZE), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def put_object(local_path, object_key):
-    """Upload one file. Returns None on success, or an error string."""
-    size = os.path.getsize(local_path)
-    if size > MAX_SINGLE_PUT_BYTES:
-        return "%s is %d bytes, above the single-request limit" % (local_path, size)
-
-    # Two passes over the file: hash, then send. Both stream, so peak memory is
-    # one block regardless of bucket size. SigV4 needs the payload hash up
-    # front, and UNSIGNED-PAYLOAD is deliberately not used - the hash is the
-    # only end-to-end integrity check this path has.
-    payload_hash = _file_sha256(local_path)
-
-    host = ENDPOINT.split("://", 1)[-1].rstrip("/")
-    url = "%s/%s/%s" % (ENDPOINT.rstrip("/"), BUCKET, object_key)
-
-    now = datetime.datetime.now(datetime.timezone.utc)
-    amzdate = now.strftime("%Y%m%dT%H%M%SZ")
-    datestamp = now.strftime("%Y%m%d")
-
-    canonical_uri = "/%s/%s" % (BUCKET, object_key)
-    canonical_headers = (
-        "host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n" % (host, payload_hash, amzdate)
+    env = dict(os.environ)
+    prefix = "RCLONE_CONFIG_%s_" % REMOTE.upper()
+    env.update(
+        {
+            prefix + "TYPE": "s3",
+            prefix + "PROVIDER": "Other",
+            prefix + "ENDPOINT": ENDPOINT,
+            prefix + "ACCESS_KEY_ID": KEY_ID,
+            prefix + "SECRET_ACCESS_KEY": APP_KEY,
+            prefix + "REGION": REGION,
+        }
     )
-    signed_headers = "host;x-amz-content-sha256;x-amz-date"
-    canonical_request = "\n".join(
-        ["PUT", canonical_uri, "", canonical_headers, signed_headers, payload_hash]
-    )
+    return env
 
-    scope = "%s/%s/s3/aws4_request" % (datestamp, REGION)
-    string_to_sign = "\n".join(
-        [
-            "AWS4-HMAC-SHA256",
-            amzdate,
-            scope,
-            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
-        ]
-    )
-    signature = hmac.new(
-        _signing_key(APP_KEY, datestamp, REGION, "s3"),
-        string_to_sign.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
 
-    authorization = (
-        "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s"
-        % (KEY_ID, scope, signed_headers, signature)
-    )
-
+def run_rclone(args, stdin_data=None):
+    """Run rclone. Returns None on success or an error string."""
+    cmd = [
+        RCLONE,
+        # Refuse to read or create an on-disk rclone config. Everything comes
+        # from the environment above, so a stray config file must not be able
+        # to redirect the archive somewhere else.
+        "--config",
+        os.devnull,
+        "--timeout",
+        TIMEOUT,
+        "--transfers",
+        str(TRANSFERS),
+        "--s3-upload-concurrency",
+        str(TRANSFERS),
+        "--s3-upload-cutoff",
+        UPLOAD_CUTOFF,
+        "--s3-chunk-size",
+        UPLOAD_CUTOFF,
+        "--retries",
+        "5",
+        "--stats",
+        "0",
+    ] + args
     try:
-        # Send straight from the file handle. http.client then transmits in its
-        # own blocksize chunks, so the socket timeout bounds ONE chunk instead
-        # of the whole object - see REQUEST_TIMEOUT_SECONDS. Passing bytes here
-        # instead is what made every large bucket unfreezable.
-        with open(local_path, "rb") as fh:
-            req = urllib.request.Request(url, data=fh, method="PUT")
-            req.add_header("Host", host)
-            req.add_header("x-amz-date", amzdate)
-            req.add_header("x-amz-content-sha256", payload_hash)
-            req.add_header("Authorization", authorization)
-            # Required explicitly: urllib cannot infer a length from a file
-            # object, and without it http.client falls back to chunked
-            # transfer-encoding, which this SigV4 signature form does not cover.
-            req.add_header("Content-Length", str(size))
-
-            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
-                if resp.status not in (200, 201):
-                    return "unexpected status %s for %s" % (resp.status, object_key)
-    except urllib.error.HTTPError as exc:
-        # Deliberately does not include the response body verbatim; it can echo
-        # request metadata. The status and key are enough to diagnose.
-        if exc.code in RETRY_STATUSES:
-            return "retryable HTTP %s uploading %s" % (exc.code, object_key)
-        return "HTTP %s uploading %s" % (exc.code, object_key)
-    except urllib.error.URLError as exc:
-        # Transport-level failure (DNS, connect, TLS, timeout) rather than an
-        # HTTP response. HTTPError subclasses URLError, so this must stay below
-        # the HTTPError handler. The restore path already retries these; the
-        # freeze path not doing so was an inconsistency, and a freeze that gives
-        # up on one blip leaves the bucket on a disk that is already tight.
-        return "retryable URLError (%s) uploading %s" % (exc.reason, object_key)
-    except Exception as exc:  # noqa: BLE001 - any failure must block deletion
-        return "%s uploading %s" % (type(exc).__name__, object_key)
-    return None
-
-
-def put_object_with_retry(local_path, object_key):
-    """Upload with bounded retry. Returns None on success or an error string."""
-    err = None
-    for attempt in range(MAX_ATTEMPTS):
-        err = put_object(local_path, object_key)
-        if err is None:
-            return None
-        if not err.startswith("retryable"):
-            return err
-        # Each attempt re-signs; a signature is bound to its timestamp and
-        # cannot simply be replayed.
-        time.sleep(2 ** attempt)
-    return err
-
-
-ARCHIVE_MARKER_NAME = "_ARCHIVE_COMPLETE"
-
-
-def put_completion_marker(index_name, bucket_name, bucket_dir, files):
-    """Publish the marker that makes a bucket's archive complete.
-
-    Files are uploaded one at a time, so an interrupted freeze leaves a partial
-    prefix in the store that looks exactly like an archived bucket from a LIST -
-    the store already holds one such half-uploaded bucket from before this path
-    worked. Restore must treat any bucket without this marker as incomplete
-    rather than trusting object presence.
-
-    Written last, on purpose: it is only true once every file above succeeded.
-    """
-    manifest = "".join(
-        "%s %d\n" % (os.path.relpath(path, bucket_dir), os.path.getsize(path))
-        for path in sorted(files)
-    )
-    body = "files=%d\n%s" % (len(files), manifest)
-
-    # The marker is a few hundred bytes, so a temp file costs nothing - unlike
-    # the bucket payload itself, which is streamed precisely to avoid needing
-    # scratch space on a volume that is under pressure whenever a freeze runs.
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".manifest", delete=False
-        ) as tmp:
-            tmp.write(body)
-            tmp_path = tmp.name
-        return put_object_with_retry(
-            tmp_path, "%s/%s/%s" % (index_name, bucket_name, ARCHIVE_MARKER_NAME)
+        result = subprocess.run(
+            cmd,
+            env=rclone_env(),
+            input=stdin_data,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+    except OSError as exc:
+        return "cannot run rclone at %s: %s" % (RCLONE, exc)
+    if result.returncode != 0:
+        # rclone names the failing object and reason. Only the last line is
+        # kept: the full trace is long and adds nothing splunkd.log needs.
+        detail = (result.stderr or b"").decode("utf-8", "replace").strip()
+        last = detail.splitlines()[-1] if detail else "no detail"
+        return "rclone exited %d: %s" % (result.returncode, last)
+    return None
 
 
 def main():
@@ -360,20 +226,31 @@ def main():
 
     log("archiving %s (%d files) from index %s" % (bucket_name, len(files), index_name))
 
-    for path in files:
-        rel = os.path.relpath(path, bucket_dir)
-        object_key = "%s/%s/%s" % (index_name, bucket_name, rel)
-        err = put_object_with_retry(path, object_key)
-        if err:
-            log("FAILED: %s - bucket left on disk for retry" % err)
-            return 1
+    prefix = "%s:%s/%s/%s" % (REMOTE, BUCKET, index_name, bucket_name)
+    err = run_rclone(["copy", bucket_dir, prefix])
+    if err:
+        log("FAILED: %s - bucket left on disk for retry" % err)
+        return 1
 
-    err = put_completion_marker(index_name, bucket_name, bucket_dir, files)
+    # The completion marker: written last, and only once every file succeeded.
+    #
+    # An interrupted freeze leaves a partial prefix that looks exactly like an
+    # archived bucket from a LIST - the store already holds one such
+    # half-uploaded bucket from before this path worked. Parallel transfers make
+    # that more likely, not less: files land out of order, so even the last key
+    # by name proves nothing. Restore must treat any bucket without this marker
+    # as incomplete rather than trusting object presence.
+    manifest = "".join(
+        "%s %d\n" % (os.path.relpath(path, bucket_dir), os.path.getsize(path))
+        for path in sorted(files)
+    )
+    body = ("files=%d\n%s" % (len(files), manifest)).encode("utf-8")
+    err = run_rclone(["rcat", "%s/%s" % (prefix, ARCHIVE_MARKER_NAME)], stdin_data=body)
     if err:
         # Every file is stored but the bucket is not yet provably complete.
         # Exiting non-zero keeps it on disk, which costs space and re-uploads
         # next pass - the cheap direction. Reporting success here would leave a
-        # bucket that restore cannot verify.
+        # bucket restore cannot verify.
         log("FAILED: %s - marker not written, bucket left on disk" % err)
         return 1
 
