@@ -20,6 +20,22 @@ path = {{ splunk_docker_cold_dir }}
 maxVolumeDataSizeMB = {{ splunk_docker_volume_cold_max_mb }}
 {% endif %}
 
+{#
+  Splunk's own indexes, bound to the hot/warm volume. Without these stanzas
+  they sit under $SPLUNK_DB outside volume management with the stock 500000 MB
+  ceiling, so the volume cap bounds only part of the filesystem it names.
+  No coldToFrozenScript here on purpose: operational telemetry ages out rather
+  than being archived offsite.
+#}
+{% for index in splunk_docker_system_indexes %}
+[{{ index.name }}]
+homePath = volume:hot_warm/{{ index.db_dir }}/db
+coldPath = volume:hot_warm/{{ index.db_dir }}/colddb
+thawedPath = $SPLUNK_DB/{{ index.db_dir }}/thaweddb
+maxTotalDataSizeMB = {{ index.max_size_mb }}
+frozenTimePeriodInSecs = {{ index.frozen_time_secs }}
+
+{% endfor %}
 {% for index in splunk_docker_indexes %}
 [{{ index.name }}]
 {% if (index.tier | default('small')) == 'large' %}
