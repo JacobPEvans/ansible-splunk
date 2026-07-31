@@ -156,28 +156,10 @@
     - name: "Extract canonical OpenBao state for {{ splunk_user.name }}"
       ansible.builtin.include_tasks: extract_openbao_state.yml
 
-    - name: "Decode canonical OpenBao token for {{ splunk_user.name }}"
-      vars:
-        splunk_docker_jwt_to_decode: "{{ splunk_docker_bao_published_token }}"
-      ansible.builtin.include_tasks: decode_jwt.yml
-
-    - name: "Record canonical JWT claims for {{ splunk_user.name }}"
-      ansible.builtin.set_fact:
-        splunk_docker_canonical_jwt_claims: "{{ splunk_docker_decoded_jwt_claims }}"
-        splunk_docker_canonical_jwt_decode_valid: "{{ splunk_docker_jwt_decode_valid }}"
-      no_log: true
-
     - name: "Validate canonical OpenBao token for {{ splunk_user.name }}"
-      ansible.builtin.uri:
-        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authentication/current-context?output_mode=json"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ splunk_docker_bao_published_token }}"
-        validate_certs: false
-        status_code: [200, 401, 403]
-      register: splunk_docker_bao_token_probe
-      when: splunk_docker_bao_published_token | length > 0
-      no_log: true
+      vars:
+        splunk_docker_token_to_probe: "{{ splunk_docker_bao_published_token }}"
+      ansible.builtin.include_tasks: probe_mcp_token.yml
 
     - name: "Evaluate canonical OpenBao token for {{ splunk_user.name }}"
       ansible.builtin.include_tasks: evaluate_canonical_token.yml
@@ -207,14 +189,9 @@
           register: splunk_docker_token_mint
           no_log: true
 
-        - name: "Decode minted JWT for {{ splunk_user.name }}"
-          vars:
-            splunk_docker_jwt_to_decode: "{{ splunk_docker_token_mint.json.token }}"
-          ansible.builtin.include_tasks: decode_jwt.yml
-
-        - name: "Record minted JWT identity for {{ splunk_user.name }}"
-          ansible.builtin.include_tasks: record_minted_identity.yml
-
+        # Must come BEFORE identity is recorded: the mint response has no id,
+        # so the new token is identified by diffing this listing against the
+        # one taken before the mint.
         - name: "Re-list tokens after minting for {{ splunk_user.name }}"
           ansible.builtin.uri:
             url: >-
@@ -229,7 +206,15 @@
           register: splunk_docker_token_list_after_mint
           no_log: true
 
-        - name: "Verify minted JWT identity in Splunk for {{ splunk_user.name }}"
+        - name: "Record minted token identity for {{ splunk_user.name }}"
+          ansible.builtin.include_tasks: record_minted_identity.yml
+
+        - name: "Probe minted token for {{ splunk_user.name }}"
+          vars:
+            splunk_docker_token_to_probe: "{{ splunk_docker_token_mint.json.token }}"
+          ansible.builtin.include_tasks: probe_mcp_token.yml
+
+        - name: "Verify minted token identity for {{ splunk_user.name }}"
           ansible.builtin.include_tasks: verify_minted_identity.yml
 
         # KV v2 writes replace the whole secret. Merge sibling data and use the
@@ -255,17 +240,19 @@
           delegate_to: localhost
           no_log: true
       rescue:
+        # The id goes in the query string. Splunk answers 200 either way, but a
+        # request that does not name a real id simply deletes nothing - a
+        # revocation that silently no-ops is worse than one that errors.
         - name: "Remove unpublished replacement token for {{ splunk_user.name }}"
           ansible.builtin.uri:
-            url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens/{{ splunk_user.name | urlencode }}"
+            url: >-
+              https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens/{{
+              splunk_user.name | urlencode }}?output_mode=json&id={{ splunk_docker_new_token_id | urlencode }}
             method: DELETE
             user: "{{ splunk_admin_user | default('admin') }}"
             password: "{{ splunk_docker_password }}"
             force_basic_auth: true
             validate_certs: false
-            body_format: form-urlencoded
-            body:
-              id: "{{ splunk_docker_new_token_id }}"
             status_code: [200]
           register: splunk_docker_unpublished_token_cleanup
           when: splunk_docker_new_token_id | default('') | length > 0
@@ -307,15 +294,14 @@
 
     - name: "Revoke noncanonical eligible tokens for {{ splunk_user.name }} / {{ splunk_docker_token_audience }}"
       ansible.builtin.uri:
-        url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens/{{ splunk_user.name | urlencode }}"
+        url: >-
+          https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens/{{
+          splunk_user.name | urlencode }}?output_mode=json&id={{ item.name | urlencode }}
         method: DELETE
         user: "{{ splunk_admin_user | default('admin') }}"
         password: "{{ splunk_docker_password }}"
         force_basic_auth: true
         validate_certs: false
-        body_format: form-urlencoded
-        body:
-          id: "{{ item.name }}"
         status_code: [200]
       loop: "{{ splunk_docker_noncanonical_eligible_tokens }}"
       loop_control:
@@ -357,8 +343,10 @@
   ansible.builtin.debug:
     msg: >-
       User '{{ splunk_user.name }}' ensured (roles {{ splunk_user.roles | join(',') }}).
-      Token minting is deferred because splunk_docker_token_publish_openbao is off —
-      wire a write-capable OpenBao AppRole (BAO_ADDR/BAO_TOKEN) to mint + publish
+      Token minting is deferred because splunk_docker_token_publish_openbao is off.
+      Set it true, with BAO_ADDR/BAO_TOKEN in the environment, to mint + publish
       {{ splunk_docker_url_openbao_key }} and {{ splunk_docker_token_openbao_key }} to
       {{ splunk_docker_token_openbao_mount }}/{{ splunk_docker_token_openbao_path }}.
+      The ansible-converge AppRole already carries create/update/read on exactly
+      that one secret — no additional grant is needed.
   when: not (splunk_docker_token_publish_openbao | bool)

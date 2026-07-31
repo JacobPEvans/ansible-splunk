@@ -1,22 +1,28 @@
 ---
+# Identify the token that was just minted.
+#
+# The mint response carries only the opaque token string - no id, and nothing
+# decodable - so the id comes from the difference between the token listings
+# taken before and after the mint. Splunk assigns the id; this is the only
+# place it is observable. Verification lives in verify_minted_identity.yml so
+# that this stays a pure fact-derivation step.
+
 - name: "Record replacement token identity for {{ splunk_user.name }}"
   vars:
-    minted_token_id: "{{ splunk_docker_decoded_jwt_claims.get('jti', '') }}"
+    ids_before: >-
+      {{ splunk_docker_token_list.json.entry | default([]) | map(attribute='name') | list }}
+    ids_after: >-
+      {{ splunk_docker_token_list_after_mint.json.entry | default([]) | map(attribute='name') | list }}
+    minted_ids: "{{ ids_after | difference(ids_before) }}"
   ansible.builtin.set_fact:
-    splunk_docker_new_token_id: >-
-      {{ minted_token_id
-         if (splunk_docker_jwt_decode_valid | bool)
-            and (minted_token_id is string)
-            and (minted_token_id | length > 0)
-         else '' }}
+    splunk_docker_new_token_id: "{{ minted_ids | first | default('') }}"
+    splunk_docker_minted_id_count: "{{ minted_ids | length }}"
   no_log: true
 
-- name: "Verify minted JWT identity for {{ splunk_user.name }}"
-  ansible.builtin.assert:
-    that:
-      - splunk_docker_jwt_decode_valid | bool
-      - splunk_docker_decoded_jwt_claims.get('sub', '') == splunk_user.name
-      - splunk_docker_decoded_jwt_claims.get('aud', '') == splunk_docker_token_audience
-      - splunk_docker_new_token_id | length > 0
-    fail_msg: Minted Splunk token claims do not match the managed identity
+- name: "Record minted token claims for {{ splunk_user.name }}"
+  ansible.builtin.set_fact:
+    splunk_docker_minted_claims: >-
+      {{ (splunk_docker_token_list_after_mint.json.entry | default([])
+          | selectattr('name', 'equalto', splunk_docker_new_token_id)
+          | map(attribute='content') | first | default({}, true)).get('claims', {}) }}
   no_log: true
