@@ -110,6 +110,18 @@
 # visible there without modifying or rebuilding the vendor image - and it
 # survives an image upgrade, which anything pip-installed into the container
 # would not.
+# The published archive is a zip, and unarchive shells out to an external
+# extractor for that format rather than handling it in-process. The VM image
+# does not carry one, so without this the download succeeds and the unpack
+# fails on a missing binary - which reads as a corrupt archive rather than an
+# absent dependency, and leaves the previous archive script in place.
+- name: Ensure the archive extractor is present
+  ansible.builtin.apt:
+    name: unzip
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Create the frozen-archive tool directory
   ansible.builtin.file:
     path: "{{ splunk_docker_frozen_bin_dir }}"
@@ -138,15 +150,31 @@
 # fetch idempotent. Unpacking needs no condition of its own: unarchive compares
 # the archive against what is already on disk and only rewrites the binary when
 # it differs, so a version bump re-extracts and a no-op converge does not.
+#
+# Extracted at its archive-relative path rather than flattened. Asking the
+# module to junk paths while also naming a member makes it verify that member
+# where the archive puts it, after having stripped exactly that directory - the
+# extraction succeeds and the task then fails on its own post-check.
 - name: Unpack rclone
   ansible.builtin.unarchive:
     src: "{{ splunk_docker_frozen_bin_dir }}/rclone-v{{ splunk_docker_rclone_version }}.zip"
     dest: "{{ splunk_docker_frozen_bin_dir }}"
     remote_src: true
-    extra_opts:
-      - -j
     include:
       - "rclone-v{{ splunk_docker_rclone_version }}-linux-amd64/rclone"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0750'
+
+# The archive scripts reference the binary at a stable, version-free path so a
+# version bump does not have to be threaded through every caller.
+- name: Place the archive binary at its stable path
+  ansible.builtin.copy:
+    src: >-
+      {{ splunk_docker_frozen_bin_dir }}/rclone-v{{
+      splunk_docker_rclone_version }}-linux-amd64/rclone
+    dest: "{{ splunk_docker_frozen_bin_dir }}/rclone"
+    remote_src: true
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     mode: '0750'
