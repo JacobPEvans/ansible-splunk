@@ -1,34 +1,36 @@
 ---
-# Verify that load_tofu.yml correctly resolves splunk host from
-# tofu_inventory.json without needing SPLUNK_VM_HOST env var.
+# Verify that inventory/load_tofu.yml resolves the splunk host from
+# tofu_inventory.json without needing the SPLUNK_VM_HOST env var.
+#
+# This imports load_tofu.yml and asserts against what the RESOLVER produced.
+# It used to load the fixture itself with include_vars and assert its shape,
+# which only ever tested the fixture — load_tofu.yml and the shared
+# inventory_resolve role it includes were never executed, so a dependency that
+# resolved to the wrong role still passed here.
 #
 # Run from repo root:
 #   TOFU_INVENTORY_PATH=tests/inventory_load/tofu_inventory.json \
+#   PROXMOX_SSH_KEY_PATH=/dev/null \
 #     ansible-playbook tests/inventory_load/verify_inventory.yml \
 #     -i inventory/hosts.yml -c local
+- name: Resolve the inventory under test
+  ansible.builtin.import_playbook: ../../inventory/load_tofu.yml
+
 - name: Verify tofu inventory loads correctly
   hosts: localhost
   gather_facts: false
-  vars:
-    tofu_inventory_file_path: >-
-      {{ lookup('env', 'TOFU_INVENTORY_PATH')
-         | default(playbook_dir ~ '/tofu_inventory.json', true) }}
 
   tasks:
-    - name: Stat the test tofu inventory
-      ansible.builtin.stat:
-        path: "{{ tofu_inventory_file_path }}"
-      register: stat_result
-
-    - name: Assert test inventory file exists
+    - name: Assert the resolver ran and produced tofu_data
       ansible.builtin.assert:
-        that: stat_result.stat.exists
-        fail_msg: "Test fixture not found: {{ tofu_inventory_file_path }}"
-
-    - name: Load test tofu inventory
-      ansible.builtin.include_vars:
-        file: "{{ tofu_inventory_file_path }}"
-        name: tofu_data
+        that:
+          - tofu_inventory_resolved is defined
+          - tofu_data is defined
+        fail_msg: >-
+          load_tofu.yml did not resolve an inventory. If the shared
+          inventory_resolve role failed to load, check that requirements.yml
+          installs the dryvist.homelab collection and that load_tofu.yml
+          references the role by FQCN.
 
     - name: Assert splunk_vm is at root level (not under ansible_inventory)
       ansible.builtin.assert:
@@ -36,7 +38,7 @@
           - tofu_data.splunk_vm is defined
           - tofu_data.splunk_vm.splunk is defined
         fail_msg: >-
-          splunk_vm not found at root level of tofu_inventory.json.
+          splunk_vm not found at root level of the resolved inventory.
           Keys found: {{ tofu_data.keys() | list }}.
           If 'ansible_inventory' is in the keys, the JSON structure is wrong
           (nested one level too deep).
@@ -56,6 +58,21 @@
       ansible.builtin.assert:
         that: tofu_data.splunk_vm.splunk.ip | ansible.utils.ipaddr('bool')
         fail_msg: "splunk_vm.splunk.ip is not a valid IP: {{ tofu_data.splunk_vm.splunk.ip }}"
+
+    # The point of load_tofu.yml is the add_host, not just the parse. The group
+    # already holds the static hosts.yml entry (splunk-01), so membership of a
+    # host named `splunk` is what proves add_host ran. Do not reach through
+    # hostvars['splunk'] to compare its facts: a group and a host share that
+    # name, and the lookup resolves ambiguously. The field values are already
+    # asserted directly against tofu_data above.
+    - name: Assert the splunk host was added to the inventory
+      ansible.builtin.assert:
+        that:
+          - "'splunk' in groups"
+          - "'splunk' in groups['splunk']"
+        fail_msg: >-
+          load_tofu.yml resolved an inventory but did not add the splunk host
+          from it. Members of the splunk group: {{ groups['splunk'] | default([]) }}
 
     - name: Print resolved splunk host info
       ansible.builtin.debug:

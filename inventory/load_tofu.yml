@@ -14,7 +14,7 @@
     # the deliberately independent emergency path.
     - name: Resolve the published OpenTofu inventory
       ansible.builtin.include_role:
-        name: inventory_resolve
+        name: dryvist.homelab.inventory_resolve
       vars:
         inventory_resolve_required_keys: [splunk_vm]
         inventory_resolve_local_cache: /nonexistent/tofu_inventory.json
