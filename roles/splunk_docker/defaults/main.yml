@@ -291,6 +291,15 @@ splunk_docker_frozen_app_key_field: B2_SPLUNK_RW_APP_KEY
 # endpoint whose host does not encode its region.
 splunk_docker_frozen_region: ""
 
+# Per-socket-operation timeout for a frozen-archive upload, in seconds. The
+# upload streams from a file handle, so this bounds one chunk, not the object -
+# it is a stall detector. Size it to the worst stall the archive link produces,
+# not to how long a whole bucket takes; a value tuned to throughput will fail
+# every large bucket and leave it on disk forever. Lower it only for an archive
+# target that is reliably fast (an on-network endpoint), where a multi-minute
+# stall is a genuine fault rather than normal behaviour.
+splunk_docker_frozen_upload_timeout_seconds: 900
+
 # Indexes to create
 splunk_docker_indexes:
   - name: ai
