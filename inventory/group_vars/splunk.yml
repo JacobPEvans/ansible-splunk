@@ -51,3 +51,24 @@ splunk_docker_token_publish_openbao: true
 # archived, restored, and compared byte for byte. Restore procedure is in the
 # runbooks under "Splunk frozen buckets".
 splunk_docker_frozen_archive_enabled: true
+
+# Volume ceilings, sized against the real filesystems on this host:
+#   hot_warm -> 196G device, 188G available
+#   cold     -> 442G device, 339G available
+# Both sit well under available, because the preflight compares a cap to what
+# is available now and a cap it cannot bind is refused.
+#
+# These are the step-3 caps the defaults describe, and their precondition is
+# met: the frozen archive is confirmed working end to end on this host, so an
+# eviction rolls a bucket to the archive rather than deleting it. Enabling them
+# before that was proven would have made "reclaim space" mean "lose data".
+#
+# Neither cap binds at current usage (cold ~99G, hot_warm ~6.5G). That is
+# intended - they are a ceiling on total growth, which nothing enforced before:
+# only per-index quotas existed, and their sum could not bind the disk. This is
+# the guard that makes the oldest data roll off regardless of any one index's
+# own configuration.
+#
+# Retune these when the underlying storage changes, not when an index grows.
+splunk_docker_volume_hot_warm_max_mb: 150000
+splunk_docker_volume_cold_max_mb: 300000
