@@ -260,6 +260,22 @@ splunk_docker_frozen_restore_script_path: "{{ splunk_docker_etc_dir }}/system/lo
 # script reads when the environment is empty - written next to the script
 # itself, inside the same bind-mounted config volume.
 splunk_docker_frozen_config_path: "{{ splunk_docker_etc_dir }}/system/local/cold_to_frozen_creds.conf"
+
+# The archive scripts shell out to rclone instead of speaking S3 themselves: it
+# provides multipart uploads with parallel parts, retry, and integrity checks,
+# all of which were previously hand-written and none of which are worth owning.
+#
+# It lives in the config volume rather than the image because that volume is
+# bind-mounted into the container, so splunkd can execute it without the vendor
+# image being modified - and it survives an image upgrade, which anything
+# installed into the container would not.
+splunk_docker_frozen_bin_dir: "{{ splunk_docker_etc_dir }}/system/local/bin"
+splunk_docker_frozen_rclone_path: "{{ splunk_docker_frozen_bin_dir }}/rclone"
+# Pinned with the checksum upstream publishes for this exact archive, and
+# verified before anything is unpacked. Renovate bumps the pair together; they
+# must never be changed independently.
+splunk_docker_rclone_version: "1.74.4"
+splunk_docker_rclone_zip_sha256: "fe435e0c36228e7c2f116a8701f01127bb1f694005fc11d1f27186c8bca4115d"
 # Left empty deliberately. Setting it alongside the script would take priority
 # and silently turn archiving back into local-only retention.
 splunk_docker_frozen_dir: ""
@@ -284,21 +300,27 @@ splunk_docker_frozen_endpoint_field: B2_SPLUNK_S3_ENDPOINT
 splunk_docker_frozen_bucket_field: B2_SPLUNK_BUCKET
 splunk_docker_frozen_key_id_field: B2_SPLUNK_RW_KEY_ID
 splunk_docker_frozen_app_key_field: B2_SPLUNK_RW_APP_KEY
-# Left empty on purpose: the script derives the signing region from the
-# endpoint hostname, which is the only place it is authoritative. Setting it
-# here would create a second source of truth that can silently disagree, and a
-# region mismatch surfaces as an opaque signature failure. Override only for an
-# endpoint whose host does not encode its region.
+# Left empty on purpose for endpoints that encode their region in the hostname.
+# Setting it there and here creates two sources of truth that can silently
+# disagree, and a mismatch surfaces as an opaque signature failure. Override
+# only for an endpoint whose host does not carry its region.
 splunk_docker_frozen_region: ""
 
-# Per-socket-operation timeout for a frozen-archive upload, in seconds. The
-# upload streams from a file handle, so this bounds one chunk, not the object -
-# it is a stall detector. Size it to the worst stall the archive link produces,
-# not to how long a whole bucket takes; a value tuned to throughput will fail
-# every large bucket and leave it on disk forever. Lower it only for an archive
-# target that is reliably fast (an on-network endpoint), where a multi-minute
-# stall is a genuine fault rather than normal behaviour.
+# Idle timeout for a single transfer, in seconds - a stall detector, not a
+# budget for the whole object. Size it to the worst stall the archive link
+# produces, never to how long a bucket "should" take: a value tuned to
+# throughput fails every large bucket and leaves it on disk forever, which is
+# exactly the defect that filled the index volume. Lower it only for an archive
+# target that is reliably fast, where a multi-minute stall is a real fault.
 splunk_docker_frozen_upload_timeout_seconds: 900
+
+# Concurrent transfers, and concurrent parts within a single large file. The
+# offsite endpoint throttles per connection, so this - not the timeout - is what
+# governs archive throughput: measured there at 318 KB/s on one connection
+# versus 1.64 MB/s across eight, with per-connection speed barely moving.
+# Lower it for an on-network target, where one connection is already fast and
+# extra connections only add contention.
+splunk_docker_frozen_upload_concurrency: 8
 
 # Indexes to create
 splunk_docker_indexes:

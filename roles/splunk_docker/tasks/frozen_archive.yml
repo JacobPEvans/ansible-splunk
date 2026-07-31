@@ -99,6 +99,58 @@
       SPLUNK_FROZEN_S3_REGION: "{{ splunk_docker_frozen_region }}"
   no_log: true
 
+# The archive scripts shell out to rclone rather than speaking S3 themselves.
+# It handles signing, multipart uploads with parallel parts, retry, and
+# integrity checks - all of which were previously hand-written here, and the
+# hand-written upload was single-stream, which is what made archiving slower
+# than data arrived.
+#
+# It lands in the config volume, not the image. splunkd runs the freeze script
+# inside the container, and that volume is bind-mounted, so the binary is
+# visible there without modifying or rebuilding the vendor image - and it
+# survives an image upgrade, which anything pip-installed into the container
+# would not.
+- name: Create the frozen-archive tool directory
+  ansible.builtin.file:
+    path: "{{ splunk_docker_frozen_bin_dir }}"
+    state: directory
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0750'
+
+# get_url verifies the checksum before anything is unpacked, and the published
+# SHA256SUMS value covers the archive - so the integrity check uses the value
+# upstream actually publishes rather than a binary hash recorded by hand. A
+# mismatch fails the task, which is the right outcome for a binary that will
+# run as the archive path.
+- name: Download rclone for the frozen archive
+  ansible.builtin.get_url:
+    url: >-
+      https://downloads.rclone.org/v{{ splunk_docker_rclone_version }}/rclone-v{{
+      splunk_docker_rclone_version }}-linux-amd64.zip
+    dest: "{{ splunk_docker_frozen_bin_dir }}/rclone-v{{ splunk_docker_rclone_version }}.zip"
+    checksum: "sha256:{{ splunk_docker_rclone_zip_sha256 }}"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0640'
+
+# The download is kept under its version-stamped name, which is what makes the
+# fetch idempotent. Unpacking needs no condition of its own: unarchive compares
+# the archive against what is already on disk and only rewrites the binary when
+# it differs, so a version bump re-extracts and a no-op converge does not.
+- name: Unpack rclone
+  ansible.builtin.unarchive:
+    src: "{{ splunk_docker_frozen_bin_dir }}/rclone-v{{ splunk_docker_rclone_version }}.zip"
+    dest: "{{ splunk_docker_frozen_bin_dir }}"
+    remote_src: true
+    extra_opts:
+      - -j
+    include:
+      - "rclone-v{{ splunk_docker_rclone_version }}-linux-amd64/rclone"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0750'
+
 - name: Deploy the frozen-archive script
   ansible.builtin.template:
     src: cold_to_frozen.py.j2
@@ -114,8 +166,8 @@
 # credential file written below, so it works wherever the freeze path works.
 # No handler: splunkd never invokes it, so nothing needs restarting.
 - name: Deploy the frozen-archive restore script
-  ansible.builtin.copy:
-    src: restore_from_frozen.py
+  ansible.builtin.template:
+    src: restore_from_frozen.py.j2
     dest: "{{ splunk_docker_frozen_restore_script_path }}"
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
