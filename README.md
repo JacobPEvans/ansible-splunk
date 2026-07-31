@@ -12,7 +12,7 @@ Deploy and configure Splunk Enterprise (Docker) on a Proxmox VM.
 | Property | Value |
 | --- | --- |
 | **Type** | Ansible role + playbooks |
-| **Target** | Splunk VM (VMID 200) — addressed from the tofu inventory, or DNS-first as `splunk-aio.{PROXMOX_DOMAIN}` |
+| **Target** | Splunk VM (VMID 200) — addressed from the tofu inventory, or by an explicit `SPLUNK_VM_HOST` |
 | **Role** | `roles/splunk_docker` |
 | **Entry point** | `playbooks/site.yml` |
 | **Secrets** | Doppler |
