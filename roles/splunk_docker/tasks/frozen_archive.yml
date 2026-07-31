@@ -108,6 +108,19 @@
     mode: '0750'
   notify: Restart Splunk container
 
+# An archive nobody can restore from is not a backup, and this script was
+# shipped in the repo but never placed on a host - so the restore half of the
+# frozen path had never been runnable, let alone exercised. It reads the same
+# credential file written below, so it works wherever the freeze path works.
+# No handler: splunkd never invokes it, so nothing needs restarting.
+- name: Deploy the frozen-archive restore script
+  ansible.builtin.copy:
+    src: restore_from_frozen.py
+    dest: "{{ splunk_docker_frozen_restore_script_path }}"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0750'
+
 # splunkd invokes coldToFrozenScript with a restricted environment, so the
 # compose-injected SPLUNK_FROZEN_S3_* vars are invisible to the script on the
 # path that actually matters. A manual `docker exec` canary run inherits the

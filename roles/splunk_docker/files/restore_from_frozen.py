@@ -16,7 +16,14 @@ AFTER FETCHING, to make the data searchable again:
     Thawed data is exempt from the ageing scheme, so remove it by hand when
     you are done with it or it stays forever.
 
-Credentials come from the same environment variables the freeze script uses.
+Credentials resolve exactly as the freeze script resolves them: the environment
+first, then the credential file it writes (override the location with
+SPLUNK_FROZEN_CONFIG_PATH). Reading only the environment meant a restore run
+where a freeze runs found no credentials at all.
+
+A bucket is only restorable once the freeze wrote its completion marker, so a
+partial upload is refused rather than rebuilt into a bucket that looks intact.
+
 Nothing is written to disk except the bucket files you asked for.
 """
 
@@ -38,10 +45,51 @@ import urllib.request
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 MAX_ATTEMPTS = 5
 
-ENDPOINT = os.environ.get("SPLUNK_FROZEN_S3_ENDPOINT", "")
-BUCKET = os.environ.get("SPLUNK_FROZEN_S3_BUCKET", "")
-KEY_ID = os.environ.get("SPLUNK_FROZEN_S3_KEY_ID", "")
-APP_KEY = os.environ.get("SPLUNK_FROZEN_S3_APP_KEY", "")
+# Written last by the freeze script, once every file in a bucket has landed.
+# Object presence alone cannot distinguish a complete archive from a partial
+# upload that was interrupted, so a bucket missing this marker must never be
+# treated as restorable.
+ARCHIVE_MARKER_NAME = "_ARCHIVE_COMPLETE"
+
+# Credentials resolve the same way the freeze script resolves them: environment
+# first, then the credential file written next to it at converge time. Reading
+# the environment alone was wrong - splunkd invokes the freeze path with a
+# stripped environment, which is exactly why that file exists, so a restore run
+# in the same place as a freeze had no credentials at all.
+CONFIG_PATH = os.environ.get(
+    "SPLUNK_FROZEN_CONFIG_PATH",
+    "/opt/splunk/etc/system/local/cold_to_frozen_creds.conf",
+)
+
+
+def _read_config_file(path):
+    """Parse simple KEY=value lines. Blank lines and '#' comments are ignored."""
+    values = {}
+    try:
+        with open(path, "r") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return values
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip()
+    return values
+
+
+_FILE_CONFIG = _read_config_file(CONFIG_PATH)
+
+
+def _setting(name, default=""):
+    return os.environ.get(name, "") or _FILE_CONFIG.get(name, default)
+
+
+ENDPOINT = _setting("SPLUNK_FROZEN_S3_ENDPOINT")
+BUCKET = _setting("SPLUNK_FROZEN_S3_BUCKET")
+KEY_ID = _setting("SPLUNK_FROZEN_S3_KEY_ID")
+APP_KEY = _setting("SPLUNK_FROZEN_S3_APP_KEY")
 
 
 def _region_from_endpoint(endpoint):
@@ -168,20 +216,47 @@ def main():
         if not keys:
             print("nothing archived under %s" % scope)
             return 1
+
+        # A freeze uploads file by file, so an interrupted one leaves a prefix
+        # that lists exactly like a finished archive. Rebuilding from that
+        # yields a bucket that looks restored and is not, which is the worst
+        # possible failure for an archive. Trust the marker, not the listing.
+        if scope + ARCHIVE_MARKER_NAME not in keys:
+            print(
+                "refusing to restore %s: no %s marker, so this archive is "
+                "incomplete (an interrupted freeze left a partial upload)."
+                % (scope, ARCHIVE_MARKER_NAME)
+            )
+            return 1
+
         target = os.path.join(dest, bucket_id)
         os.makedirs(target, exist_ok=True)
+        restored = 0
         for key in keys:
             rel = key[len(scope):]
+            # The marker is archive bookkeeping, not bucket content - writing it
+            # alongside the real files would leave a stray file in a directory
+            # 'splunk rebuild' is about to read.
+            if rel == ARCHIVE_MARKER_NAME:
+                continue
             out = os.path.join(target, rel)
             os.makedirs(os.path.dirname(out), exist_ok=True)
-            data = _request("GET", "/%s/%s" % (BUCKET, key)).read()
-            with open(out, "wb") as fh:
-                fh.write(data)
-            print("restored %s (%d bytes)" % (rel, len(data)))
+            # Stream to disk: a single .tsidx can be hundreds of MB, and
+            # buffering it whole spikes RSS by the file size for no reason.
+            written = 0
+            with _request("GET", "/%s/%s" % (BUCKET, key)) as resp, open(out, "wb") as fh:
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+                    written += len(chunk)
+            restored += 1
+            print("restored %s (%d bytes)" % (rel, written))
         print(
             "\n%d file(s) into %s\nNow: move it under the index thawedPath, run "
             "'splunk rebuild <dir>', restart splunkd, and remember thawed data "
-            "never ages out on its own." % (len(keys), target)
+            "never ages out on its own." % (restored, target)
         )
         return 0
 
