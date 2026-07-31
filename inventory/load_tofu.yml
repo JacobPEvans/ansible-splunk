@@ -20,9 +20,9 @@
         inventory_resolve_local_cache: /nonexistent/tofu_inventory.json
         inventory_resolve_fail_when_unresolved: false
 
-    # Static fallback (hosts.yml splunk-01) needs SPLUNK_VM_HOST or, DNS-first,
-    # PROXMOX_DOMAIN (splunk-aio.{domain} — Technitium serves the VM hostname
-    # A-record derived from the same inventory).
+    # Static fallback (hosts.yml splunk-01) needs SPLUNK_VM_HOST, named
+    # explicitly. The hostname is not defaulted anywhere outside deployment.json
+    # — see hosts.yml for why a second copy of it is a silent-staleness bug.
     - name: Fail when no inventory source resolves and no static fallback exists
       ansible.builtin.fail:
         msg: |
@@ -36,12 +36,12 @@
               TOFU_INVENTORY_S3_URI to override the RustFS object.
             - TOFU_INVENTORY_PATH pointing at a local copy (tests / DR override).
             - Re-run the tofu-proxmox Terrakube workspace so the RustFS artifact is republished.
-            - Static fallback: SPLUNK_VM_HOST, or PROXMOX_DOMAIN for the
-              DNS-first default (splunk-aio.{domain}).
+            - Static fallback: SPLUNK_VM_HOST=<hostname>.<domain>, naming the
+              VM explicitly (its hostname is declared in deployment.json and
+              published as splunk_vm.splunk.hostname).
       when:
         - tofu_inventory_resolved is not defined
         - not (lookup('env', 'SPLUNK_VM_HOST') | default(''))
-        - not (lookup('env', 'PROXMOX_DOMAIN') | default(''))
 
     - name: Add Splunk VM to inventory (SSH connection)
       ansible.builtin.add_host:

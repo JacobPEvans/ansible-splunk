@@ -51,9 +51,10 @@ for ancillary services — those belong in `ansible-proxmox-apps` as LXC.
   `inventory/load_tofu.yml` resolves it: `TOFU_INVENTORY_PATH` (explicit
   pin) → RustFS artifact (native `amazon.aws`, credentials read directly from
   OpenBao `secret/platform/object-storage`; override:
-  `TOFU_INVENTORY_S3_URI`) → static fallback (`SPLUNK_VM_HOST`, else
-  DNS-first `splunk-aio.{PROXMOX_DOMAIN}`). There is **no local-cache step**
-  — see "Inventory freshness guarantee" below.
+  `TOFU_INVENTORY_S3_URI`) → static fallback (`SPLUNK_VM_HOST`, named
+  explicitly — the VM's hostname is declared once in `deployment.json` and is
+  never defaulted here). There is **no local-cache step** — see "Inventory
+  freshness guarantee" below.
 
 - **`dryvist/homelab-contracts`**: supplies the shared `inventory_resolve`
   role, pinned by commit in `requirements.yml`. Run
