@@ -43,9 +43,14 @@ jobs:
         run: |
           uv pip install --system ansible
 
-      - name: Install Ansible collections
+      # `install` covers both sections. `collection install` skips `roles:` and
+      # `role install` skips `collections:`, each silently and with a zero exit,
+      # so a half-command leaves a dependency missing until something later
+      # fails on it. This repo has a real `roles:` entry (splunk.splunk), so the
+      # narrower form was already leaving it uninstalled here.
+      - name: Install Ansible dependencies
         run: |
-          ansible-galaxy collection install -r requirements.yml
+          ansible-galaxy install -r requirements.yml
 
       - name: Create mock OpenTofu inventory for syntax checks
         run: |
