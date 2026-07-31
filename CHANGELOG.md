@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.0](https://github.com/dryvist/ansible-splunk/compare/v0.52.2...v0.53.0) (2026-07-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sync-splunkbase:** the controller now needs `aws` on PATH instead of the previous object-storage client.
+
+### Refactoring
+
+* **sync-splunkbase:** use the AWS CLI for object storage ([#438](https://github.com/dryvist/ansible-splunk/issues/438)) ([e82faa2](https://github.com/dryvist/ansible-splunk/commit/e82faa294a99665116167509e5843af00b2f7a94))
+
 ## [0.52.2](https://github.com/dryvist/ansible-splunk/compare/v0.52.1...v0.52.2) (2026-07-31)
 
 
