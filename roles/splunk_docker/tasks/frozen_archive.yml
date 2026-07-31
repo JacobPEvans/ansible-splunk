@@ -150,15 +150,31 @@
 # fetch idempotent. Unpacking needs no condition of its own: unarchive compares
 # the archive against what is already on disk and only rewrites the binary when
 # it differs, so a version bump re-extracts and a no-op converge does not.
+#
+# Extracted at its archive-relative path rather than flattened. Asking the
+# module to junk paths while also naming a member makes it verify that member
+# where the archive puts it, after having stripped exactly that directory - the
+# extraction succeeds and the task then fails on its own post-check.
 - name: Unpack rclone
   ansible.builtin.unarchive:
     src: "{{ splunk_docker_frozen_bin_dir }}/rclone-v{{ splunk_docker_rclone_version }}.zip"
     dest: "{{ splunk_docker_frozen_bin_dir }}"
     remote_src: true
-    extra_opts:
-      - -j
     include:
       - "rclone-v{{ splunk_docker_rclone_version }}-linux-amd64/rclone"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0750'
+
+# The archive scripts reference the binary at a stable, version-free path so a
+# version bump does not have to be threaded through every caller.
+- name: Place the archive binary at its stable path
+  ansible.builtin.copy:
+    src: >-
+      {{ splunk_docker_frozen_bin_dir }}/rclone-v{{
+      splunk_docker_rclone_version }}-linux-amd64/rclone
+    dest: "{{ splunk_docker_frozen_bin_dir }}/rclone"
+    remote_src: true
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     mode: '0750'
