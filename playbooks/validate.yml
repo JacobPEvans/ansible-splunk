@@ -234,7 +234,10 @@
     - name: Check Splunk add-ons are installed
       ansible.builtin.stat:
         path: "{{ (splunk_docker_etc_dir | default(_splunk_docker_defaults.splunk_docker_etc_dir)) }}/apps/{{ item.app_dir }}"
-      loop: "{{ splunk_docker_addons }}"
+      loop: >-
+        {{ (splunk_docker_addons | selectattr('install', 'undefined') | list)
+           + (splunk_docker_addons | selectattr('install', 'defined')
+              | selectattr('install', 'equalto', true) | list) }}
       loop_control:
         label: "{{ item.app_dir }}"
       register: splunk_docker_addon_checks

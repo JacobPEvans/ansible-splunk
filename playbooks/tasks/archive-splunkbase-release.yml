@@ -1,0 +1,261 @@
+---
+# One immutable Splunkbase release archive. Included by sync-splunkbase.yml so
+# the archive stays in native Ansible instead of a controller-side helper.
+
+- name: Validate Splunkbase release archive coordinates
+  ansible.builtin.assert:
+    that:
+      - splunkbase_archive_release.splunkbase_id | string is match('^[0-9]+$')
+      - splunkbase_archive_release.name | string is match('^[A-Za-z0-9][A-Za-z0-9._+-]*$')
+      - splunkbase_archive_release.filename is match('^[A-Za-z0-9][A-Za-z0-9._+-]*$')
+    fail_msg: >-
+      Splunkbase release {{ splunkbase_archive_release | default({}) }} has an
+      unsafe immutable archive path.
+
+- name: Set immutable Splunkbase archive coordinates
+  ansible.builtin.set_fact:
+    splunkbase_archive_key: >-
+      archive/splunkbase/{{ splunkbase_archive_release.splunkbase_id }}/{{
+      splunkbase_archive_release.name }}/{{ splunkbase_archive_release.filename }}
+    splunkbase_archive_local_dir: >-
+      {{ splunkbase_sync_tmpdir }}/archive/splunkbase/{{
+      splunkbase_archive_release.splunkbase_id }}/{{ splunkbase_archive_release.name }}
+    splunkbase_archive_local_file: >-
+      {{ splunkbase_sync_tmpdir }}/archive/splunkbase/{{
+      splunkbase_archive_release.splunkbase_id }}/{{ splunkbase_archive_release.name }}/{{
+      splunkbase_archive_release.filename }}
+
+- name: Check whether the immutable Splunkbase archive exists
+  ansible.builtin.command:
+    argv:
+      - mc
+      - stat
+      - --json
+      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+  environment: "{{ mc_env }}"
+  register: splunkbase_archive_object_stat
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Reject unexpected immutable archive lookup errors
+  ansible.builtin.assert:
+    that:
+      - >-
+        splunkbase_archive_object_stat.rc == 0
+        or 'NoSuchKey' in (splunkbase_archive_object_stat.stdout | default(''))
+        or 'not found' in (splunkbase_archive_object_stat.stderr | default('') | lower)
+        or 'does not exist' in (splunkbase_archive_object_stat.stderr | default('') | lower)
+    fail_msg: >-
+      Could not determine whether {{ splunkbase_archive_key }} exists. Refusing
+      to overwrite an immutable archive after an object-storage failure.
+    quiet: true
+
+- name: Set immutable archive presence
+  ansible.builtin.set_fact:
+    splunkbase_archive_exists: "{{ splunkbase_archive_object_stat.rc == 0 }}"
+
+- name: Ensure the immutable archive work directory exists
+  ansible.builtin.file:
+    path: "{{ splunkbase_archive_local_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Download missing Splunkbase release archive
+  ansible.builtin.get_url:
+    url: >-
+      {{ splunkbase_api }}/app/{{ splunkbase_archive_release.splunkbase_id }}/release/{{
+      splunkbase_archive_release.name | urlencode }}/download/
+    dest: "{{ splunkbase_archive_local_file }}"
+    headers:
+      X-Auth-Token: "{{ splunkbase_archive_token }}"
+    force: true
+    mode: "0600"
+    timeout: 120
+  register: splunkbase_archive_source_download
+  when: not splunkbase_archive_exists | bool
+  failed_when: false
+  no_log: true
+
+- name: Copy an existing immutable archive for verification
+  ansible.builtin.command:
+    argv:
+      - mc
+      - cp
+      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+      - "{{ splunkbase_archive_local_file }}"
+  environment: "{{ mc_env }}"
+  when: splunkbase_archive_exists | bool
+  changed_when: false
+  no_log: true
+
+- name: Inspect the local immutable archive file
+  ansible.builtin.stat:
+    path: "{{ splunkbase_archive_local_file }}"
+    checksum_algorithm: sha256
+  register: splunkbase_archive_local_stat
+
+- name: Determine immutable archive availability
+  ansible.builtin.set_fact:
+    splunkbase_archive_available: >-
+      {{ (splunkbase_archive_local_stat.stat.exists | default(false))
+         and (splunkbase_archive_local_stat.stat.isreg | default(false))
+         and (splunkbase_archive_local_stat.stat.size | default(0) | int > 0)
+         and (splunkbase_archive_exists | bool
+              or (splunkbase_archive_source_download.status_code | default(0) | int) == 200) }}
+
+- name: Assert unavailable downloads cannot enter the archive path
+  ansible.builtin.assert:
+    that:
+      - not splunkbase_archive_available | bool
+      - not splunkbase_archive_exists | bool
+    fail_msg: >-
+      An unavailable Splunkbase release was incorrectly considered archiveable.
+      No upload or available catalog record may follow a failed download.
+    quiet: true
+  when: not splunkbase_archive_available | bool
+
+- name: Upload newly downloaded immutable archive
+  ansible.builtin.command:
+    argv:
+      - mc
+      - cp
+      - "{{ splunkbase_archive_local_file }}"
+      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+  environment: "{{ mc_env }}"
+  when:
+    - not splunkbase_archive_exists | bool
+    - splunkbase_archive_available | bool
+  changed_when: true
+  no_log: true
+
+- name: Tag newly uploaded immutable archive checksum
+  ansible.builtin.command:
+    argv:
+      - mc
+      - tag
+      - set
+      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+      - >-
+        sha256={{ splunkbase_archive_local_stat.stat.checksum }}&splunkbase_id={{
+        splunkbase_archive_release.splunkbase_id }}&version={{ splunkbase_archive_release.name }}
+  environment: "{{ mc_env }}"
+  when:
+    - not splunkbase_archive_exists | bool
+    - splunkbase_archive_available | bool
+  changed_when: true
+  no_log: true
+
+- name: Copy newly uploaded immutable archive for verification
+  ansible.builtin.command:
+    argv:
+      - mc
+      - cp
+      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+      - "{{ splunkbase_archive_local_file }}.verified"
+  environment: "{{ mc_env }}"
+  when:
+    - not splunkbase_archive_exists | bool
+    - splunkbase_archive_available | bool
+  changed_when: false
+  no_log: true
+
+- name: Calculate uploaded immutable archive checksum
+  ansible.builtin.stat:
+    path: "{{ splunkbase_archive_local_file }}.verified"
+    checksum_algorithm: sha256
+  register: splunkbase_archive_uploaded_stat
+  when:
+    - not splunkbase_archive_exists | bool
+    - splunkbase_archive_available | bool
+
+- name: Verify uploaded immutable archive content
+  ansible.builtin.assert:
+    that:
+      - splunkbase_archive_uploaded_stat.stat.size == splunkbase_archive_local_stat.stat.size
+      - splunkbase_archive_uploaded_stat.stat.checksum == splunkbase_archive_local_stat.stat.checksum
+    fail_msg: >-
+      Upload verification failed for {{ splunkbase_archive_key }}. The object does
+      not match the authenticated Splunkbase download.
+    quiet: true
+  when:
+    - not splunkbase_archive_exists | bool
+    - splunkbase_archive_available | bool
+
+- name: Read immutable archive checksum tag
+  ansible.builtin.command:
+    argv:
+      - mc
+      - tag
+      - list
+      - --json
+      - "homelab/{{ object_storage_bucket }}/{{ splunkbase_archive_key }}"
+  environment: "{{ mc_env }}"
+  register: splunkbase_archive_tag_query
+  when: >-
+    splunkbase_archive_available | bool
+  changed_when: false
+  no_log: true
+
+- name: Verify immutable archive checksum tag
+  ansible.builtin.assert:
+    that:
+      - splunkbase_archive_tag_query.rc == 0
+      - >-
+        ((splunkbase_archive_tag_query.stdout | from_json).tagset.sha256 | default(''))
+        == splunkbase_archive_local_stat.stat.checksum
+    fail_msg: >-
+      Immutable archive {{ splunkbase_archive_key }} does not have the expected
+      SHA-256 tag. Refusing to publish a catalog entry for unverified content.
+    quiet: true
+  when: >-
+    splunkbase_archive_available | bool
+
+- name: Record inaccessible Splunkbase release
+  ansible.builtin.set_fact:
+    splunkbase_archive_catalog_entries: >-
+      {{ splunkbase_archive_catalog_entries + [{
+        'kind': 'splunkbase_release',
+        'app_identity': splunkbase_archive_release.app_dir,
+        'splunkbase_id': splunkbase_archive_release.splunkbase_id | int,
+        'version': splunkbase_archive_release.name | string,
+        'filename': splunkbase_archive_release.filename,
+        'key': splunkbase_archive_key,
+        'sha256': none,
+        'size': none,
+        'source_url': splunkbase_api ~ '/app/' ~ splunkbase_archive_release.splunkbase_id
+          ~ '/release/' ~ (splunkbase_archive_release.name | urlencode) ~ '/download/',
+        'retrieved_at': now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ'),
+        'result': 'inaccessible',
+        'entitlement_status': ('denied' if (splunkbase_archive_source_download.status_code | default(0) | int) in [401, 403] else 'unavailable'),
+        'source_http_status': splunkbase_archive_source_download.status_code | default(none)
+      }] }}
+  when:
+    - not splunkbase_archive_available | bool
+
+- name: Record verified Splunkbase release archive
+  ansible.builtin.set_fact:
+    splunkbase_archive_catalog_entries: >-
+      {{ splunkbase_archive_catalog_entries + [{
+        'kind': 'splunkbase_release',
+        'app_identity': splunkbase_archive_release.app_dir,
+        'splunkbase_id': splunkbase_archive_release.splunkbase_id | int,
+        'version': splunkbase_archive_release.name | string,
+        'filename': splunkbase_archive_release.filename,
+        'key': splunkbase_archive_key,
+        'sha256': splunkbase_archive_local_stat.stat.checksum,
+        'size': splunkbase_archive_local_stat.stat.size | int,
+        'source_url': splunkbase_api ~ '/app/' ~ splunkbase_archive_release.splunkbase_id
+          ~ '/release/' ~ (splunkbase_archive_release.name | urlencode) ~ '/download/',
+        'retrieved_at': now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ'),
+        'result': 'available',
+        'entitlement_status': 'available'
+      }] }}
+  when: >-
+    splunkbase_archive_available | bool
+
+- name: Remove immutable archive work directory
+  ansible.builtin.file:
+    path: "{{ splunkbase_archive_local_dir }}"
+    state: absent
+  changed_when: false

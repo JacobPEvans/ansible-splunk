@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+* Archive every exposed Splunkbase release under an immutable RustFS key with a SHA-256 catalog, while keeping archive-only references out of the Splunk VM manifest.
+
 ## [0.49.10](https://github.com/dryvist/ansible-splunk/compare/v0.49.9...v0.49.10) (2026-07-31)
 
 

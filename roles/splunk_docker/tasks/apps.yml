@@ -34,7 +34,11 @@
 
 - name: Build the object-storage-sourced add-on list
   ansible.builtin.set_fact:
-    splunk_docker_object_storage_addons: "{{ splunk_docker_addons | rejectattr('github_repo', 'defined') | list }}"
+    splunk_docker_object_storage_addons: >-
+      {{ ((splunk_docker_addons | selectattr('install', 'undefined') | list)
+          + (splunk_docker_addons | selectattr('install', 'defined')
+             | selectattr('install', 'equalto', true) | list))
+         | rejectattr('github_repo', 'defined') | list }}
 
 # Gated on a non-empty list so Molecule (which sets splunk_docker_addons: []) never
 # templates splunk_docker_artifact_base_url / tofu_data, which it does not provide.
@@ -180,7 +184,11 @@
     group: "{{ splunk_docker_group }}"
     remote_src: true
     creates: "{{ splunk_docker_etc_dir }}/apps/{{ item.app_dir }}"
-  loop: "{{ splunk_docker_addons | selectattr('github_repo', 'defined') | list }}"
+  loop: >-
+    {{ ((splunk_docker_addons | selectattr('install', 'undefined') | list)
+        + (splunk_docker_addons | selectattr('install', 'defined')
+           | selectattr('install', 'equalto', true) | list))
+       | selectattr('github_repo', 'defined') | list }}
   loop_control:
     label: "{{ item.app_dir }}"
   register: splunk_docker_github_install
