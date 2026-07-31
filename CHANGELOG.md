@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.52.1](https://github.com/dryvist/ansible-splunk/compare/v0.52.0...v0.52.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* **splunk:** validate MCP tokens the way Splunk actually issues them ([#434](https://github.com/dryvist/ansible-splunk/issues/434)) ([66d8ac9](https://github.com/dryvist/ansible-splunk/commit/66d8ac9f42b19628c791639e4746fcd916e22bf9))
+
 ## [0.52.0](https://github.com/dryvist/ansible-splunk/compare/v0.51.3...v0.52.0) (2026-07-31)
 
 
