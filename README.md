@@ -244,7 +244,7 @@ doppler run -- ansible-playbook playbooks/validate.yml
 | `amazon.aws` | `>=9.0.0` |
 
 ```bash
-ansible-galaxy collection install -r requirements.yml
+ansible-galaxy install -r requirements.yml
 ```
 
 ### External Services
