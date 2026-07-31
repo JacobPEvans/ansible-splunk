@@ -63,6 +63,27 @@
           OBJECT_STORAGE_ROOT_USER, OBJECT_STORAGE_ROOT_PASSWORD. Run via
           `doppler run -- ansible-playbook …` so Doppler injects secrets.
 
+    # Without this, an absent `mc` surfaces as rc=2 from every object-storage
+    # command, which the tag-query validation below reports as an object-storage
+    # fault - sending the reader to check connectivity, credentials, and bucket
+    # existence, none of which are wrong. Fail once, here, naming the real cause.
+    - name: Look for the object-storage client
+      ansible.builtin.command:
+        cmd: mc --version
+      changed_when: false
+      failed_when: false
+      register: mc_preflight
+
+    - name: Assert the object-storage client is installed
+      ansible.builtin.assert:
+        that:
+          - mc_preflight.rc == 0
+        fail_msg: >-
+          `mc` is not on PATH. Every object-storage command below would exit 2
+          ("executable not found"), which reads as an object-storage fault but
+          is not one. Install the client into the dev shell and re-run.
+        quiet: true
+
     - name: Load Splunk add-on registry
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/../roles/splunk_docker/vars/addons.yml"
