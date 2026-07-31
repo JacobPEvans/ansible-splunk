@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.50.0](https://github.com/dryvist/ansible-splunk/compare/v0.49.10...v0.50.0) (2026-07-31)
+
+
+### Features
+
+* **splunk:** archive Splunkbase release history ([#422](https://github.com/dryvist/ansible-splunk/issues/422)) ([9d6fec3](https://github.com/dryvist/ansible-splunk/commit/9d6fec30377b40a0b5cb363d4c770d1cfbf43f24))
+
 ## [Unreleased]
 
 ### Added
