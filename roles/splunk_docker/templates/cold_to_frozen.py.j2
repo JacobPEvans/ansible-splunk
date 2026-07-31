@@ -159,6 +159,14 @@ def run_rclone(args, stdin_data=None):
         UPLOAD_CUTOFF,
         "--s3-chunk-size",
         UPLOAD_CUTOFF,
+        # Never probe for or create the destination bucket. rclone's default is
+        # to ensure it exists before writing, which needs a create permission
+        # the archive credential deliberately does not have — it is scoped to
+        # one existing bucket. The endpoint answers that probe with a 403 and
+        # rclone treats it as fatal, so every upload failed before a single
+        # byte moved. The bucket is created out of band; this only ever writes
+        # into it.
+        "--s3-no-check-bucket",
         "--retries",
         "5",
         "--stats",
