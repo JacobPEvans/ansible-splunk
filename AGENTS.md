@@ -204,6 +204,13 @@ from Doppler.
   auto-download.
 - Upload new versions via `mc cp` — filenames are version-free,
   versions tracked via object tags.
+- A direct `sync-splunkbase.yml` run also archives each exposed Splunkbase
+  release under `archive/splunkbase/<id>/<version>/<filename>` and verifies its
+  SHA-256 before publishing `archive/catalog.json`. This integrity-sensitive
+  archival is excluded from the fail-soft `site.yml` pre-play.
+- Registry entries with `install: false` are archive-only and must never enter
+  `manifest.json` or be installed on the Splunk VM. Pinned non-Splunkbase source
+  references stay under `archive/references/` with their observed license status.
 - See `roles/splunk_docker/files/README.md` for upload instructions.
 
 ## MCP Server tools

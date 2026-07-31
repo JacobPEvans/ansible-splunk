@@ -15,6 +15,10 @@
 # environment (provided by `doppler run --`).
 - name: Sync latest Splunkbase apps into object storage (in-flow, fail-soft)
   ansible.builtin.import_playbook: sync-splunkbase.yml
+  vars:
+    # Historical archival has stronger integrity guarantees and is intentionally
+    # performed by the standalone sync workflow, never as a deployment gate.
+    splunkbase_archive_history: false
 
 # Configure NTP time synchronization BEFORE deploying Splunk. Splunk's
 # _time correlation depends on accurate clocks; points at the Proxmox

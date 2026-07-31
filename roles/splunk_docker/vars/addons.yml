@@ -19,6 +19,9 @@
 #                    look up by purpose rather than filename (e.g. role: mcp_server
 #                    is used by validate.yml + tasks/mcp_server.yml so the filename
 #                    can change without breaking either lookup).
+#   install         — optional boolean, default true. `false` keeps a public
+#                    Splunkbase package in the analysis archive only; it is never
+#                    included in manifest.json or installed on the Splunk VM.
 #
 # Flow: sync-splunkbase.yml (control node, has internet) resolves the latest version
 # per splunkbase_id, downloads it, mirrors it to the object-storage `splunk-addons` bucket, and
@@ -56,6 +59,20 @@ splunk_docker_addons:
   - {filename: hurricane-labs-add-on-for-windows-powershell-transcript.tar, app_dir: TA-powershell_transcript, splunkbase_id: 4984}
   - {filename: ta-studio.tar, app_dir: ta_studio, splunkbase_id: 8932}
 
+  # --- analysis-only Splunkbase packages (archive only; never deployed) ---
+  # These identifiers are backed by a public package label plus an embedded
+  # Splunkbase URL or exact appid match. They are not copies of customer config.
+  - {filename: splunk-add-on-for-microsoft-windows.spl, app_dir: Splunk_TA_windows, splunkbase_id: 742, install: false}
+  - {filename: splunk-add-on-for-unix-and-linux.spl, app_dir: Splunk_TA_nix, splunkbase_id: 833, install: false}
+  - {filename: splunk-add-on-for-oracle-database.spl, app_dir: Splunk_TA_oracle, splunkbase_id: 1910, install: false}
+  - {filename: splunk-add-on-for-jboss.spl, app_dir: Splunk_TA_jboss, splunkbase_id: 2954, install: false}
+  - {filename: splunk-app-for-cisco-ise.spl, app_dir: Splunk_CiscoISE, splunkbase_id: 1589, install: false}
+  - {filename: splunk-app-for-cisco-networks.spl, app_dir: cisco_ios, splunkbase_id: 1352, install: false}
+  - {filename: splunk-add-on-for-cisco-networks.spl, app_dir: TA-cisco_ios, splunkbase_id: 1467, install: false}
+  - {filename: splunk-app-for-palo-alto-networks.spl, app_dir: SplunkforPaloAltoNetworks, splunkbase_id: 491, install: false}
+  - {filename: splunk-add-on-for-palo-alto-networks.spl, app_dir: Splunk_TA_paloalto, splunkbase_id: 2757, install: false}
+  - {filename: splunk-add-on-for-microsoft-exchange.spl, app_dir: splunk_TA_microsoft_exchange, splunkbase_id: 3225, install: false}
+
   # --- object-storage, no Splunkbase match (manual upload; sync skips) ---
   # Hurricane Labs' Automox add-on was removed from Splunkbase. The archive is
   # still served from object storage but must be re-uploaded manually with `mc cp` when
@@ -76,3 +93,15 @@ splunk_docker_addons:
   # --- GitHub Releases: JacobPEvans/<repo>/releases/latest ---
   - {filename: VisiCore_TA_AI_Observability.spl, app_dir: VisiCore_TA_AI_Observability, github_repo: JacobPEvans/VisiCore_TA_AI_Observability}
   - {filename: VisiCore_App_for_AI_Observability.spl, app_dir: VisiCore_App_for_AI_Observability, github_repo: JacobPEvans/VisiCore_App_for_AI_Observability}
+
+# Non-installable internal analysis references. These are intentionally separate
+# from Splunkbase records: no `splunkbase_id`, no manifest entry, and no target
+# installation. `license_status` records what was observed, never an inference.
+splunk_docker_reference_archives:
+  - source: github_tarball
+    owner: jewnix
+    repository: splunk-spec-files
+    ref: 10.4.2
+    commit: ebb0889d92780f43c5fb0eec29babea83e3f26e6
+    filename: splunk-spec-files-10.4.2.tar.gz
+    license_status: undeclared

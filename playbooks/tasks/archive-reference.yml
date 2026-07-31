@@ -1,0 +1,194 @@
+---
+# A pinned, non-installable source reference. It deliberately has a distinct key
+# and catalog kind so a GitHub source archive is never treated as a Splunkbase app.
+
+- name: Set immutable reference archive coordinates
+  ansible.builtin.set_fact:
+    splunk_reference_key: >-
+      archive/references/github/{{ splunk_reference_archive.owner }}/{{
+      splunk_reference_archive.repository }}/{{ splunk_reference_archive.commit }}/{{
+      splunk_reference_archive.filename }}
+    splunk_reference_local_dir: >-
+      {{ splunkbase_sync_tmpdir }}/archive/references/github/{{
+      splunk_reference_archive.owner }}/{{ splunk_reference_archive.repository }}/{{
+      splunk_reference_archive.commit }}
+    splunk_reference_local_file: >-
+      {{ splunkbase_sync_tmpdir }}/archive/references/github/{{
+      splunk_reference_archive.owner }}/{{ splunk_reference_archive.repository }}/{{
+      splunk_reference_archive.commit }}/{{ splunk_reference_archive.filename }}
+
+- name: Check whether the immutable reference archive exists
+  ansible.builtin.command:
+    argv:
+      - mc
+      - stat
+      - --json
+      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+  environment: "{{ mc_env }}"
+  register: splunk_reference_object_stat
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Reject unexpected immutable reference lookup errors
+  ansible.builtin.assert:
+    that:
+      - >-
+        splunk_reference_object_stat.rc == 0
+        or 'NoSuchKey' in (splunk_reference_object_stat.stdout | default(''))
+        or 'not found' in (splunk_reference_object_stat.stderr | default('') | lower)
+        or 'does not exist' in (splunk_reference_object_stat.stderr | default('') | lower)
+    fail_msg: >-
+      Could not determine whether {{ splunk_reference_key }} exists. Refusing to
+      overwrite an immutable reference after an object-storage failure.
+    quiet: true
+
+- name: Set immutable reference presence
+  ansible.builtin.set_fact:
+    splunk_reference_exists: "{{ splunk_reference_object_stat.rc == 0 }}"
+
+- name: Ensure immutable reference work directory exists
+  ansible.builtin.file:
+    path: "{{ splunk_reference_local_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Download missing pinned reference
+  ansible.builtin.get_url:
+    url: >-
+      https://codeload.github.com/{{ splunk_reference_archive.owner }}/{{
+      splunk_reference_archive.repository }}/tar.gz/{{ splunk_reference_archive.commit }}
+    dest: "{{ splunk_reference_local_file }}"
+    force: true
+    mode: "0600"
+    timeout: 120
+  register: splunk_reference_source_download
+  when: not splunk_reference_exists | bool
+
+- name: Copy existing immutable reference for verification
+  ansible.builtin.command:
+    argv:
+      - mc
+      - cp
+      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+      - "{{ splunk_reference_local_file }}"
+  environment: "{{ mc_env }}"
+  when: splunk_reference_exists | bool
+  changed_when: false
+  no_log: true
+
+- name: Calculate immutable reference checksum
+  ansible.builtin.stat:
+    path: "{{ splunk_reference_local_file }}"
+    checksum_algorithm: sha256
+  register: splunk_reference_local_stat
+
+- name: Upload newly downloaded immutable reference
+  ansible.builtin.command:
+    argv:
+      - mc
+      - cp
+      - "{{ splunk_reference_local_file }}"
+      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+  environment: "{{ mc_env }}"
+  when: not splunk_reference_exists | bool
+  changed_when: true
+  no_log: true
+
+- name: Tag newly uploaded immutable reference checksum
+  ansible.builtin.command:
+    argv:
+      - mc
+      - tag
+      - set
+      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+      - >-
+        sha256={{ splunk_reference_local_stat.stat.checksum }}&source=github_tarball&commit={{
+        splunk_reference_archive.commit }}&license_status={{ splunk_reference_archive.license_status }}
+  environment: "{{ mc_env }}"
+  when: not splunk_reference_exists | bool
+  changed_when: true
+  no_log: true
+
+- name: Copy newly uploaded immutable reference for verification
+  ansible.builtin.command:
+    argv:
+      - mc
+      - cp
+      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+      - "{{ splunk_reference_local_file }}.verified"
+  environment: "{{ mc_env }}"
+  when: not splunk_reference_exists | bool
+  changed_when: false
+  no_log: true
+
+- name: Calculate uploaded immutable reference checksum
+  ansible.builtin.stat:
+    path: "{{ splunk_reference_local_file }}.verified"
+    checksum_algorithm: sha256
+  register: splunk_reference_uploaded_stat
+  when: not splunk_reference_exists | bool
+
+- name: Verify uploaded immutable reference content
+  ansible.builtin.assert:
+    that:
+      - splunk_reference_uploaded_stat.stat.size == splunk_reference_local_stat.stat.size
+      - splunk_reference_uploaded_stat.stat.checksum == splunk_reference_local_stat.stat.checksum
+    fail_msg: >-
+      Upload verification failed for {{ splunk_reference_key }}. The object does
+      not match the pinned GitHub source download.
+    quiet: true
+  when: not splunk_reference_exists | bool
+
+- name: Read immutable reference checksum tag
+  ansible.builtin.command:
+    argv:
+      - mc
+      - tag
+      - list
+      - --json
+      - "homelab/{{ object_storage_bucket }}/{{ splunk_reference_key }}"
+  environment: "{{ mc_env }}"
+  register: splunk_reference_tag_query
+  changed_when: false
+  no_log: true
+
+- name: Verify immutable reference checksum tag
+  ansible.builtin.assert:
+    that:
+      - splunk_reference_tag_query.rc == 0
+      - >-
+        ((splunk_reference_tag_query.stdout | from_json).tagset.sha256 | default(''))
+        == splunk_reference_local_stat.stat.checksum
+    fail_msg: >-
+      Immutable reference {{ splunk_reference_key }} does not have the expected
+      SHA-256 tag. Refusing to publish a catalog entry for unverified content.
+    quiet: true
+
+- name: Record verified immutable reference
+  ansible.builtin.set_fact:
+    splunkbase_archive_catalog_entries: >-
+      {{ splunkbase_archive_catalog_entries + [{
+        'kind': 'reference',
+        'source': 'github_tarball',
+        'owner': splunk_reference_archive.owner,
+        'repository': splunk_reference_archive.repository,
+        'ref': splunk_reference_archive.ref,
+        'commit': splunk_reference_archive.commit,
+        'filename': splunk_reference_archive.filename,
+        'key': splunk_reference_key,
+        'sha256': splunk_reference_local_stat.stat.checksum,
+        'size': splunk_reference_local_stat.stat.size | int,
+        'source_url': 'https://github.com/' ~ splunk_reference_archive.owner ~ '/'
+          ~ splunk_reference_archive.repository ~ '/archive/' ~ splunk_reference_archive.commit ~ '.tar.gz',
+        'retrieved_at': now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ'),
+        'result': 'available',
+        'license_status': splunk_reference_archive.license_status,
+        'installable': false
+      }] }}
+
+- name: Remove immutable reference work directory
+  ansible.builtin.file:
+    path: "{{ splunk_reference_local_dir }}"
+    state: absent
+  changed_when: false

@@ -1,7 +1,7 @@
 ---
 # Splunkbase → object-storage (RustFS) sync playbook — resolves LATEST, mirrors, writes manifest
 #
-# For every addons.yml entry with a `splunkbase_id`, resolves the latest release
+# For every deployable addons.yml entry with a `splunkbase_id`, resolves the latest release
 # from the PUBLIC Splunkbase API (no auth needed for resolution), downloads it with
 # the authenticated session, and mirrors it into the `splunk-addons` bucket on the
 # RustFS object-storage LXC, tagged `version=X.Y.Z&splunkbase_id=NNNN`. Finally
@@ -10,9 +10,10 @@
 #
 # `pin_version` on an entry overrides resolution (hold back a bad release).
 #
-# Versions are kept over time for free: the `splunk-addons` bucket has
-# object-versioning enabled, so each overwrite of an app retains the prior version
-# as a noncurrent version — no extra bookkeeping here.
+# The standalone workflow also archives every release exposed by Splunkbase under
+# immutable keys and publishes an integrity catalog. The archive is deliberately
+# disabled when this file is imported by site.yml: deployment retains its existing
+# fail-soft behavior while archival failures stay visible to archive operators.
 #
 # Idempotent: skips download when the bucket `version` tag already matches the
 # resolved latest. Fail-soft: if Splunkbase is unreachable, the whole resolve/sync
@@ -72,6 +73,7 @@
           - item.filename is defined
           - item.app_dir is defined
           - not (item.splunkbase_id is defined and item.github_repo is defined)
+          - item.install is not defined or item.install is boolean
         fail_msg: >-
           Invalid registry entry {{ item }}: each entry must have filename + app_dir
           and may have at most one of (splunkbase_id, github_repo).
@@ -79,10 +81,35 @@
       loop_control:
         label: "{{ item.filename | default('(no filename)') }}"
 
+    - name: Validate non-installable reference archive schema
+      ansible.builtin.assert:
+        that:
+          - item.source == 'github_tarball'
+          - item.owner is match('^[A-Za-z0-9][A-Za-z0-9-]*$')
+          - item.repository is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+          - item.ref | length > 0
+          - item.commit is match('^[a-f0-9]{40}$')
+          - item.filename is match('^[A-Za-z0-9][A-Za-z0-9._+-]*$')
+          - item.license_status == 'undeclared'
+        fail_msg: >-
+          Invalid non-installable reference archive {{ item | default({}) }}.
+          References must be pinned GitHub tarballs and must declare their
+          observed license status without inferring a license.
+      loop: "{{ splunk_docker_reference_archives | default([]) }}"
+      loop_control:
+        label: "{{ item.owner | default('?') }}/{{ item.repository | default('?') }}"
+
     - name: Build list of Splunkbase-syncable entries
       ansible.builtin.set_fact:
         splunkbase_entries: >-
           {{ splunk_docker_addons | selectattr('splunkbase_id', 'defined') | list }}
+
+    - name: Build list of deployable Splunkbase entries
+      ansible.builtin.set_fact:
+        splunkbase_install_entries: >-
+          {{ (splunkbase_entries | selectattr('install', 'undefined') | list)
+             + (splunkbase_entries | selectattr('install', 'defined')
+                | selectattr('install', 'equalto', true) | list) }}
 
     - name: Ensure temporary download directory exists
       ansible.builtin.file:
@@ -110,10 +137,10 @@
           changed_when: false
           failed_when: false
 
-        - name: Compute desired version per entry (pin_version overrides latest)
+        - name: Compute every resolved release's desired version
           ansible.builtin.set_fact:
-            splunkbase_desired: >-
-              {{ splunkbase_desired | default([]) + [item.0 | combine({
+            splunkbase_desired_all: >-
+              {{ splunkbase_desired_all | default([]) + [item.0 | combine({
                 'desired_version': (
                   item.0.pin_version if item.0.pin_version is defined
                   else (
@@ -134,14 +161,17 @@
             msg: >-
               Could not resolve a version for {{ item.filename }}
               (splunkbase_id {{ item.splunkbase_id }}); skipping it this run.
-          loop: "{{ splunkbase_desired | selectattr('desired_version', 'equalto', '') | list }}"
+          loop: "{{ splunkbase_desired_all | selectattr('desired_version', 'equalto', '') | list }}"
           loop_control:
             label: "{{ item.filename }}"
 
-        - name: Keep only resolvable entries
+        - name: Keep only deployable resolvable entries
           ansible.builtin.set_fact:
             splunkbase_desired: >-
-              {{ splunkbase_desired | rejectattr('desired_version', 'equalto', '') | list }}
+              {{ ((splunkbase_desired_all | selectattr('install', 'undefined') | list)
+                  + (splunkbase_desired_all | selectattr('install', 'defined')
+                     | selectattr('install', 'equalto', true) | list))
+                 | rejectattr('desired_version', 'equalto', '') | list }}
 
         # `mc tag list --json` returns nonzero for a missing object ("NoSuchKey"
         # in stdout) — expected, drives a sync. Any other nonzero (auth/network/
@@ -392,3 +422,162 @@
       loop_control:
         label: "{{ item.app_dir }}"
       when: splunkbase_manifest is defined
+
+    # Archive is intentionally distinct from the latest-object deployment path:
+    # its release catalog is immutable and integrity failures must stop this
+    # standalone workflow rather than silently changing a deployment outcome.
+    - name: Archive every exposed Splunkbase release and pinned reference
+      when: splunkbase_archive_history | default(true) | bool
+      block:
+        - name: Initialise immutable archive catalog entries
+          ansible.builtin.set_fact:
+            splunkbase_archive_catalog_entries: []
+            splunkbase_archive_releases: []
+
+        - name: Record unavailable Splunkbase release indexes
+          ansible.builtin.set_fact:
+            splunkbase_archive_catalog_entries: >-
+              {{ splunkbase_archive_catalog_entries + [{
+                'kind': 'splunkbase_release_index',
+                'app_identity': item.0.app_dir,
+                'splunkbase_id': item.0.splunkbase_id | int,
+                'version': none,
+                'filename': none,
+                'key': none,
+                'sha256': none,
+                'size': none,
+                'source_url': splunkbase_api ~ '/api/v1/app/' ~ item.0.splunkbase_id ~ '/release/',
+                'retrieved_at': now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ'),
+                'result': 'release_index_unavailable',
+                'entitlement_status': 'unknown',
+                'source_http_status': item.1.status | default(none)
+              }] }}
+          loop: "{{ splunkbase_entries | zip(splunkbase_release_q.results | default([])) | list }}"
+          loop_control:
+            label: "app {{ item.0.splunkbase_id }}"
+          when: >-
+            (item.1.status | default(0)) != 200
+            or (item.1.content | default('') | trim)[:1] != '['
+
+        - name: Build immutable archive release inventory
+          ansible.builtin.set_fact:
+            splunkbase_archive_releases: >-
+              {{ splunkbase_archive_releases + (
+                (item.1.content | from_json)
+                | map('combine', {
+                    'app_dir': item.0.app_dir,
+                    'splunkbase_id': item.0.splunkbase_id
+                  }) | list) }}
+          loop: "{{ splunkbase_entries | zip(splunkbase_release_q.results | default([])) | list }}"
+          loop_control:
+            label: "app {{ item.0.splunkbase_id }}"
+          when:
+            - (item.1.status | default(0)) == 200
+            - (item.1.content | default('') | trim)[:1] == '['
+
+        - name: Authenticate to Splunkbase for immutable archive downloads
+          ansible.builtin.uri:
+            url: "{{ splunkbase_api }}/api/account:login/"
+            method: POST
+            body_format: form-urlencoded
+            body:
+              username: "{{ lookup('env', 'SPLUNKBASE_USERNAME') }}"
+              password: "{{ lookup('env', 'SPLUNKBASE_PASSWORD') }}"
+            return_content: true
+            status_code: 200
+          register: splunkbase_archive_login
+          when: splunkbase_archive_releases | length > 0
+          no_log: true
+
+        - name: Extract immutable archive Splunkbase session token
+          ansible.builtin.set_fact:
+            splunkbase_archive_token: >-
+              {{ splunkbase_archive_login.content
+                 | regex_search('<id>([^<]+)</id>', '\1')
+                 | default([], true)
+                 | first | default('') }}
+          when: splunkbase_archive_releases | length > 0
+          no_log: true
+
+        - name: Assert immutable archive session token is present
+          ansible.builtin.assert:
+            that:
+              - splunkbase_archive_token | length > 0
+            fail_msg: >-
+              Splunkbase did not return a session token for historical archive
+              retrieval. Existing deployment mirror contents were not changed.
+          when: splunkbase_archive_releases | length > 0
+
+        - name: Archive every exposed Splunkbase release
+          ansible.builtin.include_tasks: tasks/archive-splunkbase-release.yml
+          loop: "{{ splunkbase_archive_releases }}"
+          loop_control:
+            loop_var: splunkbase_archive_release
+            label: >-
+              {{ splunkbase_archive_release.splunkbase_id }} {{
+              splunkbase_archive_release.name }}
+
+        - name: Archive every pinned non-installable reference
+          ansible.builtin.include_tasks: tasks/archive-reference.yml
+          loop: "{{ splunk_docker_reference_archives | default([]) }}"
+          loop_control:
+            loop_var: splunk_reference_archive
+            label: "{{ splunk_reference_archive.owner }}/{{ splunk_reference_archive.repository }}"
+
+        - name: Build immutable archive catalog
+          ansible.builtin.set_fact:
+            splunkbase_archive_catalog:
+              schema_version: 1
+              generated_at: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+              entries: "{{ splunkbase_archive_catalog_entries }}"
+
+        - name: Write immutable archive catalog locally
+          ansible.builtin.copy:
+            content: "{{ splunkbase_archive_catalog | to_nice_json }}\n"
+            dest: "{{ splunkbase_sync_tmpdir }}/archive-catalog.json"
+            mode: "0600"
+
+        - name: Publish immutable archive catalog
+          ansible.builtin.command:
+            argv:
+              - mc
+              - cp
+              - "{{ splunkbase_sync_tmpdir }}/archive-catalog.json"
+              - "homelab/{{ object_storage_bucket }}/archive/catalog.json"
+          environment: "{{ mc_env }}"
+          changed_when: true
+          no_log: true
+
+        - name: Read published immutable archive catalog
+          ansible.builtin.command:
+            argv:
+              - mc
+              - cat
+              - "homelab/{{ object_storage_bucket }}/archive/catalog.json"
+          environment: "{{ mc_env }}"
+          register: splunkbase_archive_catalog_verify
+          changed_when: false
+          no_log: true
+
+        - name: Verify published immutable archive catalog schema
+          ansible.builtin.assert:
+            that:
+              - (splunkbase_archive_catalog_verify.stdout | from_json).schema_version == 1
+              - (splunkbase_archive_catalog_verify.stdout | from_json).entries | length == splunkbase_archive_catalog_entries | length
+              - >-
+                (splunkbase_archive_catalog_verify.stdout | from_json).entries
+                | selectattr('result', 'equalto', 'available')
+                | selectattr('sha256', 'defined') | list | length
+                == (splunkbase_archive_catalog_entries
+                    | selectattr('result', 'equalto', 'available') | list | length)
+            fail_msg: >-
+              Published archive/catalog.json does not satisfy the immutable
+              archive schema or is missing an integrity digest.
+            quiet: true
+
+      always:
+        - name: Remove local immutable archive catalog
+          ansible.builtin.file:
+            path: "{{ splunkbase_sync_tmpdir }}/archive-catalog.json"
+            state: absent
+          changed_when: false
