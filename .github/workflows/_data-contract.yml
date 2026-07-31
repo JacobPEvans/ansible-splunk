@@ -87,14 +87,23 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install Ansible and collections
+      # verify_inventory.yml imports inventory/load_tofu.yml, which include_role's
+      # the shared inventory_resolve role by FQCN — so requirements.yml has to be
+      # installed here, and this run is what proves the collection resolves it.
+      # `install` covers both sections; `collection install` and `role install`
+      # each silently ignore the other and still exit zero.
+      - name: Install Ansible and dependencies
         run: |
           pip install ansible ansible-core netaddr
           ansible-galaxy collection install ansible.utils
+          ansible-galaxy install -r requirements.yml
 
       - name: Verify tofu inventory loads correctly
         env:
           TOFU_INVENTORY_PATH: ${{ github.workspace }}/tests/inventory_load/tofu_inventory.json
+          # load_tofu.yml's add_host marks this mandatory; the value is never
+          # dialled in a -c local run.
+          PROXMOX_SSH_KEY_PATH: /dev/null
         run: |
           ansible-playbook tests/inventory_load/verify_inventory.yml \
             -i inventory/hosts.yml \

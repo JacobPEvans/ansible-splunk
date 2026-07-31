@@ -18,6 +18,12 @@ build/
 
 # Large Splunk add-on files (must be placed manually)
 # See roles/splunk_docker/files/README.md for instructions
+# Galaxy-installed, never vendored. inventory_resolve now comes from the
+# dryvist.homelab collection, so nothing should write it here — the entry stays
+# to keep a stale copy from an older `roles:` pin out of a commit.
+/roles/inventory_resolve/
+/roles/splunk.splunk/
+
 roles/splunk_docker/files/*.tar
 roles/splunk_docker/files/*.tgz
 roles/splunk_docker/files/*.spl
