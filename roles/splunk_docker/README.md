@@ -15,8 +15,12 @@ This role:
 ## Installation
 
 ```bash
-ansible-galaxy collection install -r requirements.yml
+ansible-galaxy install -r requirements.yml
 ```
+
+`install` covers both sections of `requirements.yml`. The `collection`
+subcommand reads only `collections:` and silently skips `roles:`, so the
+Splunk role would be missing and the play would fail on an unrelated error.
 
 ## Requirements
 
