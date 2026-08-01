@@ -63,11 +63,11 @@ splunk_docker_frozen_archive_enabled: true
 # eviction rolls a bucket to the archive rather than deleting it. Enabling them
 # before that was proven would have made "reclaim space" mean "lose data".
 #
-# Neither cap binds at current usage (cold ~99G, hot_warm ~6.5G). That is
-# intended - they are a ceiling on total growth, which nothing enforced before:
-# only per-index quotas existed, and their sum could not bind the disk. This is
-# the guard that makes the oldest data roll off regardless of any one index's
-# own configuration.
+# Neither cap binds at current usage (measured 2026-08-01: cold ~71G,
+# hot_warm ~83G). That is intended - they are a ceiling on total growth,
+# which nothing enforced before: only per-index quotas existed, and their sum
+# could not bind the disk. This is the guard that makes the oldest data roll
+# off regardless of any one index's own configuration.
 #
 # Retune these when the underlying storage changes, not when an index grows.
 splunk_docker_volume_hot_warm_max_mb: 150000
