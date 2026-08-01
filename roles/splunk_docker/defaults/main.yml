@@ -386,8 +386,10 @@ splunk_docker_indexes:
   - name: ai
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # claude: highest-volume index on this instance; sized at double the shared
+  # default, matching _internal.
   - name: claude
-    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    max_size_mb: 20480
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # codex: Codex CLI agent telemetry — completes the per-agent index family
   # alongside claude/gemini/openai.
