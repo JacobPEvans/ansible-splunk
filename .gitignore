@@ -29,7 +29,6 @@ roles/splunk_docker/files/*.tgz
 roles/splunk_docker/files/*.spl
 
 # OpenTofu inventory (generated at runtime)
-inventory/tofu_inventory.json
 
 # Nix direnv cache
 .direnv/
