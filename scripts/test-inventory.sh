@@ -171,7 +171,10 @@ fi
 echo ""
 echo "=== Live Inventory Validation ==="
 
-LIVE_FILE="${PROJECT_ROOT}/inventory/tofu_inventory.json"
+# There is no on-disk cache to validate any more — the published object is the
+# only live source. Validate whatever TOFU_INVENTORY_PATH pins, which is the
+# same tier-1 input a converge would use.
+LIVE_FILE="${TOFU_INVENTORY_PATH:-}"
 
 if [[ "${LIVE}" == "true" ]]; then
   if [[ -f "${LIVE_FILE}" ]]; then
@@ -200,6 +203,8 @@ PYEOF
     else
       fail "Live inventory structure is incorrect"
     fi
+  elif [[ -z "${LIVE_FILE}" ]]; then
+    fail "--live needs TOFU_INVENTORY_PATH set to a copy fetched from the published object"
   else
     fail "Live inventory file not found: ${LIVE_FILE}"
   fi

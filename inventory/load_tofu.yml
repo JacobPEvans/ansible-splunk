@@ -9,15 +9,14 @@
   become: false
 
   tasks:
-    # Shared resolution: explicit path -> RustFS using native OpenBao
-    # credentials. No local-cache fallback is allowed in this repo; DNS remains
-    # the deliberately independent emergency path.
+    # Resolution order is the shared role's; DNS remains the deliberately
+    # independent emergency path, which is why this play tolerates an
+    # unresolved inventory and falls through to the static check below.
     - name: Resolve the published OpenTofu inventory
       ansible.builtin.include_role:
         name: dryvist.homelab.inventory_resolve
       vars:
         inventory_resolve_required_keys: [splunk_vm]
-        inventory_resolve_local_cache: /nonexistent/tofu_inventory.json
         inventory_resolve_fail_when_unresolved: false
 
     # Static fallback (hosts.yml splunk-01) needs SPLUNK_VM_HOST, named

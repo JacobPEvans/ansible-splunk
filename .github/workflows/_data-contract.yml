@@ -52,10 +52,6 @@ jobs:
         run: |
           ansible-galaxy install -r requirements.yml
 
-      - name: Create mock OpenTofu inventory for syntax checks
-        run: |
-          cp inventory/tofu_inventory.json.example inventory/tofu_inventory.json
-
       - name: Syntax check deploy.yml
         run: |
           ansible-playbook playbooks/deploy.yml --syntax-check
