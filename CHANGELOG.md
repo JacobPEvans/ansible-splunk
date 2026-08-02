@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.54.0](https://github.com/dryvist/ansible-splunk/compare/v0.53.2...v0.54.0) (2026-08-02)
+
+
+### Features
+
+* **splunk:** add workstation index ([#448](https://github.com/dryvist/ansible-splunk/issues/448)) ([50017b8](https://github.com/dryvist/ansible-splunk/commit/50017b88ccf8667339188ea8581a899bdd120463))
+
+
+### Bug Fixes
+
+* **splunk_docker:** add openbao voter-health silence detector ([#445](https://github.com/dryvist/ansible-splunk/issues/445)) ([f6c2927](https://github.com/dryvist/ansible-splunk/commit/f6c2927ad9d0e50137b2a94be079ac7a3b6c571b))
+
 ## [0.53.2](https://github.com/dryvist/ansible-splunk/compare/v0.53.1...v0.53.2) (2026-07-31)
 
 
