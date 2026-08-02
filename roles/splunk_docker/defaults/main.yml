@@ -675,6 +675,16 @@ splunk_docker_silence_detectors:
     threshold_minutes: 1440
     cron: "0 * * * *"
     suppress_minutes: 1440
+  # Voter-health sampler ships every openbao_voter_health_interval (5min
+  # default) from whichever node is Raft leader; the script itself never exits
+  # non-zero on a probe failure, so this silence detector is the only signal
+  # if the timer stops or the leader stops shipping. Same cadence as os/unifi.
+  - name: openbao_voter_health
+    index: openbao
+    sourcetype: "openbao:voter:health"
+    threshold_minutes: 15
+    cron: "*/5 * * * *"
+    suppress_minutes: 60
   # No honeypot emitter is wired up yet — ship the stanza disabled so it
   # can be flipped on (disabled: 0) when the deception fabric starts sending.
   - name: honeypot
