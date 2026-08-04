@@ -264,8 +264,16 @@ quantity = 0
    bad drive/host cannot mute alerts for another.
 --------------------------------------------------------------------------- #}
 [hardware_smart_failure]
-description = Fires on SMART failure signatures in the hardware index: a drive self-check FAILED, an attribute crossed into FAILING_NOW, or pending / offline-uncorrectable sectors appeared. These are the predictive signals that precede a disk dropping out of a pool (the pve2 bulk case, 2026-07).
-search = index=hardware ("FAILING_NOW" OR "FAILED SMART self-check" OR "Currently unreadable (pending) sectors" OR "Offline uncorrectable sectors")
+description = Fires on SMART failure signatures in the hardware index: a drive self-check FAILED, an attribute crossed into FAILING_NOW, pending / offline-uncorrectable sectors are present, or the raw value of a sector-health counter moved. These are the predictive signals that precede a disk dropping out of a pool (the pve2 bulk case, 2026-07).
+# The "<name> changed" phrases catch the raw-value tracking emitted for
+# attributes 5 / 197 / 198. They are the counters that actually matter, and
+# their NORMALIZED values sit at the ceiling long after the raw counts start
+# climbing — so the standing "sectors" phrases below report a non-zero state
+# while only these report the transition into it. A decrease matches too: that
+# is a sector being reallocated, which is equally worth seeing.
+# "Failed SMART usage Attribute" is the hard-fail wording emitted when a
+# tracked counter is flagged critical.
+search = index=hardware ("FAILING_NOW" OR "FAILED SMART self-check" OR "Failed SMART usage Attribute" OR "Reallocated_Sector_Ct changed" OR "Reallocated_Event_Count changed" OR "Current_Pending_Sector changed" OR "Offline_Uncorrectable changed" OR "Currently unreadable (pending) sectors" OR "Offline uncorrectable sectors")
 dispatch.earliest_time = -20m
 dispatch.latest_time = now
 cron_schedule = */10 * * * *

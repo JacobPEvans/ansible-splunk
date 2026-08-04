@@ -71,6 +71,7 @@ jobs:
       - name: Run template unit tests
         run: |
           python3 tests/templates/test_inputs_conf.py
+          python3 tests/templates/test_savedsearches_conf.py
 
       - name: Verify Splunk MCP OpenBao publication contract
         run: |
