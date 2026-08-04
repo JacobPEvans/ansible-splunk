@@ -118,21 +118,28 @@ quantity = 0
    in reality index=ai received ZERO events for weeks while the router LXCs'
    syslog (litellm process logs included) landed in `index=llm` as
    host=llm-router-* — so both alerts silently watched an empty index through
-   the 2026-07-16 brain wedge (8.9k error events, no alert). Scope by HOST
-   (llm-router-*), not by sourcetype semantics: the host pattern comes from
-   the guests' actual hostnames and survives sourcetype-stamping drift.
+   the 2026-07-16 brain wedge (8.9k error events, no alert). A later syslog
+   forwarding gap (2026-07-17) and its fix moved that same router-host syslog
+   again: a Cribl reclassify now routes it to `index=os_ai` instead, so both
+   searches below are repointed there (still `index=llm`, host filter kept
+   identical, verified live: identical host/field shape, `sourcetype=syslog`).
+   `index=llm` itself stays live and correctly scoped for the MLX/llama-swap
+   workstation detectors elsewhere in this file (host=jevans-mbp/jevans-ms) —
+   this section is the router fabric only. Scope by HOST (llm-router-*), not
+   by sourcetype semantics: the host pattern comes from the guests' actual
+   hostnames and survives sourcetype-stamping drift.
 --------------------------------------------------------------------------- #}
 [llm_router_silence_detector]
-description = Alerts when the LiteLLM router hosts stop emitting into index=llm for more than 15 minutes. The router is the single endpoint every LLM consumer resolves, so its silence means the whole fabric is unreachable even if individual model servers are healthy. Scoped by host=llm-router-* (see comment above).
+description = Alerts when the LiteLLM router hosts stop emitting into index=os_ai for more than 15 minutes. The router is the single endpoint every LLM consumer resolves, so its silence means the whole fabric is unreachable even if individual model servers are healthy. Scoped by host=llm-router-* (see comment above).
 # tstats returns ZERO rows (not a row with a null last_seen) when nothing in
 # the whole lookback window matches, so coalesce() alone never runs — there
-# is no row for eval to apply it to. Verified live: index=llm from the router
-# hosts was fully empty for 18 days and this detector, coalesce included,
-# never fired. appendpipe synthesizes the missing row: stats on the empty
-# result set still emits one row (an ungrouped aggregate always does), giving
-# eval a row to set last_seen = 0 on so the where clause below can fire.
-# coalesce stays as a second guard once that row exists.
-search = | tstats latest(_time) as last_seen WHERE index=llm host=llm-router-* | appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0 | fields - _rows ] | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
+# is no row for eval to apply it to. Verified live: this search's index was
+# fully empty for 18 days and this detector, coalesce included, never fired.
+# appendpipe synthesizes the missing row: stats on the empty result set still
+# emits one row (an ungrouped aggregate always does), giving eval a row to
+# set last_seen = 0 on so the where clause below can fire. coalesce stays as
+# a second guard once that row exists.
+search = | tstats latest(_time) as last_seen WHERE index=os_ai host=llm-router-* | appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0 | fields - _rows ] | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
 dispatch.earliest_time = -24h
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
@@ -146,11 +153,11 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{{ alert_deliver('LiteLLM router silent', 'The LiteLLM router hosts have emitted nothing into index=llm for 15+ minutes. Every LLM consumer resolves this single endpoint, so the fabric is likely unreachable. Investigate the router instances, their syslog forwarding, and Splunk ingestion.', priority='urgent') }}
+{{ alert_deliver('LiteLLM router silent', 'The LiteLLM router hosts have emitted nothing for 15+ minutes. Every LLM consumer resolves this single endpoint, so the fabric is likely unreachable. Investigate the router instances, their syslog forwarding, and Splunk ingestion.', priority='urgent') }}
 
 [llm_router_fallback_spike]
-description = Alerts when the LiteLLM router hosts log a spike of serving errors in index=llm over a 15-minute window — a healthy router serves almost entirely from its primary targets, so a burst of MidStreamFallbackError / finish_reason error / cooldown events means one or more backend model servers are failing or overloaded. The MidStreamFallbackError + "finish_reason error" pair is the 2026-07-16 brain-wedge signature: the MLX engine returns HTTP 200 with an in-stream error chunk, so no status-code search can see it. Scoped by host=llm-router-* (see comment above). Threshold is a count over the dispatch window; tune it to the fabric's request volume.
-search = index=llm host=llm-router-* ("MidStreamFallbackError" OR "finish_reason: error" OR "cooldown" OR "cooling down" OR "Fallback also failed") | stats count | where count > 20
+description = Alerts when the LiteLLM router hosts log a spike of serving errors in index=os_ai over a 15-minute window — a healthy router serves almost entirely from its primary targets, so a burst of MidStreamFallbackError / finish_reason error / cooldown events means one or more backend model servers are failing or overloaded. The MidStreamFallbackError + "finish_reason error" pair is the 2026-07-16 brain-wedge signature: the MLX engine returns HTTP 200 with an in-stream error chunk, so no status-code search can see it. Scoped by host=llm-router-* (see comment above). Threshold is a count over the dispatch window; tune it to the fabric's request volume.
+search = index=os_ai host=llm-router-* ("MidStreamFallbackError" OR "finish_reason: error" OR "cooldown" OR "cooling down" OR "Fallback also failed") | stats count | where count > 20
 dispatch.earliest_time = -15m
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
@@ -179,6 +186,12 @@ quantity = 0
    (`cron.scheduler: Job '<name>' failed: ...`) plus Slack `delivery error`
    lines. So a positive "confirmed-delivery age" is not measurable from syslog
    alone (that would need the Slack channel ingested into Splunk — a follow-up).
+   host=hermes-agent syslog moved from index=os to index=os_ai in the same
+   Cribl reclassify that orphaned the LiteLLM router detectors above — this
+   search follows it there. The cron.scheduler phrase itself is unchanged and
+   still real (64 historical matches, all pre-reclassify); it has simply had
+   nothing to say since 2026-07-21, which is the SLO being met, not a broken
+   signal.
    This detector therefore keys on the FAILURE signal and fires only when BOTH
    hourly useful jobs (splunk-digest, homelab-ai-fabric-status) have failed
    within the window (distinct-job count >= 2) — i.e. no useful message could
@@ -191,7 +204,7 @@ quantity = 0
 --------------------------------------------------------------------------- #}
 [hermes_delivery_slo_violation]
 description = Fires when BOTH hourly Hermes work-product jobs (splunk-digest, homelab-ai-fabric-status) have failed within 90 minutes — no useful Slack message could have been delivered that hour, violating the >=1-useful-message-per-hour SLO. Successful deliveries are silent in syslog, so this uses the double-failure signal (dc(job) >= 2); the paused/flapping mode is covered by the ansible-proxmox-ai brain-watchdog sustained-flap alert. INC-17088.
-search = index=os host=hermes-agent "cron.scheduler" failed ("splunk-digest" OR "homelab-ai-fabric-status") | rex "Job '(?<hermes_job>splunk-digest|homelab-ai-fabric-status)' failed" | stats dc(hermes_job) as jobs_failed values(hermes_job) as jobs | where jobs_failed >= 2
+search = index=os_ai host=hermes-agent "cron.scheduler" failed ("splunk-digest" OR "homelab-ai-fabric-status") | rex "Job '(?<hermes_job>splunk-digest|homelab-ai-fabric-status)' failed" | stats dc(hermes_job) as jobs_failed values(hermes_job) as jobs | where jobs_failed >= 2
 dispatch.earliest_time = -90m
 dispatch.latest_time = now
 cron_schedule = */15 * * * *
