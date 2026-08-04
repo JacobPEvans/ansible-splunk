@@ -76,6 +76,7 @@ jobs:
           uv pip install --system jinja2 pyyaml
           python3 tests/templates/test_cutover_gate.py
           python3 tests/templates/test_silence_detector_cadence.py
+          python3 tests/templates/test_silence_detector_zero_row.py
 
       - name: Verify Splunk MCP OpenBao publication contract
         run: |

@@ -38,7 +38,13 @@ action.slack.param.message = [{{ title }}] {{ message }}
 
 [macos_edge_silence_detector]
 description = Alerts when the macbook-m4 Cribl Edge -> Cribl Cloud -> Splunk chain has been silent for more than 15 minutes. Catches Mac offline, daemon crash, Cribl Cloud enrollment expiry, Stream pipeline stalls, and HEC ingestion failures with a single signal.
-search = | tstats latest(_time) as last_seen WHERE (index=os OR index=mac_perf) sourcetype=macos:* | eval minutes_silent = (now() - last_seen) / 60 | where minutes_silent > 15
+# tstats returns ZERO rows (not a row with a null last_seen) when nothing in
+# the whole lookback window matches, so a bare eval/where guard never runs
+# during full silence (verified live on llm_router_silence_detector below).
+# appendpipe synthesizes the missing row: stats on the empty result set still
+# emits one row (an ungrouped aggregate always does), giving eval a row to
+# set last_seen = 0 on so the where clause below can fire.
+search = | tstats latest(_time) as last_seen WHERE (index=os OR index=mac_perf) sourcetype=macos:* | appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0 | fields - _rows ] | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
 # Lookback must exceed the worst-case silence the alert needs to detect.
 # A short window (e.g. -30m) starves tstats of data once silence exceeds
 # the window, so the alert silently stops firing exactly when it matters
@@ -60,7 +66,13 @@ quantity = 0
 
 [llm_pipeline_silence_detector]
 description = Alerts when any llama-swap emitter feeding the llm index goes silent for more than 30 minutes. Detection is PER-HOST (`by host`) so a healthy emitter can never mask a dead one — with the fabric running multiple llama-swap serving guests, an index-wide `latest(_time)` would stay fresh as long as a single host reports, hiding the failure of every other host. Each silent host produces its own result row, so the alert fires once per dead emitter. A host that has never emitted has no baseline and cannot be detected here (same inherent limitation as the macOS edge detector).
-search = | tstats latest(_time) as last_seen WHERE index=llm by host | eval minutes_silent = (now() - last_seen) / 60 | where minutes_silent > 30
+# `by host` over a fully-empty index returns ZERO rows, not a null-last_seen
+# row for a synthetic host — so a plain eval/where guard never runs during a
+# whole-index outage (verified live: index=llm was empty for 18 days and this
+# detector never fired). appendpipe synthesizes a single sentinel row when
+# the tstats result set is empty, giving eval something to set last_seen = 0
+# on so the where clause below can fire.
+search = | tstats latest(_time) as last_seen WHERE index=llm by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0 | fields - _rows ] | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 30
 dispatch.earliest_time = -24h
 dispatch.latest_time = now
 cron_schedule = */10 * * * *
@@ -112,10 +124,15 @@ quantity = 0
 --------------------------------------------------------------------------- #}
 [llm_router_silence_detector]
 description = Alerts when the LiteLLM router hosts stop emitting into index=llm for more than 15 minutes. The router is the single endpoint every LLM consumer resolves, so its silence means the whole fabric is unreachable even if individual model servers are healthy. Scoped by host=llm-router-* (see comment above).
-# coalesce: with zero events in the whole lookback window, tstats yields a
-# null last_seen; without the fallback the where clause filters the row out
-# and the alert goes quiet exactly when the router has been dead longest.
-search = | tstats latest(_time) as last_seen WHERE index=llm host=llm-router-* | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
+# tstats returns ZERO rows (not a row with a null last_seen) when nothing in
+# the whole lookback window matches, so coalesce() alone never runs — there
+# is no row for eval to apply it to. Verified live: index=llm from the router
+# hosts was fully empty for 18 days and this detector, coalesce included,
+# never fired. appendpipe synthesizes the missing row: stats on the empty
+# result set still emits one row (an ungrouped aggregate always does), giving
+# eval a row to set last_seen = 0 on so the where clause below can fire.
+# coalesce stays as a second guard once that row exists.
+search = | tstats latest(_time) as last_seen WHERE index=llm host=llm-router-* | appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0 | fields - _rows ] | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
 dispatch.earliest_time = -24h
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
@@ -227,11 +244,13 @@ quantity = 0
    One stanza per splunk_docker_silence_detectors entry (see defaults for the
    field reference), cloning the macos_edge_silence_detector shape: tstats
    latest(_time) over the index, fire when silence exceeds the threshold.
-   coalesce(last_seen, 0) makes an index with zero events in the whole
-   lookback window alert too — without it, tstats yields a null last_seen,
-   the where clause filters the row out, and the alert goes quiet exactly
-   when the emitter has been dead longest (the llm_router lesson). With
-   by_host, detection is per-host so a healthy emitter can't mask a dead
+   tstats returns ZERO rows (not a row with a null last_seen) when nothing in
+   the whole lookback window matches — the llm_router lesson, verified live:
+   coalesce(last_seen, 0) alone did not fix it, because there is no row for
+   eval to apply it to. Every branch below (by_host and flat) therefore runs
+   an appendpipe guard that synthesizes a sentinel row when the tstats result
+   set is empty, and coalesce stays as a second guard once that row exists.
+   With by_host, detection is per-host so a healthy emitter can't mask a dead
    one; a host that has never emitted has no baseline and is not detected.
 
    by_host threshold is CADENCE-DERIVED, not the flat det.threshold_minutes:
@@ -249,11 +268,14 @@ quantity = 0
 {% for det in splunk_docker_silence_detectors | default([]) %}
 [{{ det.name }}_silence_detector]
 description = Alerts when the {{ det.index }} index has received no events for more than {{ det.threshold_minutes }} minutes{% if det.sourcetype is defined %} (sourcetype={{ det.sourcetype }}){% endif %}{% if det.by_host | default(false) %}, detected per-host against each host's own cadence so a healthy emitter cannot mask a dead one{% endif %}. Catches the emitter, its Cribl pipeline, and Splunk HEC ingestion failing with a single signal.
-{# The appendpipe guard covers the by_host blind spot: tstats ... by host over
-   a fully-empty index returns ZERO rows (not a null-last_seen row), so without
-   it the alert goes quiet exactly when every host is dead. stats count on the
-   empty set yields one count=0 row, which synthesizes a sentinel result. #}
-search = | tstats count as event_count latest(_time) as last_seen{% if det.by_host | default(false) %} earliest(_time) as first_seen{% endif %} WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0, first_seen = 0, event_count = 0 | fields - _rows ] | eval avg_gap_minutes = if(event_count > 1, (last_seen - first_seen) / 60 / (event_count - 1), null()) | eval host_threshold_minutes = case({% for host, mins in (det.host_overrides | default({})) | dictsort %}host="{{ host }}", {{ mins }}, {% endfor %}true(), max(coalesce(avg_gap_minutes, 0) * {{ det.cadence_multiplier | default(4) }}, {{ det.threshold_minutes }})){% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {% if det.by_host | default(false) %}host_threshold_minutes{% else %}{{ det.threshold_minutes }}{% endif %}
+{# The appendpipe guard covers the fully-empty-index blind spot: tstats over
+   an index/window with zero matching events returns ZERO rows — with by_host
+   that means zero rows instead of a null-last_seen row per host; without
+   by_host it means zero rows instead of one null-last_seen row. Either way,
+   without the guard the alert goes quiet exactly when everything is dead.
+   stats count on the empty set still yields one count=0 row (an ungrouped
+   aggregate always emits a row), which synthesizes the sentinel result. #}
+search = | tstats count as event_count latest(_time) as last_seen{% if det.by_host | default(false) %} earliest(_time) as first_seen{% endif %} WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0, first_seen = 0, event_count = 0 | fields - _rows ] | eval avg_gap_minutes = if(event_count > 1, (last_seen - first_seen) / 60 / (event_count - 1), null()) | eval host_threshold_minutes = case({% for host, mins in (det.host_overrides | default({})) | dictsort %}host="{{ host }}", {{ mins }}, {% endfor %}true(), max(coalesce(avg_gap_minutes, 0) * {{ det.cadence_multiplier | default(4) }}, {{ det.threshold_minutes }})){% else %} | appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0, event_count = 0 | fields - _rows ]{% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {% if det.by_host | default(false) %}host_threshold_minutes{% else %}{{ det.threshold_minutes }}{% endif %}
 # Lookback derives from this detector's own threshold (not a flat constant
 # shared by every detector regardless of cadence): wide enough that a host
 # silent for many multiples of its own threshold is still inside the window.
