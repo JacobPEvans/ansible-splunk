@@ -627,12 +627,14 @@ splunk_docker_silence_detectors:
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   - name: os
     index: os
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
     by_host: true
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   # hardware: alert if the hardware index stops receiving telemetry (packs /
   # Cribl / HEC dead). Shipped disabled until the Cribl hardware packs + syslog
   # reclassify are converged and index=hardware is actually emitting — a
@@ -656,21 +658,25 @@ splunk_docker_silence_detectors:
     threshold_minutes: 60
     cron: "*/15 * * * *"
     suppress_minutes: 240
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   - name: dns
     index: dns
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   - name: proxy
     index: proxy
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   - name: firewall
     index: firewall
     threshold_minutes: 60
     cron: "*/15 * * * *"
     suppress_minutes: 240
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   # The gateway emits ZERO IPFIX despite NetFlow showing enabled in its
   # console (a gateway-side export gap — the collector/receive chain is armed
   # and idle; see tofu-unifi live/gateway-telemetry.tf). Structurally-empty
@@ -688,6 +694,7 @@ splunk_docker_silence_detectors:
     threshold_minutes: 1440
     cron: "0 * * * *"
     suppress_minutes: 1440
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   # Voter-health sampler ships every openbao_voter_health_interval (5min
   # default) from whichever node is Raft leader; the script itself never exits
   # non-zero on a probe failure, so this silence detector is the only signal
@@ -698,6 +705,7 @@ splunk_docker_silence_detectors:
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   # No honeypot emitter is wired up yet — ship the stanza disabled so it
   # can be flipped on (disabled: 0) when the deception fabric starts sending.
   - name: honeypot
