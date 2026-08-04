@@ -386,6 +386,14 @@ splunk_docker_indexes:
   - name: ai
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # ansible: config-management converge telemetry (one batch of events per
+  # converge, emitted by the ansible-proxmox-apps converge_telemetry callback).
+  # Very low volume, and the alerts below look back 30 days, so it keeps the
+  # shared default size and retention. Its HEC token is derived per index like
+  # every other entry here, so no secret has to be provisioned for it.
+  - name: ansible
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # claude: highest-volume index on this instance; sized at double the shared
   # default, matching _internal.
   - name: claude
