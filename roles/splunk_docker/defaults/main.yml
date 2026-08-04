@@ -619,32 +619,64 @@ splunk_docker_indexes:
 #                       detectors in savedsearches.conf.j2 (macos_edge,
 #                       llm_pipeline, llm_manager_panic, llm_router*).
 #   index             — index to watch.
-#   threshold_minutes — silence duration that fires the alert.
+#   threshold_minutes — silence duration that fires the alert. For a
+#                       non-by_host detector this is the only threshold. For
+#                       a by_host detector it is the FLOOR: the effective
+#                       per-host threshold is max(that floor, the host's own
+#                       observed avg_gap_minutes x cadence_multiplier), so a
+#                       naturally-quiet host is not held to the same bar as a
+#                       chatty one.
 #   cron              — schedule (keep period well below the threshold).
 #   suppress_minutes  — alert.suppress.period; throttles re-fires.
 #   by_host           — optional, default false. Detect PER-HOST (`by host`
 #                       + alert.suppress.fields = host) so a healthy emitter
-#                       can't mask a dead one. Note: a host that has never
-#                       emitted has no baseline and cannot be detected.
+#                       can't mask a dead one, using each host's own cadence
+#                       (see threshold_minutes above). Note: a host that has
+#                       never emitted has no baseline and cannot be detected.
+#   cadence_multiplier — by_host only, optional, default 4. Multiplies a
+#                       host's observed average inter-event gap to get its
+#                       effective threshold.
+#   host_overrides    — by_host only, optional, default {}. Map of
+#                       hostname -> exact threshold_minutes, for a host whose
+#                       computed cadence baseline is wrong (commonly: too new
+#                       to have a representative average yet).
 #   disabled          — optional, default 0. Set 1 to ship the stanza
 #                       disabled (e.g. index exists but no emitter yet).
 #   sourcetype        — optional filter added to the tstats WHERE clause.
+#
+# dispatch.earliest_time (the search lookback) is threshold_minutes x this
+# multiplier — see the comment above each rendered stanza in
+# savedsearches.conf.j2 for why it is derived per-detector rather than one
+# flat window shared by a 15-minute and a 24-hour detector alike, and for the
+# residual limit (a host silent longer than the window still has no row for
+# tstats to return, same as an index with zero events in the whole window).
+splunk_docker_silence_lookback_multiplier: 2000
+
 splunk_docker_silence_detectors:
   - name: unifi
     index: unifi
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   - name: os
     index: os
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
     by_host: true
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   # hardware: alert if the hardware index stops receiving telemetry (packs /
   # Cribl / HEC dead). Shipped disabled until the Cribl hardware packs + syslog
   # reclassify are converged and index=hardware is actually emitting — a
   # silence detector on an empty index would false-fire continuously.
+  #
+  # FLIP THIS TO 0 IN THE SAME CHANGE THAT CONVERGES THE SYSLOG COLLECTORS.
+  # Nothing else watches whether the reclassify is delivering, so while this
+  # stays disabled an index that receives nothing is indistinguishable from an
+  # index whose drives are all healthy — and the content alerts below cannot
+  # tell you either, because a search over an empty index returns zero results
+  # and reports success. This detector is the only thing that closes that gap.
   - name: hardware
     index: hardware
     threshold_minutes: 60
@@ -657,21 +689,25 @@ splunk_docker_silence_detectors:
     threshold_minutes: 60
     cron: "*/15 * * * *"
     suppress_minutes: 240
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   - name: dns
     index: dns
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   - name: proxy
     index: proxy
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   - name: firewall
     index: firewall
     threshold_minutes: 60
     cron: "*/15 * * * *"
     suppress_minutes: 240
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   # The gateway emits ZERO IPFIX despite NetFlow showing enabled in its
   # console (a gateway-side export gap — the collector/receive chain is armed
   # and idle; see tofu-unifi live/gateway-telemetry.tf). Structurally-empty
@@ -689,6 +725,7 @@ splunk_docker_silence_detectors:
     threshold_minutes: 1440
     cron: "0 * * * *"
     suppress_minutes: 1440
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   # Voter-health sampler ships every openbao_voter_health_interval (5min
   # default) from whichever node is Raft leader; the script itself never exits
   # non-zero on a probe failure, so this silence detector is the only signal
@@ -699,6 +736,7 @@ splunk_docker_silence_detectors:
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
   # No honeypot emitter is wired up yet — ship the stanza disabled so it
   # can be flipped on (disabled: 0) when the deception fabric starts sending.
   - name: honeypot

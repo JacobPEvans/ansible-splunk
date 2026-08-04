@@ -4,13 +4,26 @@
    on a cron and fires when its tstats search returns >0 results (i.e. a
    monitored host has gone quiet beyond the threshold).
 
-   Wired into the system/local stanza so the alerts run under the system
-   namespace and don't depend on any specific Splunk app being installed.
+   Deployed into etc/apps/homelab_alerts/local/, NOT etc/system/local/. The
+   scheduler dispatches saved searches per app context and never walks the
+   system namespace, so a scheduled search in system/local is accepted and
+   never runs — see the task comment in tasks/main.yml for the evidence. The
+   app is created by the role itself, so this still depends on no third-party
+   app being installed.
 
    Delivery is ntfy + Slack (operator directive 2026-07-16: never email).
    ntfy rides the built-in webhook alert action (URL allowlisted in
    alert_actions.conf.j2); Slack rides TA-slack-add-on-for-splunk with the
    shared alerting webhook. Each stanza calls alert_deliver() below.
+
+   CUTOVER GATE: every stanza below ships `disabled = 1` regardless of its
+   prior state. Fixing the app-namespace defect (see tasks/main.yml) makes
+   these dispatchable for the first time ever; enabling all of them at once
+   after months of accumulated silent conditions would fire a burst on the
+   very first cron cycle. Re-enabling is staged, one detector at a time, each
+   its own reviewed change — flip a single `disabled = 0` (or its
+   `splunk_docker_silence_detectors` list equivalent in defaults/main.yml)
+   per wave, never all of them together.
 #}
 {% macro alert_deliver(title, message, priority='high') %}
 {% if splunk_docker_alert_ntfy_url %}
@@ -35,7 +48,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -53,7 +66,7 @@ dispatch.latest_time = now
 cron_schedule = */10 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 120m
@@ -74,7 +87,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -108,7 +121,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -126,7 +139,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 30m
@@ -167,7 +180,7 @@ dispatch.latest_time = now
 cron_schedule = */15 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 90m
@@ -195,7 +208,7 @@ dispatch.latest_time = now
 cron_schedule = 15 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 6h
@@ -220,18 +233,37 @@ quantity = 0
    when the emitter has been dead longest (the llm_router lesson). With
    by_host, detection is per-host so a healthy emitter can't mask a dead
    one; a host that has never emitted has no baseline and is not detected.
+
+   by_host threshold is CADENCE-DERIVED, not the flat det.threshold_minutes:
+   a host's own historical average inter-event gap (avg_gap_minutes, from
+   count/earliest/latest over the same tstats) sets its effective threshold
+   at cadence_multiplier x that gap, floored at det.threshold_minutes so a
+   host with too little history to compute a gap still gets the configured
+   default. A per-host `host_overrides` map (name -> minutes) pins an exact
+   value when the computed baseline is wrong (e.g. a host too new to have a
+   representative average yet). This exists because a single flat threshold
+   across hosts of wildly different natural logging cadence fires
+   continuously for the quiet-but-healthy ones — see docs/ or the PR that
+   added this for the dry-run evidence.
 --------------------------------------------------------------------------- #}
 {% for det in splunk_docker_silence_detectors | default([]) %}
 [{{ det.name }}_silence_detector]
-description = Alerts when the {{ det.index }} index has received no events for more than {{ det.threshold_minutes }} minutes{% if det.sourcetype is defined %} (sourcetype={{ det.sourcetype }}){% endif %}{% if det.by_host | default(false) %}, detected per-host so a healthy emitter cannot mask a dead one{% endif %}. Catches the emitter, its Cribl pipeline, and Splunk HEC ingestion failing with a single signal.
+description = Alerts when the {{ det.index }} index has received no events for more than {{ det.threshold_minutes }} minutes{% if det.sourcetype is defined %} (sourcetype={{ det.sourcetype }}){% endif %}{% if det.by_host | default(false) %}, detected per-host against each host's own cadence so a healthy emitter cannot mask a dead one{% endif %}. Catches the emitter, its Cribl pipeline, and Splunk HEC ingestion failing with a single signal.
 {# The appendpipe guard covers the by_host blind spot: tstats ... by host over
    a fully-empty index returns ZERO rows (not a null-last_seen row), so without
    it the alert goes quiet exactly when every host is dead. stats count on the
    empty set yields one count=0 row, which synthesizes a sentinel result. #}
-search = | tstats latest(_time) as last_seen WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0 | fields - _rows ]{% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {{ det.threshold_minutes }}
-# Lookback must exceed the worst-case silence the alert needs to detect;
-# tstats reads only indexed metadata, so a wide window is cheap.
-dispatch.earliest_time = -7d
+search = | tstats count as event_count latest(_time) as last_seen{% if det.by_host | default(false) %} earliest(_time) as first_seen{% endif %} WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0, first_seen = 0, event_count = 0 | fields - _rows ] | eval avg_gap_minutes = if(event_count > 1, (last_seen - first_seen) / 60 / (event_count - 1), null()) | eval host_threshold_minutes = case({% for host, mins in (det.host_overrides | default({})) | dictsort %}host="{{ host }}", {{ mins }}, {% endfor %}true(), max(coalesce(avg_gap_minutes, 0) * {{ det.cadence_multiplier | default(4) }}, {{ det.threshold_minutes }})){% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {% if det.by_host | default(false) %}host_threshold_minutes{% else %}{{ det.threshold_minutes }}{% endif %}
+# Lookback derives from this detector's own threshold (not a flat constant
+# shared by every detector regardless of cadence): wide enough that a host
+# silent for many multiples of its own threshold is still inside the window.
+# tstats reads only indexed metadata, so a wide window is cheap. This does
+# NOT make the window unbounded — a host silent longer than this still has no
+# row for tstats to return at all (the same inherent gap the "zero events in
+# the whole index" case above closes only for the fully-empty-index case).
+# Closing that class fully needs comparing against the full host roster
+# (an inventory-diff detector), not a wider tstats lookback; out of scope here.
+dispatch.earliest_time = -{{ (det.threshold_minutes * splunk_docker_silence_lookback_multiplier) | int }}m
 dispatch.latest_time = now
 cron_schedule = {{ det.cron }}
 enableSched = 1
@@ -264,14 +296,22 @@ quantity = 0
    bad drive/host cannot mute alerts for another.
 --------------------------------------------------------------------------- #}
 [hardware_smart_failure]
-description = Fires on SMART failure signatures in the hardware index: a drive self-check FAILED, an attribute crossed into FAILING_NOW, or pending / offline-uncorrectable sectors appeared. These are the predictive signals that precede a disk dropping out of a pool (the pve2 bulk case, 2026-07).
-search = index=hardware ("FAILING_NOW" OR "FAILED SMART self-check" OR "Currently unreadable (pending) sectors" OR "Offline uncorrectable sectors")
+description = Fires on SMART failure signatures in the hardware index: a drive self-check FAILED, an attribute crossed into FAILING_NOW, pending / offline-uncorrectable sectors are present, or the raw value of a sector-health counter moved. These are the predictive signals that precede a disk dropping out of a pool (the pve2 bulk case, 2026-07).
+# The "<name> changed" phrases catch the raw-value tracking emitted for
+# attributes 5 / 197 / 198. They are the counters that actually matter, and
+# their NORMALIZED values sit at the ceiling long after the raw counts start
+# climbing — so the standing "sectors" phrases below report a non-zero state
+# while only these report the transition into it. A decrease matches too: that
+# is a sector being reallocated, which is equally worth seeing.
+# "Failed SMART usage Attribute" is the hard-fail wording emitted when a
+# tracked counter is flagged critical.
+search = index=hardware ("FAILING_NOW" OR "FAILED SMART self-check" OR "Failed SMART usage Attribute" OR "Reallocated_Sector_Ct changed" OR "Reallocated_Event_Count changed" OR "Current_Pending_Sector changed" OR "Offline_Uncorrectable changed" OR "Currently unreadable (pending) sectors" OR "Offline uncorrectable sectors")
 dispatch.earliest_time = -20m
 dispatch.latest_time = now
 cron_schedule = */10 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -290,7 +330,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 5
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -309,7 +349,7 @@ dispatch.latest_time = now
 cron_schedule = */10 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -328,7 +368,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -347,7 +387,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 5
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -365,7 +405,7 @@ dispatch.latest_time = now
 cron_schedule = */15 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -383,7 +423,7 @@ dispatch.latest_time = now
 cron_schedule = */30 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 120m

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.2](https://github.com/dryvist/ansible-splunk/compare/v0.55.1...v0.55.2) (2026-08-04)
+
+
+### Bug Fixes
+
+* **splunk_docker:** derive silence-detector lookback and threshold, not a flat constant ([#457](https://github.com/dryvist/ansible-splunk/issues/457)) ([446bc2a](https://github.com/dryvist/ansible-splunk/commit/446bc2a968376d4022fc6e2c7833aa15709c8d95))
+
+## [0.55.1](https://github.com/dryvist/ansible-splunk/compare/v0.55.0...v0.55.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* **splunk_docker:** deploy alerts to an app namespace so they dispatch ([#455](https://github.com/dryvist/ansible-splunk/issues/455)) ([aef95f8](https://github.com/dryvist/ansible-splunk/commit/aef95f8deb7f6f658ffe5542709555163399e6b1))
+
+## [0.55.0](https://github.com/dryvist/ansible-splunk/compare/v0.54.1...v0.55.0) (2026-08-04)
+
+
+### Features
+
+* **splunk:** alert on raw sector-counter movement, not just standing counts ([#453](https://github.com/dryvist/ansible-splunk/issues/453)) ([0f1bc4d](https://github.com/dryvist/ansible-splunk/commit/0f1bc4dbb58a52cb8ded73480c68bf2d19318f06))
+
 ## [0.54.1](https://github.com/dryvist/ansible-splunk/compare/v0.54.0...v0.54.1) (2026-08-02)
 
 
