@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.5](https://github.com/dryvist/ansible-splunk/compare/v0.55.4...v0.55.5) (2026-08-04)
+
+
+### Bug Fixes
+
+* **splunk_docker:** match grouped-stats BY keyword case-insensitively ([#465](https://github.com/dryvist/ansible-splunk/issues/465)) ([0e4034f](https://github.com/dryvist/ansible-splunk/commit/0e4034f4ed02a7fca2c2741cc696b0685e9ccf6e))
+
 ## [0.55.4](https://github.com/dryvist/ansible-splunk/compare/v0.55.3...v0.55.4) (2026-08-04)
 
 
