@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.0](https://github.com/dryvist/ansible-splunk/compare/v0.54.1...v0.55.0) (2026-08-04)
+
+
+### Features
+
+* **splunk:** alert on raw sector-counter movement, not just standing counts ([#453](https://github.com/dryvist/ansible-splunk/issues/453)) ([0f1bc4d](https://github.com/dryvist/ansible-splunk/commit/0f1bc4dbb58a52cb8ded73480c68bf2d19318f06))
+
 ## [0.54.1](https://github.com/dryvist/ansible-splunk/compare/v0.54.0...v0.54.1) (2026-08-02)
 
 
