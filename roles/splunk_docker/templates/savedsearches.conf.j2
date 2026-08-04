@@ -4,13 +4,26 @@
    on a cron and fires when its tstats search returns >0 results (i.e. a
    monitored host has gone quiet beyond the threshold).
 
-   Wired into the system/local stanza so the alerts run under the system
-   namespace and don't depend on any specific Splunk app being installed.
+   Deployed into etc/apps/homelab_alerts/local/, NOT etc/system/local/. The
+   scheduler dispatches saved searches per app context and never walks the
+   system namespace, so a scheduled search in system/local is accepted and
+   never runs — see the task comment in tasks/main.yml for the evidence. The
+   app is created by the role itself, so this still depends on no third-party
+   app being installed.
 
    Delivery is ntfy + Slack (operator directive 2026-07-16: never email).
    ntfy rides the built-in webhook alert action (URL allowlisted in
    alert_actions.conf.j2); Slack rides TA-slack-add-on-for-splunk with the
    shared alerting webhook. Each stanza calls alert_deliver() below.
+
+   CUTOVER GATE: every stanza below ships `disabled = 1` regardless of its
+   prior state. Fixing the app-namespace defect (see tasks/main.yml) makes
+   these dispatchable for the first time ever; enabling all of them at once
+   after months of accumulated silent conditions would fire a burst on the
+   very first cron cycle. Re-enabling is staged, one detector at a time, each
+   its own reviewed change — flip a single `disabled = 0` (or its
+   `splunk_docker_silence_detectors` list equivalent in defaults/main.yml)
+   per wave, never all of them together.
 #}
 {% macro alert_deliver(title, message, priority='high') %}
 {% if splunk_docker_alert_ntfy_url %}
@@ -35,7 +48,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -53,7 +66,7 @@ dispatch.latest_time = now
 cron_schedule = */10 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 120m
@@ -74,7 +87,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -108,7 +121,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -126,7 +139,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 30m
@@ -167,7 +180,7 @@ dispatch.latest_time = now
 cron_schedule = */15 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 90m
@@ -195,7 +208,7 @@ dispatch.latest_time = now
 cron_schedule = 15 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 6h
@@ -279,7 +292,7 @@ dispatch.latest_time = now
 cron_schedule = */10 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -298,7 +311,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 5
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -317,7 +330,7 @@ dispatch.latest_time = now
 cron_schedule = */10 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -336,7 +349,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -355,7 +368,7 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 5
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -373,7 +386,7 @@ dispatch.latest_time = now
 cron_schedule = */15 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.suppress = 1
 alert.suppress.period = 60m
@@ -391,7 +404,7 @@ dispatch.latest_time = now
 cron_schedule = */30 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 120m

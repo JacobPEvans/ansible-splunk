@@ -172,13 +172,73 @@
     mode: '0644'
   notify: Restart Splunk container
 
-- name: Deploy savedsearches.conf for pipeline-silence alerts
-  ansible.builtin.template:
-    src: savedsearches.conf.j2
-    dest: "{{ splunk_docker_etc_dir }}/system/local/savedsearches.conf"
+# The alerts live in an app, NOT in system/local. Splunk's scheduler dispatches
+# saved searches per app context and never walks the system namespace, so a
+# scheduled search in etc/system/local/savedsearches.conf is accepted, reports
+# enableSched=1, and is never run: next_scheduled_time stays empty forever and
+# no scheduler row for it is ever logged. The failure is silent in every
+# direction, which is what makes the path a contract rather than a detail --
+# tests/templates/test_alerts_app_namespace.py guards it. Alert ACTIONS
+# (alert_actions.conf below) are unaffected and stay in system/local; only
+# saved searches need the app context.
+- name: Create the homelab_alerts app directories
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/apps/homelab_alerts/{{ item }}"
+    state: directory
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0755'
+  loop: [default, local, metadata]
+
+- name: Deploy the homelab_alerts app manifest
+  ansible.builtin.copy:
+    content: |
+      # Managed by the splunk_docker Ansible role.
+      [install]
+      state = enabled
+      [package]
+      id = homelab_alerts
+      [ui]
+      is_visible = 0
+      label = Homelab Alerts
+    dest: "{{ splunk_docker_etc_dir }}/apps/homelab_alerts/default/app.conf"
     owner: "{{ splunk_docker_user }}"
     group: "{{ splunk_docker_group }}"
     mode: '0644'
+  notify: Restart Splunk container
+
+# export = system reproduces the sharing the searches already had in the system
+# namespace, so they stay visible (and their Triggered Alerts stay reachable)
+# from the Search app rather than being hidden inside an is_visible=0 app.
+- name: Deploy the homelab_alerts app metadata
+  ansible.builtin.copy:
+    content: |
+      # Managed by the splunk_docker Ansible role.
+      []
+      access = read : [ * ], write : [ admin ]
+      export = system
+    dest: "{{ splunk_docker_etc_dir }}/apps/homelab_alerts/metadata/local.meta"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0644'
+  notify: Restart Splunk container
+
+- name: Deploy savedsearches.conf for pipeline-silence alerts
+  ansible.builtin.template:
+    src: savedsearches.conf.j2
+    dest: "{{ splunk_docker_etc_dir }}/apps/homelab_alerts/local/savedsearches.conf"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: '0644'
+  notify: Restart Splunk container
+
+# Without this the old stanzas survive in the system namespace as a second,
+# permanently-dead copy of every alert name, which is exactly the state that
+# made the defect hard to see in the first place.
+- name: Remove the never-dispatched system-namespace savedsearches.conf
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/system/local/savedsearches.conf"
+    state: absent
   notify: Restart Splunk container
 
 # 0600 + diff:false, not 0644: carries the Slack webhook URL (a credential),
