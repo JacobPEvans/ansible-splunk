@@ -233,18 +233,37 @@ quantity = 0
    when the emitter has been dead longest (the llm_router lesson). With
    by_host, detection is per-host so a healthy emitter can't mask a dead
    one; a host that has never emitted has no baseline and is not detected.
+
+   by_host threshold is CADENCE-DERIVED, not the flat det.threshold_minutes:
+   a host's own historical average inter-event gap (avg_gap_minutes, from
+   count/earliest/latest over the same tstats) sets its effective threshold
+   at cadence_multiplier x that gap, floored at det.threshold_minutes so a
+   host with too little history to compute a gap still gets the configured
+   default. A per-host `host_overrides` map (name -> minutes) pins an exact
+   value when the computed baseline is wrong (e.g. a host too new to have a
+   representative average yet). This exists because a single flat threshold
+   across hosts of wildly different natural logging cadence fires
+   continuously for the quiet-but-healthy ones — see docs/ or the PR that
+   added this for the dry-run evidence.
 --------------------------------------------------------------------------- #}
 {% for det in splunk_docker_silence_detectors | default([]) %}
 [{{ det.name }}_silence_detector]
-description = Alerts when the {{ det.index }} index has received no events for more than {{ det.threshold_minutes }} minutes{% if det.sourcetype is defined %} (sourcetype={{ det.sourcetype }}){% endif %}{% if det.by_host | default(false) %}, detected per-host so a healthy emitter cannot mask a dead one{% endif %}. Catches the emitter, its Cribl pipeline, and Splunk HEC ingestion failing with a single signal.
+description = Alerts when the {{ det.index }} index has received no events for more than {{ det.threshold_minutes }} minutes{% if det.sourcetype is defined %} (sourcetype={{ det.sourcetype }}){% endif %}{% if det.by_host | default(false) %}, detected per-host against each host's own cadence so a healthy emitter cannot mask a dead one{% endif %}. Catches the emitter, its Cribl pipeline, and Splunk HEC ingestion failing with a single signal.
 {# The appendpipe guard covers the by_host blind spot: tstats ... by host over
    a fully-empty index returns ZERO rows (not a null-last_seen row), so without
    it the alert goes quiet exactly when every host is dead. stats count on the
    empty set yields one count=0 row, which synthesizes a sentinel result. #}
-search = | tstats latest(_time) as last_seen WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0 | fields - _rows ]{% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {{ det.threshold_minutes }}
-# Lookback must exceed the worst-case silence the alert needs to detect;
-# tstats reads only indexed metadata, so a wide window is cheap.
-dispatch.earliest_time = -7d
+search = | tstats count as event_count latest(_time) as last_seen{% if det.by_host | default(false) %} earliest(_time) as first_seen{% endif %} WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0, first_seen = 0, event_count = 0 | fields - _rows ] | eval avg_gap_minutes = if(event_count > 1, (last_seen - first_seen) / 60 / (event_count - 1), null()) | eval host_threshold_minutes = case({% for host, mins in (det.host_overrides | default({})) | dictsort %}host="{{ host }}", {{ mins }}, {% endfor %}true(), max(coalesce(avg_gap_minutes, 0) * {{ det.cadence_multiplier | default(4) }}, {{ det.threshold_minutes }})){% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {% if det.by_host | default(false) %}host_threshold_minutes{% else %}{{ det.threshold_minutes }}{% endif %}
+# Lookback derives from this detector's own threshold (not a flat constant
+# shared by every detector regardless of cadence): wide enough that a host
+# silent for many multiples of its own threshold is still inside the window.
+# tstats reads only indexed metadata, so a wide window is cheap. This does
+# NOT make the window unbounded — a host silent longer than this still has no
+# row for tstats to return at all (the same inherent gap the "zero events in
+# the whole index" case above closes only for the fully-empty-index case).
+# Closing that class fully needs comparing against the full host roster
+# (an inventory-diff detector), not a wider tstats lookback; out of scope here.
+dispatch.earliest_time = -{{ (det.threshold_minutes * splunk_docker_silence_lookback_multiplier) | int }}m
 dispatch.latest_time = now
 cron_schedule = {{ det.cron }}
 enableSched = 1
