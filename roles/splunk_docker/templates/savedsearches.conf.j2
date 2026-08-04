@@ -4,8 +4,12 @@
    on a cron and fires when its tstats search returns >0 results (i.e. a
    monitored host has gone quiet beyond the threshold).
 
-   Wired into the system/local stanza so the alerts run under the system
-   namespace and don't depend on any specific Splunk app being installed.
+   Deployed into etc/apps/homelab_alerts/local/, NOT etc/system/local/. The
+   scheduler dispatches saved searches per app context and never walks the
+   system namespace, so a scheduled search in system/local is accepted and
+   never runs — see the task comment in tasks/main.yml for the evidence. The
+   app is created by the role itself, so this still depends on no third-party
+   app being installed.
 
    Delivery is ntfy + Slack (operator directive 2026-07-16: never email).
    ntfy rides the built-in webhook alert action (URL allowlisted in
