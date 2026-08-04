@@ -62,7 +62,11 @@ DEFAULTS = yaml.safe_load((ROOT / "roles/splunk_docker/defaults/main.yml").read_
 # Same stanza-block extraction as test_cutover_gate.py's STANZA_RE.
 STANZA_RE = re.compile(r"^\[(\S+)\]$(.*?)(?=^\[|\Z)", re.M | re.S)
 SEARCH_RE = re.compile(r"^search = (.*)$", re.M)
-GROUPED_AGG_RE = re.compile(r"\btstats\b|\bstats\b[^|]*\bby\b")
+# SPL command keywords are case-insensitive (`stats ... BY host` and
+# `stats ... by host` are identical to Splunk's parser), so this must match
+# regardless of case -- a case-sensitive version silently missed every
+# grouped-stats search written in the `BY`-uppercase style.
+GROUPED_AGG_RE = re.compile(r"\btstats\b|\bstats\b[^|]*\bby\b", re.I)
 # Any reference to now() -- elapsed-time subtraction (now() - coalesce(...)),
 # or a recency comparison (relative_time(now(), ...)) -- is this codebase's
 # tell for "this search's condition is time/recency, not a data value". Kept
@@ -223,6 +227,21 @@ if not is_silence_detector(FIXED):
     errors.append("FAIL: regression fixture -- inclusion rule rejected a properly-guarded silence detector")
 elif not simulate(FIXED):
     errors.append("FAIL: regression fixture -- simulator rejected a correctly-guarded search")
+
+# Uppercase BY regression: SPL command keywords are case-insensitive
+# (`stats ... BY host` and `stats ... by host` are identical to Splunk's
+# parser), so a case-sensitive GROUPED_AGG_RE silently missed every grouped
+# search written in the `BY`-uppercase style -- this caught two real
+# detectors (ansible_stale_converge, ansible_orphan_host) before it was
+# fixed.
+UPPERCASE_BY = (
+    "index=fixture | stats latest(_time) as last_seen BY host "
+    "| appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0 | fields - _rows ] "
+    "| eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 "
+    "| where minutes_silent > 15"
+)
+if not is_silence_detector(UPPERCASE_BY):
+    errors.append("FAIL: regression fixture -- inclusion rule is case-sensitive to the BY keyword")
 
 if errors:
     for err in errors:
