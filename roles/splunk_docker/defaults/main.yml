@@ -651,6 +651,13 @@ splunk_docker_silence_detectors:
     cron: "*/5 * * * *"
     suppress_minutes: 60
     disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # by_host means this only ever alerts on a host it currently SEES in index=os.
+  # os_proxmox/os_ai/os_metrics above carve hosts out of the os catch-all at the
+  # Cribl source, so a host that migrates to one of those simply stops
+  # appearing here — no zero-row trip, no error, just a quieter host list than
+  # this detector's own comment implies. os_proxmox and os_ai have no silence
+  # detector of their own, so a host is covered by exactly one of "os" here or
+  # nothing, never both.
   - name: os
     index: os
     threshold_minutes: 15

@@ -186,6 +186,12 @@ quantity = 0
    (`cron.scheduler: Job '<name>' failed: ...`) plus Slack `delivery error`
    lines. So a positive "confirmed-delivery age" is not measurable from syslog
    alone (that would need the Slack channel ingested into Splunk — a follow-up).
+   host=hermes-agent syslog moved from index=os to index=os_ai in the same
+   Cribl reclassify that orphaned the LiteLLM router detectors above — this
+   search follows it there. The cron.scheduler phrase itself is unchanged and
+   still real (64 historical matches, all pre-reclassify); it has simply had
+   nothing to say since 2026-07-21, which is the SLO being met, not a broken
+   signal.
    This detector therefore keys on the FAILURE signal and fires only when BOTH
    hourly useful jobs (splunk-digest, homelab-ai-fabric-status) have failed
    within the window (distinct-job count >= 2) — i.e. no useful message could
@@ -198,7 +204,7 @@ quantity = 0
 --------------------------------------------------------------------------- #}
 [hermes_delivery_slo_violation]
 description = Fires when BOTH hourly Hermes work-product jobs (splunk-digest, homelab-ai-fabric-status) have failed within 90 minutes — no useful Slack message could have been delivered that hour, violating the >=1-useful-message-per-hour SLO. Successful deliveries are silent in syslog, so this uses the double-failure signal (dc(job) >= 2); the paused/flapping mode is covered by the ansible-proxmox-ai brain-watchdog sustained-flap alert. INC-17088.
-search = index=os host=hermes-agent "cron.scheduler" failed ("splunk-digest" OR "homelab-ai-fabric-status") | rex "Job '(?<hermes_job>splunk-digest|homelab-ai-fabric-status)' failed" | stats dc(hermes_job) as jobs_failed values(hermes_job) as jobs | where jobs_failed >= 2
+search = index=os_ai host=hermes-agent "cron.scheduler" failed ("splunk-digest" OR "homelab-ai-fabric-status") | rex "Job '(?<hermes_job>splunk-digest|homelab-ai-fabric-status)' failed" | stats dc(hermes_job) as jobs_failed values(hermes_job) as jobs | where jobs_failed >= 2
 dispatch.earliest_time = -90m
 dispatch.latest_time = now
 cron_schedule = */15 * * * *
