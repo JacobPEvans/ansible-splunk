@@ -10,6 +10,14 @@ flipped on all at once by a converge. That means every scheduled stanza
 the moment any of them silently reverts to `disabled = 0` without someone
 deliberately editing this test alongside it.
 
+The stanza set is derived entirely from the rendered output (every `[name]`
+block found by regex), never from a hand-maintained list of known detectors —
+a new stanza added anywhere in the template, by any author or macro, is
+covered automatically. `ungated_stanzas()` is exercised twice: once against
+the real render, once against a regression fixture with non-standard
+`key=value` spacing, so a future stanza written without spaces around `=`
+can't silently slip past the key/value regexes themselves.
+
 Run from repo root:
   python3 tests/templates/test_cutover_gate.py
 """
@@ -29,6 +37,23 @@ except ImportError:
 ROOT = Path(__file__).parent.parent.parent
 DEFAULTS = yaml.safe_load((ROOT / "roles/splunk_docker/defaults/main.yml").read_text())
 
+STANZA_RE = re.compile(r"^\[(\S+)\]$(.*?)(?=^\[|\Z)", re.M | re.S)
+# \s*=\s* (not a literal " = ") so a stanza written with different spacing
+# around the key/value separator is still recognized as scheduled/disabled.
+ENABLED_RE = re.compile(r"^enableSched\s*=\s*1\s*$", re.M)
+DISABLED_RE = re.compile(r"^disabled\s*=\s*1\s*$", re.M)
+
+
+def ungated_stanzas(rendered):
+    """Names of every [stanza] in rendered text that is scheduled
+    (enableSched = 1) but not gated disabled (disabled = 1)."""
+    return [
+        name
+        for name, body in ((m.group(1), m.group(2)) for m in STANZA_RE.finditer(rendered))
+        if ENABLED_RE.search(body) and not DISABLED_RE.search(body)
+    ]
+
+
 env = Environment(
     loader=FileSystemLoader(str(ROOT / "roles/splunk_docker/templates")),
     keep_trailing_newline=True,
@@ -41,17 +66,26 @@ rendered = template.render(
     splunk_docker_alert_slack_webhook=None,
 )
 
-errors = []
-for stanza in re.finditer(r"^\[(\S+)\]$(.*?)(?=^\[|\Z)", rendered, re.M | re.S):
-    name, body = stanza.group(1), stanza.group(2)
-    if re.search(r"^enableSched = 1$", body, re.M) and not re.search(r"^disabled = 1$", body, re.M):
-        errors.append(f"FAIL: [{name}] is scheduled (enableSched = 1) but not disabled — "
-                       "the cutover gate is off")
+errors = [
+    f"FAIL: [{name}] is scheduled (enableSched = 1) but not disabled — the cutover gate is off"
+    for name in ungated_stanzas(rendered)
+]
+
+# Regression fixture: same bug shape, deliberately written with no spaces
+# around '='. A regex anchored to the template's own " = " house style would
+# silently pass this and miss a stanza formatted any other way.
+fixture = "[fixture_stanza]\nenableSched=1\ndisabled=0\n"
+if "fixture_stanza" not in ungated_stanzas(fixture):
+    errors.append(
+        "FAIL: regression case — a scheduled, ungated stanza written as "
+        "'enableSched=1' / 'disabled=0' (no spaces around '=') was not caught"
+    )
 
 if errors:
     for err in errors:
         print(err)
     sys.exit(1)
 
-print(f"PASS: every scheduled stanza in the rendered template is disabled (cutover gate holds)")
+print("PASS: every scheduled stanza in the rendered template is disabled (cutover gate holds); "
+      "the gate also catches non-standard key=value spacing")
 print("\nAll tests passed.")
