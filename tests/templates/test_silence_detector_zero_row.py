@@ -63,7 +63,13 @@ DEFAULTS = yaml.safe_load((ROOT / "roles/splunk_docker/defaults/main.yml").read_
 STANZA_RE = re.compile(r"^\[(\S+)\]$(.*?)(?=^\[|\Z)", re.M | re.S)
 SEARCH_RE = re.compile(r"^search = (.*)$", re.M)
 GROUPED_AGG_RE = re.compile(r"\btstats\b|\bstats\b[^|]*\bby\b")
-SILENCE_SIGNATURE_RE = re.compile(r"now\(\)\s*-\s*coalesce\(")
+# Any reference to now() -- elapsed-time subtraction (now() - coalesce(...)),
+# or a recency comparison (relative_time(now(), ...)) -- is this codebase's
+# tell for "this search's condition is time/recency, not a data value". Kept
+# broad (not anchored to the one `now() - coalesce(` idiom PR #460 happened to
+# use) so a differently-worded staleness check -- e.g. `now() - last_seen`
+# with no coalesce() wrapper -- is still recognized.
+SILENCE_SIGNATURE_RE = re.compile(r"now\(\)")
 
 # Real, currently-guarded stanzas that must always be swept in -- a floor so
 # a selector regression that stops matching anything still fails loudly
