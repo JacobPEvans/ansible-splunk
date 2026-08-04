@@ -1,0 +1,5 @@
+# Dependencies for tests/templates/*.py, declared explicitly so they arrive
+# as their own install target rather than however a sibling package's
+# transitive pins happen to resolve them.
+jinja2
+pyyaml

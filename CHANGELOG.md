@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.4](https://github.com/dryvist/ansible-splunk/compare/v0.55.3...v0.55.4) (2026-08-04)
+
+
+### Bug Fixes
+
+* **splunk_docker:** repoint router silence/spike detectors to index=os_ai ([#462](https://github.com/dryvist/ansible-splunk/issues/462)) ([bd7481e](https://github.com/dryvist/ansible-splunk/commit/bd7481e5e863e9b012067c98b67a4cd75e72d3c1))
+
+## [0.55.3](https://github.com/dryvist/ansible-splunk/compare/v0.55.2...v0.55.3) (2026-08-04)
+
+
+### Bug Fixes
+
+* **splunk_docker:** guard tstats zero-row blind spot in silence detectors ([#460](https://github.com/dryvist/ansible-splunk/issues/460)) ([389dbcc](https://github.com/dryvist/ansible-splunk/commit/389dbcc8a0d445f7e90ba5133f344d6e2daab1a0))
+
 ## [0.55.2](https://github.com/dryvist/ansible-splunk/compare/v0.55.1...v0.55.2) (2026-08-04)
 
 
