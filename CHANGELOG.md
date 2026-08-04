@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.1](https://github.com/dryvist/ansible-splunk/compare/v0.55.0...v0.55.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* **splunk_docker:** deploy alerts to an app namespace so they dispatch ([#455](https://github.com/dryvist/ansible-splunk/issues/455)) ([aef95f8](https://github.com/dryvist/ansible-splunk/commit/aef95f8deb7f6f658ffe5542709555163399e6b1))
+
 ## [0.55.0](https://github.com/dryvist/ansible-splunk/compare/v0.54.1...v0.55.0) (2026-08-04)
 
 
