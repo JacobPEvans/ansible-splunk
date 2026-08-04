@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.56.0](https://github.com/dryvist/ansible-splunk/compare/v0.55.5...v0.56.0) (2026-08-04)
+
+
+### Features
+
+* **splunk:** create the ansible index and deploy pipeline-staleness alerts ([#456](https://github.com/dryvist/ansible-splunk/issues/456)) ([f88eac1](https://github.com/dryvist/ansible-splunk/commit/f88eac1251fb0fb90c17d973f6c6caa292be805a))
+
 ## [0.55.5](https://github.com/dryvist/ansible-splunk/compare/v0.55.4...v0.55.5) (2026-08-04)
 
 
