@@ -637,6 +637,13 @@ splunk_docker_silence_detectors:
   # Cribl / HEC dead). Shipped disabled until the Cribl hardware packs + syslog
   # reclassify are converged and index=hardware is actually emitting — a
   # silence detector on an empty index would false-fire continuously.
+  #
+  # FLIP THIS TO 0 IN THE SAME CHANGE THAT CONVERGES THE SYSLOG COLLECTORS.
+  # Nothing else watches whether the reclassify is delivering, so while this
+  # stays disabled an index that receives nothing is indistinguishable from an
+  # index whose drives are all healthy — and the content alerts below cannot
+  # tell you either, because a search over an empty index returns zero results
+  # and reports success. This detector is the only thing that closes that gap.
   - name: hardware
     index: hardware
     threshold_minutes: 60
