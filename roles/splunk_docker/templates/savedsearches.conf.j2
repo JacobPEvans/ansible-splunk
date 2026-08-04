@@ -509,7 +509,15 @@ disabled = 0
 --------------------------------------------------------------------------- #}
 [ansible_stale_converge]
 description = A host reported a successful converge at some point in the last 30 days but not in the last 7. Configuration drift on it is now unmanaged: a merged role change reaches a host only when that host is converged, so an un-converged host keeps serving whatever it last rendered, indefinitely and without complaint.
-search = index=ansible sourcetype="ansible:converge" status=success earliest=-30d | stats max(_time) AS last_converge, latest(playbook) AS playbook, latest(git_sha) AS git_sha BY host | eval age_days = round((now() - last_converge) / 86400, 1) | where age_days > 7 | eval last_converge = strftime(last_converge, "%Y-%m-%d %H:%M:%S") | sort - age_days | table host, last_converge, age_days, playbook, git_sha
+# `stats ... BY host` over zero matching converge events (index=ansible dead:
+# HEC token expired, the callback plugin broken, or the index itself
+# missing) returns ZERO rows -- not a row with a null last_converge -- so a
+# bare eval/where guard never runs during total silence, the same blind spot
+# PR #460 closed for the tstats-based detectors elsewhere in this file.
+# appendpipe synthesizes a sentinel row when the stats result set is empty:
+# an ungrouped aggregate (stats count) always emits exactly one row, even
+# over zero input rows.
+search = index=ansible sourcetype="ansible:converge" status=success earliest=-30d | stats max(_time) AS last_converge, latest(playbook) AS playbook, latest(git_sha) AS git_sha BY host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_converge = 0 | fields - _rows ] | eval age_days = round((now() - last_converge) / 86400, 1) | where age_days > 7 | eval last_converge = strftime(last_converge, "%Y-%m-%d %H:%M:%S") | sort - age_days | table host, last_converge, age_days, playbook, git_sha
 # The 30-day look-back bounds the search. A host quiet for longer than that
 # drops out of this alert and is caught by ansible_orphan_host instead.
 dispatch.earliest_time = -30d@d
@@ -517,7 +525,7 @@ dispatch.latest_time = now
 cron_schedule = 17 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.digest_mode = 1
 alert.suppress = 1
@@ -530,7 +538,13 @@ quantity = 0
 
 [ansible_orphan_host]
 description = A host is present in the Ansible inventory roster but has no successful converge event at all in the last 30 days. It is provisioned and entirely unmanaged.
-search = index=ansible (sourcetype="ansible:converge:roster" OR (sourcetype="ansible:converge" status=success)) earliest=-30d | eval roster_time = if(sourcetype=="ansible:converge:roster", _time, null()), converge_time = if(sourcetype=="ansible:converge", _time, null()) | stats max(roster_time) AS last_in_inventory, max(converge_time) AS last_converge BY host | where isnotnull(last_in_inventory) AND last_in_inventory > relative_time(now(), "-7d") AND isnull(last_converge) | eval last_in_inventory = strftime(last_in_inventory, "%Y-%m-%d %H:%M:%S") | table host, last_in_inventory
+# Same zero-row blind spot as ansible_stale_converge above: `stats ... BY
+# host` over a fully-silent index=ansible (roster AND converge producers both
+# dark) returns ZERO rows, so this alert -- whose entire point is catching
+# "nothing is being tracked" -- would itself go silent in exactly that case.
+# The sentinel row sets last_in_inventory = now() (recent) and leaves
+# last_converge unset (null), satisfying the where clause below.
+search = index=ansible (sourcetype="ansible:converge:roster" OR (sourcetype="ansible:converge" status=success)) earliest=-30d | eval roster_time = if(sourcetype=="ansible:converge:roster", _time, null()), converge_time = if(sourcetype=="ansible:converge", _time, null()) | stats max(roster_time) AS last_in_inventory, max(converge_time) AS last_converge BY host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_in_inventory = now() | fields - _rows ] | where isnotnull(last_in_inventory) AND last_in_inventory > relative_time(now(), "-7d") AND isnull(last_converge) | eval last_in_inventory = strftime(last_in_inventory, "%Y-%m-%d %H:%M:%S") | table host, last_in_inventory
 # The last_in_inventory > -7d clause scopes this to hosts CURRENTLY in
 # inventory, so a decommissioned guest ages out instead of alerting forever.
 # No join and no subsearch, so neither the subsearch result cap nor an
@@ -540,7 +554,7 @@ dispatch.latest_time = now
 cron_schedule = 40 6 * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.digest_mode = 1
 alert.suppress = 1
@@ -553,16 +567,28 @@ quantity = 0
 
 [ansible_apply_owed]
 description = Desired state has been edited but no apply has republished the inventory artifact from it, so every converge is consuming an artifact that contradicts desired state. Applying only re-renders the artifact and converging only consumes whatever the artifact currently says, so a converge run in this state produces a confidently wrong result rather than an error. Fires on the fingerprint the converge itself reports, not on a clock, so a desired-state edit that happens to change nothing downstream cannot false-fire.
-search = index=ansible sourcetype="ansible:converge" desired_state_current=false earliest=-7d | stats max(_time) AS last_seen, latest(desired_state_published) AS published, latest(desired_state_live) AS live BY host | eval last_seen = strftime(last_seen, "%Y-%m-%d %H:%M:%S") | table host, last_seen, published, live
-# Inert until the producer chain publishes the fingerprint: with no matching
-# field the search returns no rows, so it cannot false-fire while the
-# tofu-proxmox / homelab-contracts halves are still landing.
+# Same zero-row blind spot as the two detectors above, but NOT a pure
+# elapsed-time check: the drift filter (desired_state_current) moves from the
+# base search into the where clause below the per-host stats, because
+# filtering on it in the base search made "the fleet has zero drift" and
+# "index=ansible is completely dead" produce the identical zero-row result --
+# a guard could not tell those apart, and a guard on the narrow base filter
+# would fire on every dispatch once the fleet simply has no drift, rather
+# than only when the producer itself has gone dark. Aggregating over every
+# converge event (not just desired_state_current=false ones) and filtering
+# afterward keeps that distinction: the sentinel row carries
+# desired_state_current = "false" so it survives the where clause precisely
+# when it represents "no data at all", not "no drift". Still inert until the
+# producer chain publishes the fingerprint -- latest(desired_state_current)
+# is null on every real row until then, so only the sentinel (on a fully
+# silent index) or an actual drifted host can survive the where clause.
+search = index=ansible sourcetype="ansible:converge" earliest=-7d | stats max(_time) AS last_seen, latest(desired_state_current) AS desired_state_current, latest(desired_state_published) AS published, latest(desired_state_live) AS live BY host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0, desired_state_current = "false" | fields - _rows ] | where desired_state_current=="false" | eval last_seen = strftime(last_seen, "%Y-%m-%d %H:%M:%S") | table host, last_seen, published, live
 dispatch.earliest_time = -7d@d
 dispatch.latest_time = now
 cron_schedule = 25 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 0
+disabled = 1
 alert.severity = 4
 alert.digest_mode = 1
 alert.suppress = 1
