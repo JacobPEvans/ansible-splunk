@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.2](https://github.com/dryvist/ansible-splunk/compare/v0.55.1...v0.55.2) (2026-08-04)
+
+
+### Bug Fixes
+
+* **splunk_docker:** derive silence-detector lookback and threshold, not a flat constant ([#457](https://github.com/dryvist/ansible-splunk/issues/457)) ([446bc2a](https://github.com/dryvist/ansible-splunk/commit/446bc2a968376d4022fc6e2c7833aa15709c8d95))
+
 ## [0.55.1](https://github.com/dryvist/ansible-splunk/compare/v0.55.0...v0.55.1) (2026-08-04)
 
 
