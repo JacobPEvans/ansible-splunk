@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.57.0](https://github.com/dryvist/ansible-splunk/compare/v0.56.0...v0.57.0) (2026-08-05)
+
+
+### Features
+
+* **splunk_docker:** add LLM surface silence detectors and a freshness report ([#468](https://github.com/dryvist/ansible-splunk/issues/468)) ([857ed47](https://github.com/dryvist/ansible-splunk/commit/857ed471bfe3e33599b0c418d8451293f035c880))
+
 ## [0.56.0](https://github.com/dryvist/ansible-splunk/compare/v0.55.5...v0.56.0) (2026-08-04)
 
 
