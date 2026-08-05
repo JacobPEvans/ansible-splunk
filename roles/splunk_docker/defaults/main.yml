@@ -663,6 +663,7 @@ splunk_docker_silence_lookback_multiplier: 2000
 # infrastructure indexes that are not LLM surfaces at all.
 splunk_docker_llm_freshness_indexes:
   - otel
+  - otel_traces
   - claude
   - codex
   - gemini
@@ -773,7 +774,7 @@ splunk_docker_silence_detectors:
     suppress_minutes: 1440
     disabled: 1
   # --- LLM fabric surfaces -----------------------------------------------
-  # otel: the LLM trace spine (LiteLLM/hermes/orchestration -> Cribl Stream ->
+  # otel: the LLM-fabric trace spine (LiteLLM/hermes/orchestration -> Cribl Stream ->
   # Langfuse AND Splunk). This index held ZERO events for its entire existence
   # while every dashboard and config read as healthy, because the Cribl OTLP
   # listener was gated out of the rendered config by an empty variable. Nothing
@@ -788,6 +789,17 @@ splunk_docker_silence_detectors:
   # happen when the staged re-enable reaches this detector.
   - name: otel
     index: otel
+    threshold_minutes: 30
+    cron: "*/10 * * * *"
+    suppress_minutes: 120
+    disabled: 1
+  # otel_traces is a SEPARATE index by design (agent-tooling spans, kept apart
+  # from the LLM-fabric app traces in otel). It is fed by the same Cribl Stream
+  # in_otel listener, so both go dark together when that listener is missing —
+  # but they can also fail independently, and one staying fresh must never be
+  # read as covering the other.
+  - name: otel_traces
+    index: otel_traces
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
