@@ -652,6 +652,27 @@ splunk_docker_indexes:
 # tstats to return, same as an index with zero events in the whole window).
 splunk_docker_silence_lookback_multiplier: 2000
 
+# Surfaces shown by the [llm_surface_freshness] report (savedsearches.conf.j2).
+# Single definition: the template joins this list into both the roster and the
+# tstats WHERE clause, so the two can never drift apart.
+#
+# This is deliberately NOT derived from splunk_docker_silence_detectors — the
+# two lists answer different questions and only partly overlap. Some surfaces
+# here have no detector of their own (llm is covered by the bespoke per-host
+# llm_pipeline detector, not a generated one), and most detectors above watch
+# infrastructure indexes that are not LLM surfaces at all.
+splunk_docker_llm_freshness_indexes:
+  - otel
+  - otel_traces
+  - claude
+  - codex
+  - gemini
+  - openai
+  - vscode
+  - hermes
+  - llm
+  - openbao_audit
+
 splunk_docker_silence_detectors:
   - name: unifi
     index: unifi
@@ -750,6 +771,77 @@ splunk_docker_silence_detectors:
     index: honeypot
     threshold_minutes: 1440
     cron: "0 * * * *"
+    suppress_minutes: 1440
+    disabled: 1
+  # --- LLM fabric surfaces -----------------------------------------------
+  # otel: the LLM-fabric trace spine (LiteLLM/hermes/orchestration -> Cribl Stream ->
+  # Langfuse AND Splunk). This index held ZERO events for its entire existence
+  # while every dashboard and config read as healthy, because the Cribl OTLP
+  # listener was gated out of the rendered config by an empty variable. Nothing
+  # noticed for weeks. This detector is the thing that would have noticed.
+  #
+  # Shipped disabled like every other detector: the repo-wide cutover gate
+  # (tests/templates/test_cutover_gate.py) enforces that NO stanza is both
+  # scheduled and enabled until the cutover completes, and that gate is not
+  # this change's to flip. Note the consequence honestly — until the cutover
+  # lands, this detector cannot dispatch, so the otel index going dark again
+  # would still page nobody. Flipping it to 0 is the first thing that should
+  # happen when the staged re-enable reaches this detector.
+  - name: otel
+    index: otel
+    threshold_minutes: 30
+    cron: "*/10 * * * *"
+    suppress_minutes: 120
+    disabled: 1
+  # otel_traces is a SEPARATE index by design (agent-tooling spans, kept apart
+  # from the LLM-fabric app traces in otel). It is fed by the same Cribl Stream
+  # in_otel listener, so both go dark together when that listener is missing —
+  # but they can also fail independently, and one staying fresh must never be
+  # read as covering the other.
+  - name: otel_traces
+    index: otel_traces
+    threshold_minutes: 30
+    cron: "*/10 * * * *"
+    suppress_minutes: 120
+    disabled: 1
+  # hermes: agent card/goal execution. Scheduled cards run hourly, so two
+  # hours of silence means the agent tier is not running, not merely idle.
+  - name: hermes
+    index: hermes
+    threshold_minutes: 120
+    cron: "*/15 * * * *"
+    suppress_minutes: 240
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # codex / gemini: interactive CLI sessions. A quiet day is normal operator
+  # behaviour, not a fault, so the threshold is deliberately a half-day —
+  # long enough that this only fires on a genuinely broken collector.
+  - name: codex
+    index: codex
+    threshold_minutes: 720
+    cron: "0 * * * *"
+    suppress_minutes: 1440
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  - name: gemini
+    index: gemini
+    threshold_minutes: 720
+    cron: "0 * * * *"
+    suppress_minutes: 1440
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # openai (copilot) / vscode: both indexes hold only a handful of lifetime
+  # events because their Cribl Edge inputs tail log paths the tools do not
+  # actually write. Until those inputs are repointed at real paths these would
+  # fire on every cycle, so they ship disabled — flip to 0 in the SAME change
+  # that fixes the source paths, not before.
+  - name: openai
+    index: openai
+    threshold_minutes: 1440
+    cron: "0 */2 * * *"
+    suppress_minutes: 1440
+    disabled: 1
+  - name: vscode
+    index: vscode
+    threshold_minutes: 1440
+    cron: "0 */2 * * *"
     suppress_minutes: 1440
     disabled: 1
 
