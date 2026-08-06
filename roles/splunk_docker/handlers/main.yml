@@ -1,9 +1,14 @@
 ---
+# tags: always — a handler is skipped when tag selection filters it out, even
+# though a task that ran did notify it. Splunk only reads new .conf files on
+# restart, so a filtered-out handler would leave a converge reporting changed
+# while the running config is untouched.
 - name: Restart Splunk container
   community.docker.docker_compose_v2:
     project_src: "{{ splunk_docker_config_dir }}"
     state: restarted
   listen: Restart Splunk container
+  tags: always
 
 - name: Apply firewall rules
   ansible.builtin.command:

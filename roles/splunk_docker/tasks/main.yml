@@ -181,6 +181,11 @@
 # tests/templates/test_alerts_app_namespace.py guards it. Alert ACTIONS
 # (alert_actions.conf below) are unaffected and stay in system/local; only
 # saved searches need the app context.
+# The `alerting` tag scopes a converge to the alert configuration alone. The
+# role previously carried no tags at all, which made `--tags <anything>` run
+# zero tasks and exit 0 — indistinguishable from "already converged", and the
+# same silent-success shape that hid the original pipeline outage. Deploying
+# alert config without also rotating service tokens needs this scope.
 - name: Create the homelab_alerts app directories
   ansible.builtin.file:
     path: "{{ splunk_docker_etc_dir }}/apps/homelab_alerts/{{ item }}"
@@ -189,6 +194,7 @@
     group: "{{ splunk_docker_group }}"
     mode: '0755'
   loop: [default, local, metadata]
+  tags: [alerting]
 
 - name: Deploy the homelab_alerts app manifest
   ansible.builtin.copy:
@@ -206,6 +212,7 @@
     group: "{{ splunk_docker_group }}"
     mode: '0644'
   notify: Restart Splunk container
+  tags: [alerting]
 
 # export = system reproduces the sharing the searches already had in the system
 # namespace, so they stay visible (and their Triggered Alerts stay reachable)
@@ -222,6 +229,7 @@
     group: "{{ splunk_docker_group }}"
     mode: '0644'
   notify: Restart Splunk container
+  tags: [alerting]
 
 - name: Deploy savedsearches.conf for pipeline-silence alerts
   ansible.builtin.template:
@@ -231,6 +239,7 @@
     group: "{{ splunk_docker_group }}"
     mode: '0644'
   notify: Restart Splunk container
+  tags: [alerting]
 
 # Without this the old stanzas survive in the system namespace as a second,
 # permanently-dead copy of every alert name, which is exactly the state that
@@ -240,6 +249,7 @@
     path: "{{ splunk_docker_etc_dir }}/system/local/savedsearches.conf"
     state: absent
   notify: Restart Splunk container
+  tags: [alerting]
 
 # 0600 + diff:false, not 0644: carries the Slack webhook URL (a credential),
 # so neither the file on disk nor the converge diff may expose it.
@@ -252,6 +262,7 @@
     mode: '0600'
   diff: false
   notify: Restart Splunk container
+  tags: [alerting]
 
 - name: Check if Splunk Docker image exists
   community.docker.docker_image_info:
