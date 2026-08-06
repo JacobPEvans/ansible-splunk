@@ -172,3 +172,84 @@
     - splunk_docker_volumes_share_fs | bool
     - splunk_docker_volume_hot_warm_max_mb | default('', true) | string | length > 0
     - splunk_docker_volume_cold_max_mb | default('', true) | string | length > 0
+
+# Different failure mode from every check above: those confirm a volume's own
+# cap fits the physical filesystem. This one confirms the SUM of the
+# per-index quotas drawn against a volume does not already exceed that
+# volume's own cap — Splunk enforces each index's quota independently, so
+# nothing else stops the sum from overcommitting the shared pool that backs
+# them. hot_warm holds every small-tier index's full max_size_mb plus the
+# hot-tier home_max_size_mb slice of every large-tier index (its coldPath
+# rolls out to volume:cold instead); cold holds only each large-tier index's
+# remainder (max_size_mb - home_max_size_mb).
+- name: Sum nominal index caps per volume
+  ansible.builtin.set_fact:
+    splunk_docker_hot_warm_nominal_mb: >-
+      {%- set ns = namespace(total=0) -%}
+      {%- for idx in (splunk_docker_system_indexes | default([])) -%}
+        {%- set ns.total = ns.total + (idx.max_size_mb | int) -%}
+      {%- endfor -%}
+      {%- for idx in (splunk_docker_indexes | default([])) -%}
+        {%- if idx.tier is defined -%}
+          {%- set ns.total = ns.total + (idx.home_max_size_mb | int) -%}
+        {%- else -%}
+          {%- set ns.total = ns.total + (idx.max_size_mb | int) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ ns.total }}
+    splunk_docker_cold_nominal_mb: >-
+      {%- set ns = namespace(total=0) -%}
+      {%- for idx in (splunk_docker_indexes | default([])) -%}
+        {%- if idx.tier is defined -%}
+          {%- set ns.total = ns.total + ((idx.max_size_mb | int) - (idx.home_max_size_mb | int)) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ ns.total }}
+
+- name: Warn when nominal index caps overcommit a volume
+  ansible.builtin.debug:
+    msg: >-
+      Index caps on volume:{{ item.name }} sum to {{ item.nominal }} MB nominal
+      against a {{ item.cap }} MB volume cap — {{ (item.nominal | int) - (item.cap | int) }} MB
+      overcommitted. Nothing stops every index from filling toward its own cap
+      at once; when the shared volume cap binds first, Splunk evicts the
+      OLDEST buckets across every index on the volume, not just the one that
+      grew. Overcommit within reason is normal Splunk practice — this guard
+      exists so it stays a measured, deliberate choice instead of an
+      unmeasured one. Set splunk_docker_index_overcommit_strict: true to make
+      this a hard failure instead of a warning.
+  loop:
+    - name: hot_warm
+      nominal: "{{ splunk_docker_hot_warm_nominal_mb | int }}"
+      cap: "{{ splunk_docker_volume_hot_warm_max_mb }}"
+    - name: cold
+      nominal: "{{ splunk_docker_cold_nominal_mb | int }}"
+      cap: "{{ splunk_docker_volume_cold_max_mb }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.cap | default('', true) | string | length > 0
+    - (item.nominal | int) > (item.cap | int)
+
+- name: Fail when nominal index caps overcommit a volume (opt-in strict mode)
+  ansible.builtin.assert:
+    that:
+      - (item.nominal | int) <= (item.cap | int)
+    fail_msg: >-
+      Index caps on volume:{{ item.name }} sum to {{ item.nominal }} MB nominal
+      against a {{ item.cap }} MB volume cap. splunk_docker_index_overcommit_strict
+      is true, so this converge refuses to proceed — either raise the volume
+      cap, lower one or more index caps, or set
+      splunk_docker_index_overcommit_strict: false to warn instead of fail.
+  loop:
+    - name: hot_warm
+      nominal: "{{ splunk_docker_hot_warm_nominal_mb | int }}"
+      cap: "{{ splunk_docker_volume_hot_warm_max_mb }}"
+    - name: cold
+      nominal: "{{ splunk_docker_cold_nominal_mb | int }}"
+      cap: "{{ splunk_docker_volume_cold_max_mb }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - splunk_docker_index_overcommit_strict | bool
+    - item.cap | default('', true) | string | length > 0

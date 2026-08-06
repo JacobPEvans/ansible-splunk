@@ -198,6 +198,17 @@ splunk_docker_index_default_frozen_time_secs: 31536000
 splunk_docker_volume_hot_warm_max_mb: ""
 splunk_docker_volume_cold_max_mb: ""
 
+# Opt-in hard-fail when the SUM of every index's own max_size_mb already
+# exceeds the volume cap holding them (verify_volume_capacity.yml). Splunk
+# enforces each index's quota independently, so nothing else stops the sum
+# from overcommitting the shared pool — that overcommit already exists in
+# this file today (the indexes below sum to well over the hot_warm cap) and
+# is normal Splunk practice within reason. Default false (warn only): a
+# pre-existing condition should not block every converge, which is exactly
+# the kind of guard people then disable. Flip to true only after sizing every
+# index deliberately against real measured usage.
+splunk_docker_index_overcommit_strict: false
+
 # Runtime headroom alarm on the filesystem holding splunk_docker_var_dir.
 #
 # WHY THIS IS SEPARATE FROM verify_volume_capacity.yml: that check is a
