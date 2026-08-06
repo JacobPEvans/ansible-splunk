@@ -10,6 +10,12 @@ flipped on all at once by a converge. That means every scheduled stanza
 the moment any of them silently reverts to `disabled = 0` without someone
 deliberately editing this test alongside it.
 
+Staging happens through INTENTIONALLY_ENABLED below: a named register of the
+detectors a human has deliberately taken off the gate, one per wave. It is the
+only way past this test, it is reviewed in the PR that adds each name, and an
+entry naming a stanza that no longer renders fails too, so the register cannot
+quietly accumulate holes.
+
 The stanza set is derived entirely from the rendered output (every `[name]`
 block found by regex), never from a hand-maintained list of known detectors —
 a new stanza added anywhere in the template, by any author or macro, is
@@ -44,6 +50,18 @@ ENABLED_RE = re.compile(r"^enableSched\s*=\s*1\s*$", re.M)
 DISABLED_RE = re.compile(r"^disabled\s*=\s*1\s*$", re.M)
 
 
+# Detectors deliberately staged live, one at a time. Each entry is a human
+# decision reviewed in the PR that adds it — which is exactly the staging this
+# gate exists to force. Adding a name here is the ONLY way past the gate; a
+# converge cannot put one here, and every stanza not listed still has to render
+# `disabled = 1`. Names are rendered stanza names ("<detector>_silence_detector"),
+# not the `name:` key in splunk_docker_silence_detectors; a mismatch fails this
+# test rather than silently exempting nothing.
+INTENTIONALLY_ENABLED = {
+    "otel_traces_silence_detector",  # staged 2026-08-06 to demonstrate fire + clear
+}
+
+
 def ungated_stanzas(rendered):
     """Names of every [stanza] in rendered text that is scheduled
     (enableSched = 1) but not gated disabled (disabled = 1)."""
@@ -69,6 +87,17 @@ rendered = template.render(
 errors = [
     f"FAIL: [{name}] is scheduled (enableSched = 1) but not disabled — the cutover gate is off"
     for name in ungated_stanzas(rendered)
+    if name not in INTENTIONALLY_ENABLED
+]
+
+# A staged name that matches no rendered stanza is a dead exemption: the
+# detector was renamed or removed and the allowlist kept a hole open for a
+# stanza that no longer exists. Fail on it rather than let the register rot.
+all_stanzas = {m.group(1) for m in STANZA_RE.finditer(rendered)}
+errors += [
+    f"FAIL: INTENTIONALLY_ENABLED lists [{name}], which no rendered stanza matches — "
+    "remove the entry or fix the name"
+    for name in sorted(INTENTIONALLY_ENABLED - all_stanzas)
 ]
 
 # Regression fixture: same bug shape, deliberately written with no spaces

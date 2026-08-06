@@ -858,16 +858,18 @@ splunk_docker_silence_detectors:
   # rendered config and nothing watched the result. This detector is the thing
   # that would have noticed.
   #
-  # Shipped disabled like every other detector: the repo-wide cutover gate
-  # (tests/templates/test_cutover_gate.py) enforces that NO stanza is both
-  # scheduled and enabled until the cutover completes. Until this one is
-  # staged, the trace spine going dark again would still page nobody.
+  # FIRST DETECTOR OFF THE CUTOVER GATE (2026-08-06). Chosen because this index
+  # is the busiest and steadiest surface on the instance — measured over 6h it
+  # ran a 1.1-minute worst-case gap against a 30-minute threshold, so staging it
+  # live carries the least chance of an inherited silent condition firing on the
+  # first cron cycle. tests/templates/test_cutover_gate.py records the exception
+  # by stanza name; every other detector stays gated.
   - name: otel_traces
     index: otel_traces
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
-    disabled: 1
+    disabled: 0
   # hermes: agent card/goal execution. Scheduled cards run hourly, so two
   # hours of silence means the agent tier is not running, not merely idle.
   - name: hermes
