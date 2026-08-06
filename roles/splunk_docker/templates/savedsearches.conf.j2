@@ -334,8 +334,9 @@ description = Most-recent-event age per LLM/agent observability surface. age_hou
    index that has never received an event, so the surface most in need of
    attention is precisely the one that silently vanishes from the output. The
    left join against a synthesized roster keeps every surface on the report and
-   renders the never-populated ones as NEVER. index=otel was in exactly this
-   state — a missing row that read as "nothing to see here". -#}
+   renders the never-populated ones as NEVER. The since-removed index=otel was
+   in exactly this state — a missing row that read as "nothing to see here",
+   and it stayed invisible until this report was built. -#}
 search = | makeresults | eval surface="{{ splunk_docker_llm_freshness_indexes | join(',') }}" \
   | makemv delim="," surface | mvexpand surface \
   | join type=left surface [| tstats latest(_time) as last_seen WHERE index IN ({{ splunk_docker_llm_freshness_indexes | join(',') }}) by index | rename index as surface] \

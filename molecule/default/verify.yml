@@ -114,7 +114,7 @@
           - "'[dns]' in (indexes_content.content | b64decode)"
           - "'[proxy]' in (indexes_content.content | b64decode)"
           - "'[os]' in (indexes_content.content | b64decode)"
-          - "'[otel]' in (indexes_content.content | b64decode)"
+          - "'[otel_traces]' in (indexes_content.content | b64decode)"
           - "'[ai]' in (indexes_content.content | b64decode)"
           - "'[claude]' in (indexes_content.content | b64decode)"
           - "'[llm]' in (indexes_content.content | b64decode)"
