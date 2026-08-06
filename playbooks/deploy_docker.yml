@@ -24,6 +24,13 @@
     splunk_docker_hec_token: "{{ lookup('env', 'SPLUNK_HEC_TOKEN') | mandatory('SPLUNK_HEC_TOKEN environment variable must be set for Splunk HEC token') }}"
 
   tasks:
+    # import_role, NOT include_role. A dynamic include is opaque to tag
+    # selection: tags on tasks inside the role are never evaluated, so the
+    # include task itself is filtered out and the entire role is skipped. The
+    # play then reports zero tasks and exits 0, which is indistinguishable from
+    # "already converged" — the same silent-success shape the role tags exist
+    # to avoid. A static import propagates tags into the role, so
+    # `--tags alerting` selects exactly the alert-configuration tasks.
     - name: Deploy Splunk Docker container
-      ansible.builtin.include_role:
+      ansible.builtin.import_role:
         name: splunk_docker
