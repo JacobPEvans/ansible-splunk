@@ -383,6 +383,16 @@ splunk_docker_system_indexes:
 
 # Indexes to create
 splunk_docker_indexes:
+  # agentgateway: one index per AI Docker service/vendor, not a shared
+  # catch-all — each of the 7 below carries genuinely different data from a
+  # different product, the same reasoning as one object-storage bucket per
+  # workload. Pre-deployment estimate (nothing has shipped yet; re-measure via
+  # license_usage.log 30 days after this goes live and adjust): gateway
+  # process + 4 lightweight MCP sidecars, ~7 MB/day -> ~2.5 GB/year at the
+  # measured ~1.55x on-disk/raw ratio for this kind of textual log.
+  - name: agentgateway
+    max_size_mb: 4000
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: ai
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
@@ -405,6 +415,15 @@ splunk_docker_indexes:
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # dns: resolver query logs shipped via Cribl.
+  # dify: one index per AI Docker service/vendor — see the agentgateway entry
+  # above for why this is not a shared catch-all. Largest of the seven: 11
+  # containers in one stack (api/worker/worker_beat/web + db/redis/weaviate/
+  # sandbox/ssrf_proxy/plugin_daemon/nginx sidecars). Pre-deployment estimate
+  # (nothing has shipped yet; re-measure and adjust after 30 days live):
+  # ~21 MB/day -> ~12 GB/year at the measured ~1.55x on-disk/raw ratio.
+  - name: dify
+    max_size_mb: 12000
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   - name: dns
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
@@ -448,6 +467,19 @@ splunk_docker_indexes:
   - name: hermes
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # hindsight: one index per AI Docker service/vendor — see the agentgateway
+  # entry above for why this is not a shared catch-all. Two-replica HA pair,
+  # both replicas sharing this index (same product, same data shape). Sized
+  # above the shared-default steady state to also cover an elevated container
+  # restart rate observed on this service (dockerd's own daemon log shows
+  # frequent restarts; the restart banner + traceback each container emits on
+  # exit adds real volume on top of steady-state operation). Pre-deployment
+  # estimate (nothing has shipped yet; re-measure and adjust after 30 days
+  # live): ~17 MB/day combined -> ~10 GB/year at the measured ~1.55x
+  # on-disk/raw ratio.
+  - name: hindsight
+    max_size_mb: 10000
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # honeypot: deception-fabric events (OpenCanary / T-Pot via Cribl). Security
   # index — keep the full 365-day default retention for incident lookback.
   - name: honeypot
@@ -460,6 +492,30 @@ splunk_docker_indexes:
     datatype: metric
     max_size_mb: 25600
     frozen_time_secs: 7776000
+  # langflow: one index per AI Docker service/vendor — see the agentgateway
+  # entry above for why this is not a shared catch-all. App + its bundled
+  # Postgres. Pre-deployment estimate (nothing has shipped yet; re-measure and
+  # adjust after 30 days live): ~5 MB/day -> ~2.7 GB/year at the measured
+  # ~1.55x on-disk/raw ratio.
+  - name: langflow
+    max_size_mb: 2750
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # langfuse: one index per AI Docker service/vendor — see the agentgateway
+  # entry above for why this is not a shared catch-all. Web + worker +
+  # Postgres + ClickHouse + Redis in one stack. Pre-deployment estimate
+  # (nothing has shipped yet; re-measure and adjust after 30 days live):
+  # ~10 MB/day -> ~6 GB/year at the measured ~1.55x on-disk/raw ratio.
+  - name: langfuse
+    max_size_mb: 6000
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # langgraph: one index per AI Docker service/vendor — see the agentgateway
+  # entry above for why this is not a shared catch-all. API server + chat UI.
+  # Pre-deployment estimate (nothing has shipped yet; re-measure and adjust
+  # after 30 days live): ~8 MB/day -> ~4.5 GB/year at the measured ~1.55x
+  # on-disk/raw ratio.
+  - name: langgraph
+    max_size_mb: 4500
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # llm: local LLM-stack telemetry (model-server manager + worker logs,
   # AI-stack process metrics, AI gateway logs) shipped via Cribl Edge -> Stream.
   - name: llm
@@ -567,6 +623,14 @@ splunk_docker_indexes:
   # proxy: forward-proxy access logs shipped via Cribl.
   - name: proxy
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # qdrant: one index per AI Docker service/vendor — see the agentgateway
+  # entry above for why this is not a shared catch-all. Single-container
+  # vector database. Pre-deployment estimate (nothing has shipped yet;
+  # re-measure and adjust after 30 days live): ~4 MB/day -> ~2.3 GB/year at
+  # the measured ~1.55x on-disk/raw ratio.
+  - name: qdrant
+    max_size_mb: 2500
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # unifi: ~29% of all ingested data. tier: large, same volume split as
   # `firewall` above.
