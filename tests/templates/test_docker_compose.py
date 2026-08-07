@@ -14,6 +14,8 @@ Run from repo root:
 import sys
 from pathlib import Path
 
+from _render_env import ansible_env
+
 try:
     from jinja2 import Environment, FileSystemLoader
 except ImportError:
@@ -27,7 +29,7 @@ except ImportError:
     sys.exit(1)
 
 TEMPLATE_DIR = Path(__file__).parent.parent.parent / "roles/splunk_docker/templates"
-env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), keep_trailing_newline=True)
+env = ansible_env(TEMPLATE_DIR)
 template = env.get_template("docker-compose.yml.j2")
 
 errors = []

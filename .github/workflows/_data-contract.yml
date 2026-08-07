@@ -69,14 +69,12 @@ jobs:
           ansible-playbook playbooks/site.yml --syntax-check
 
       - name: Run template unit tests
+        # Invoked via `bash` rather than `./` on purpose: that way the run does
+        # not depend on the file's mode surviving in git, which a `git add` from
+        # a working tree without the executable bit will silently drop.
         run: |
-          python3 tests/templates/test_inputs_conf.py
-          python3 tests/templates/test_savedsearches_conf.py
-          python3 tests/templates/test_alerts_app_namespace.py
           uv pip install --system -r tests/templates/requirements.txt
-          python3 tests/templates/test_cutover_gate.py
-          python3 tests/templates/test_silence_detector_cadence.py
-          python3 tests/templates/test_silence_detector_zero_row.py
+          bash scripts/run-template-tests.sh
 
       - name: Verify Splunk MCP OpenBao publication contract
         run: |

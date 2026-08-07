@@ -26,6 +26,8 @@ from pathlib import Path
 
 import yaml
 
+from _render_env import ansible_env
+
 try:
     from jinja2 import Environment, FileSystemLoader
 except ImportError:
@@ -37,10 +39,7 @@ DEFAULTS = yaml.safe_load((ROOT / "roles/splunk_docker/defaults/main.yml").read_
 DETECTORS = DEFAULTS["splunk_docker_silence_detectors"]
 MULTIPLIER = DEFAULTS["splunk_docker_silence_lookback_multiplier"]
 
-env = Environment(
-    loader=FileSystemLoader(str(ROOT / "roles/splunk_docker/templates")),
-    keep_trailing_newline=True,
-)
+env = ansible_env(ROOT / "roles/splunk_docker/templates")
 rendered = env.get_template("savedsearches.conf.j2").render(
     splunk_docker_silence_detectors=DETECTORS,
     splunk_docker_silence_lookback_multiplier=MULTIPLIER,

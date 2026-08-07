@@ -34,6 +34,8 @@ from pathlib import Path
 
 import yaml
 
+from _render_env import ansible_env
+
 try:
     from jinja2 import Environment, FileSystemLoader
 except ImportError:
@@ -72,10 +74,7 @@ def ungated_stanzas(rendered):
     ]
 
 
-env = Environment(
-    loader=FileSystemLoader(str(ROOT / "roles/splunk_docker/templates")),
-    keep_trailing_newline=True,
-)
+env = ansible_env(ROOT / "roles/splunk_docker/templates")
 template = env.get_template("savedsearches.conf.j2")
 rendered = template.render(
     splunk_docker_silence_detectors=DEFAULTS["splunk_docker_silence_detectors"],
