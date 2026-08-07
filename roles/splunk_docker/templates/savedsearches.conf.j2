@@ -288,7 +288,17 @@ description = Alerts when the {{ det.index }} index has received no events for m
    without the guard the alert goes quiet exactly when everything is dead.
    stats count on the empty set still yields one count=0 row (an ungrouped
    aggregate always emits a row), which synthesizes the sentinel result. #}
-search = | tstats count as event_count latest(_time) as last_seen{% if det.by_host | default(false) %} earliest(_time) as first_seen{% endif %} WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0, first_seen = 0, event_count = 0 | fields - _rows ] | eval avg_gap_minutes = if(event_count > 1, (last_seen - first_seen) / 60 / (event_count - 1), null()) | eval host_threshold_minutes = case({% for host, mins in (det.host_overrides | default({})) | dictsort %}host="{{ host }}", {{ mins }}, {% endfor %}true(), max(coalesce(avg_gap_minutes, 0) * {{ det.cadence_multiplier | default(4) }}, {{ det.threshold_minutes }})){% else %} | appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0, event_count = 0 | fields - _rows ]{% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {% if det.by_host | default(false) %}host_threshold_minutes{% else %}{{ det.threshold_minutes }}{% endif %}
+search = | tstats count as event_count latest(_time) as last_seen{% if det.by_host | default(false) %} earliest(_time) as first_seen{% endif %} WHERE index={{ det.index }}{% if det.sourcetype is defined %} sourcetype={{ det.sourcetype }}{% endif %}{% if det.by_host | default(false) %} by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0, first_seen = 0, event_count = 0 | fields - _rows ] | eval avg_gap_minutes = if(event_count > 1, (last_seen - first_seen) / 60 / (event_count - 1), null()) | eval host_threshold_minutes = case({% for host, mins in (det.host_overrides | default({})) | dictsort %}host="{{ host }}", {{ mins }}, {% endfor %}true(), max(coalesce(avg_gap_minutes, 0) * {{ det.cadence_multiplier | default(4) }}, {{ det.threshold_minutes }})){% else %} | appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0, event_count = 0 | fields - _rows ]{% endif %} | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > {% if det.by_host | default(false) %}host_threshold_minutes{% else %}{{ det.threshold_minutes }}{% endif +%}
+{# The `+` above is load-bearing. Ansible renders templates with
+   trim_blocks=True, which eats the newline that follows a `{% ... %}` block
+   tag. This `search =` line ends in one, so without the `+` the comment block
+   below is welded onto the end of the search value. Splunk then dispatches the
+   search on schedule and it fails with a FATAL parse error every single time —
+   "The operator at '# Lookback derives...' is invalid" — so the detector can
+   never fire. That shipped, and it silently disabled 17 detectors at once.
+   A bare jinja2 Environment defaults trim_blocks=False and reproduces none of
+   this, which is why the tests must set it explicitly; see
+   tests/templates/conftest.py. #}
 # Lookback derives from this detector's own threshold (not a flat constant
 # shared by every detector regardless of cadence): wide enough that a host
 # silent for many multiples of its own threshold is still inside the window.

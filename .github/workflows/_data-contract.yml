@@ -70,13 +70,8 @@ jobs:
 
       - name: Run template unit tests
         run: |
-          python3 tests/templates/test_inputs_conf.py
-          python3 tests/templates/test_savedsearches_conf.py
-          python3 tests/templates/test_alerts_app_namespace.py
           uv pip install --system -r tests/templates/requirements.txt
-          python3 tests/templates/test_cutover_gate.py
-          python3 tests/templates/test_silence_detector_cadence.py
-          python3 tests/templates/test_silence_detector_zero_row.py
+          ./scripts/run-template-tests.sh
 
       - name: Verify Splunk MCP OpenBao publication contract
         run: |
