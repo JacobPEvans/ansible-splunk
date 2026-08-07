@@ -7,6 +7,13 @@
   hosts: localhost
   gather_facts: false
   become: false
+  # tags: always — every task here is a precondition for reaching any host at
+  # all, so a tag selection must never filter them out. Without this, a run
+  # such as `--tags alerting` skips the add_host tasks, the play falls through
+  # to the static hosts.yml entry whose ansible_host is never set, and the run
+  # dies with "hostname contains invalid characters" — a message that points at
+  # DNS or SSH rather than at tag selection. Verified 2026-08-06 by hitting it.
+  tags: always
 
   tasks:
     # Resolution order is the shared role's; DNS remains the deliberately
