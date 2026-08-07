@@ -23,7 +23,7 @@
       netmon_metrics: "molecule-test-token-netmon-metrics"
       network: "molecule-test-token-network"
       openai: "molecule-test-token-openai"
-      otel: "molecule-test-token-otel"
+      otel_traces: "molecule-test-token-otel-traces"
       os: "molecule-test-token-os"
       unifi: "molecule-test-token-unifi"
       vscode: "molecule-test-token-vscode"

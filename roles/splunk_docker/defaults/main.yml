@@ -589,12 +589,15 @@ splunk_docker_indexes:
   - name: openbao_audit
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
-  - name: otel
-    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
-    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
-  # otel_traces: OTLP trace spans (Claude Code interaction/tool/subagent spans
-  # via Cribl Stream in_otel -> otel_stamp). Events, not metrics. Distinct from
-  # the otel index (LLM-fabric app traces) so agent-tooling spans stay isolated.
+  # otel_traces: every OTLP trace span, via Cribl Stream in_otel -> otel_stamp.
+  # Events, not metrics. This is the SOLE trace index. A second `otel` index
+  # once existed to hold LLM-fabric spans apart from agent-tooling spans, but
+  # otel_stamp stamps `index || 'otel_traces'` and no producer anywhere targets
+  # bare `otel`, so the split was never implemented and that index measured 0
+  # events by `| eventcount summarize=false` on 2026-08-06 while this one held
+  # 4123. Isolating span classes is a field-level concern (service.name /
+  # source), not a reason for a second index with its own retention, roster
+  # entry, and permanently-firing silence detector.
   - name: otel_traces
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
@@ -737,7 +740,6 @@ splunk_docker_silence_lookback_multiplier: 2000
 # llm_pipeline detector, not a generated one), and most detectors above watch
 # infrastructure indexes that are not LLM surfaces at all.
 splunk_docker_llm_freshness_indexes:
-  - otel
   - otel_traces
   - claude
   - codex
@@ -849,30 +851,17 @@ splunk_docker_silence_detectors:
     suppress_minutes: 1440
     disabled: 1
   # --- LLM fabric surfaces -----------------------------------------------
-  # otel: the LLM-fabric trace spine (LiteLLM/hermes/orchestration -> Cribl Stream ->
-  # Langfuse AND Splunk). This index held ZERO events for its entire existence
-  # while every dashboard and config read as healthy, because the Cribl OTLP
-  # listener was gated out of the rendered config by an empty variable. Nothing
-  # noticed for weeks. This detector is the thing that would have noticed.
+  # otel_traces: the trace spine. LiteLLM/hermes/orchestration spans AND Claude
+  # Code agent-tooling spans both arrive here via the Cribl Stream in_otel
+  # listener. That listener held zero events for weeks while every dashboard
+  # and config read as healthy, because an empty variable gated it out of the
+  # rendered config and nothing watched the result. This detector is the thing
+  # that would have noticed.
   #
   # Shipped disabled like every other detector: the repo-wide cutover gate
   # (tests/templates/test_cutover_gate.py) enforces that NO stanza is both
-  # scheduled and enabled until the cutover completes, and that gate is not
-  # this change's to flip. Note the consequence honestly — until the cutover
-  # lands, this detector cannot dispatch, so the otel index going dark again
-  # would still page nobody. Flipping it to 0 is the first thing that should
-  # happen when the staged re-enable reaches this detector.
-  - name: otel
-    index: otel
-    threshold_minutes: 30
-    cron: "*/10 * * * *"
-    suppress_minutes: 120
-    disabled: 1
-  # otel_traces is a SEPARATE index by design (agent-tooling spans, kept apart
-  # from the LLM-fabric app traces in otel). It is fed by the same Cribl Stream
-  # in_otel listener, so both go dark together when that listener is missing —
-  # but they can also fail independently, and one staying fresh must never be
-  # read as covering the other.
+  # scheduled and enabled until the cutover completes. Until this one is
+  # staged, the trace spine going dark again would still page nobody.
   - name: otel_traces
     index: otel_traces
     threshold_minutes: 30
