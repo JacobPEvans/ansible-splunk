@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.60.0](https://github.com/dryvist/ansible-splunk/compare/v0.59.0...v0.60.0) (2026-08-07)
+
+
+### Features
+
+* **splunk:** stage the otel_traces silence detector off the cutover gate ([#472](https://github.com/dryvist/ansible-splunk/issues/472)) ([456753a](https://github.com/dryvist/ansible-splunk/commit/456753a8da1ba4ee96b91ce1659930942ac30a6b))
+
 ## [0.59.0](https://github.com/dryvist/ansible-splunk/compare/v0.58.0...v0.59.0) (2026-08-07)
 
 
