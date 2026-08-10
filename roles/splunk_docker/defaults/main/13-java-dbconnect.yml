@@ -1,0 +1,16 @@
+---
+# Java Runtime for Splunk DB Connect
+# Disabled by default; enable in inventory for hosts that need DB Connect.
+splunk_docker_java_enabled: false
+splunk_docker_java_version: "21"
+# Pin to major version; for full pin use e.g. temurin-21-jre=21.0.7+6-1
+splunk_docker_java_package: "temurin-{{ splunk_docker_java_version }}-jre"
+splunk_docker_java_arch: "amd64"
+splunk_docker_java_home: "/usr/lib/jvm/temurin-{{ splunk_docker_java_version }}-jre-{{ splunk_docker_java_arch }}"
+# Container-internal path where the JRE is bind-mounted (decoupled from host path)
+splunk_docker_java_container_home: "/opt/java"
+
+# MS SQL Server JDBC driver for DB Connect
+# Downloads mssql-jdbc from Maven Central into the DB Connect drivers/ directory.
+splunk_docker_mssql_driver_enabled: false
+splunk_docker_mssql_driver_version: "12.8.1.jre11"

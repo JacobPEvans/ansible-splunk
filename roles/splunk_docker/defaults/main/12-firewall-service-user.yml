@@ -1,0 +1,11 @@
+---
+# Firewall configuration
+# DISABLED: Proxmox firewall is the single source of truth for network security.
+# Guest-level iptables rules conflict with Docker's FORWARD chain and break
+# container port forwarding. See terraform-proxmox/modules/firewall for rules.
+splunk_docker_firewall_enabled: false
+
+# Service user - IMPORTANT: Use splunk user UID inside container (41812)
+# NOT root. This ensures proper file ownership for Splunk apps.
+splunk_docker_user: "41812"
+splunk_docker_group: "41812"

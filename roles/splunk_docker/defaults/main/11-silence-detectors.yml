@@ -1,0 +1,223 @@
+---
+# Per-index pipeline-silence detectors.
+# Each entry renders a [<name>_silence_detector] saved search (see
+# savedsearches.conf.j2) cloning the macos_edge_silence_detector shape:
+# tstats latest(_time) over the index, alert when silent beyond the
+# threshold. Fields:
+#   name              — stanza prefix; must not collide with the bespoke
+#                       detectors in savedsearches.conf.j2 (macos_edge,
+#                       llm_pipeline, llm_manager_panic, llm_router*).
+#   index             — index to watch.
+#   threshold_minutes — silence duration that fires the alert. For a
+#                       non-by_host detector this is the only threshold. For
+#                       a by_host detector it is the FLOOR: the effective
+#                       per-host threshold is max(that floor, the host's own
+#                       observed avg_gap_minutes x cadence_multiplier), so a
+#                       naturally-quiet host is not held to the same bar as a
+#                       chatty one.
+#   cron              — schedule (keep period well below the threshold).
+#   suppress_minutes  — alert.suppress.period; throttles re-fires.
+#   by_host           — optional, default false. Detect PER-HOST (`by host`
+#                       + alert.suppress.fields = host) so a healthy emitter
+#                       can't mask a dead one, using each host's own cadence
+#                       (see threshold_minutes above). Note: a host that has
+#                       never emitted has no baseline and cannot be detected.
+#   cadence_multiplier — by_host only, optional, default 4. Multiplies a
+#                       host's observed average inter-event gap to get its
+#                       effective threshold.
+#   host_overrides    — by_host only, optional, default {}. Map of
+#                       hostname -> exact threshold_minutes, for a host whose
+#                       computed cadence baseline is wrong (commonly: too new
+#                       to have a representative average yet).
+#   disabled          — optional, default 0. Set 1 to ship the stanza
+#                       disabled (e.g. index exists but no emitter yet).
+#   sourcetype        — optional filter added to the tstats WHERE clause.
+#
+# dispatch.earliest_time (the search lookback) is threshold_minutes x this
+# multiplier — see the comment above each rendered stanza in
+# savedsearches.conf.j2 for why it is derived per-detector rather than one
+# flat window shared by a 15-minute and a 24-hour detector alike, and for the
+# residual limit (a host silent longer than the window still has no row for
+# tstats to return, same as an index with zero events in the whole window).
+splunk_docker_silence_lookback_multiplier: 2000
+
+# Surfaces shown by the [llm_surface_freshness] report (savedsearches.conf.j2).
+# Single definition: the template joins this list into both the roster and the
+# tstats WHERE clause, so the two can never drift apart.
+#
+# This is deliberately NOT derived from splunk_docker_silence_detectors — the
+# two lists answer different questions and only partly overlap. Some surfaces
+# here have no detector of their own (llm is covered by the bespoke per-host
+# llm_pipeline detector, not a generated one), and most detectors above watch
+# infrastructure indexes that are not LLM surfaces at all.
+splunk_docker_llm_freshness_indexes:
+  - otel_traces
+  - claude
+  - codex
+  - gemini
+  - openai
+  - vscode
+  - hermes
+  - llm
+  - openbao_audit
+
+splunk_docker_silence_detectors:
+  - name: unifi
+    index: unifi
+    threshold_minutes: 15
+    cron: "*/5 * * * *"
+    suppress_minutes: 60
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # by_host means this only ever alerts on a host it currently SEES in index=os.
+  # os_proxmox/os_ai/os_metrics above carve hosts out of the os catch-all at the
+  # Cribl source, so a host that migrates to one of those simply stops
+  # appearing here — no zero-row trip, no error, just a quieter host list than
+  # this detector's own comment implies. os_proxmox and os_ai have no silence
+  # detector of their own, so a host is covered by exactly one of "os" here or
+  # nothing, never both.
+  - name: os
+    index: os
+    threshold_minutes: 15
+    cron: "*/5 * * * *"
+    suppress_minutes: 60
+    by_host: true
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # hardware: alert if the hardware index stops receiving telemetry (packs /
+  # Cribl / HEC dead). Shipped disabled until the Cribl hardware packs + syslog
+  # reclassify are converged and index=hardware is actually emitting — a
+  # silence detector on an empty index would false-fire continuously.
+  #
+  # FLIP THIS TO 0 IN THE SAME CHANGE THAT CONVERGES THE SYSLOG COLLECTORS.
+  # Nothing else watches whether the reclassify is delivering, so while this
+  # stays disabled an index that receives nothing is indistinguishable from an
+  # index whose drives are all healthy — and the content alerts below cannot
+  # tell you either, because a search over an empty index returns zero results
+  # and reports success. This detector is the only thing that closes that gap.
+  - name: hardware
+    index: hardware
+    threshold_minutes: 60
+    cron: "*/15 * * * *"
+    suppress_minutes: 120
+    by_host: true
+    disabled: 1
+  - name: claude
+    index: claude
+    threshold_minutes: 60
+    cron: "*/15 * * * *"
+    suppress_minutes: 240
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  - name: dns
+    index: dns
+    threshold_minutes: 30
+    cron: "*/10 * * * *"
+    suppress_minutes: 120
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  - name: proxy
+    index: proxy
+    threshold_minutes: 30
+    cron: "*/10 * * * *"
+    suppress_minutes: 120
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  - name: firewall
+    index: firewall
+    threshold_minutes: 60
+    cron: "*/15 * * * *"
+    suppress_minutes: 240
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # The gateway emits ZERO IPFIX despite NetFlow showing enabled in its
+  # console (a gateway-side export gap — the collector/receive chain is armed
+  # and idle; see tofu-unifi live/gateway-telemetry.tf). Structurally-empty
+  # index: ship the detector disabled so it stops firing on every cycle.
+  # Flip to disabled: 0 if the gateway ever starts exporting.
+  - name: netflow
+    index: netflow
+    threshold_minutes: 15
+    cron: "*/5 * * * *"
+    suppress_minutes: 60
+    disabled: 1
+  # Audit trail is low-volume; a full day of silence is the signal.
+  - name: openbao_audit
+    index: openbao_audit
+    threshold_minutes: 1440
+    cron: "0 * * * *"
+    suppress_minutes: 1440
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # Voter-health sampler ships every openbao_voter_health_interval (5min
+  # default) from whichever node is Raft leader; the script itself never exits
+  # non-zero on a probe failure, so this silence detector is the only signal
+  # if the timer stops or the leader stops shipping. Same cadence as os/unifi.
+  - name: openbao_voter_health
+    index: openbao
+    sourcetype: "openbao:voter:health"
+    threshold_minutes: 15
+    cron: "*/5 * * * *"
+    suppress_minutes: 60
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # No honeypot emitter is wired up yet — ship the stanza disabled so it
+  # can be flipped on (disabled: 0) when the deception fabric starts sending.
+  - name: honeypot
+    index: honeypot
+    threshold_minutes: 1440
+    cron: "0 * * * *"
+    suppress_minutes: 1440
+    disabled: 1
+  # --- LLM fabric surfaces -----------------------------------------------
+  # otel_traces: the trace spine. LiteLLM/hermes/orchestration spans AND Claude
+  # Code agent-tooling spans both arrive here via the Cribl Stream in_otel
+  # listener. That listener held zero events for weeks while every dashboard
+  # and config read as healthy, because an empty variable gated it out of the
+  # rendered config and nothing watched the result. This detector is the thing
+  # that would have noticed.
+  #
+  # FIRST DETECTOR OFF THE CUTOVER GATE (2026-08-06). Chosen because this index
+  # is the busiest and steadiest surface on the instance — measured over 6h it
+  # ran a 1.1-minute worst-case gap against a 30-minute threshold, so staging it
+  # live carries the least chance of an inherited silent condition firing on the
+  # first cron cycle. tests/templates/test_cutover_gate.py records the exception
+  # by stanza name; every other detector stays gated.
+  - name: otel_traces
+    index: otel_traces
+    threshold_minutes: 30
+    cron: "*/10 * * * *"
+    suppress_minutes: 120
+    disabled: 0
+  # hermes: agent card/goal execution. Scheduled cards run hourly, so two
+  # hours of silence means the agent tier is not running, not merely idle.
+  - name: hermes
+    index: hermes
+    threshold_minutes: 120
+    cron: "*/15 * * * *"
+    suppress_minutes: 240
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # codex / gemini: interactive CLI sessions. A quiet day is normal operator
+  # behaviour, not a fault, so the threshold is deliberately a half-day —
+  # long enough that this only fires on a genuinely broken collector.
+  - name: codex
+    index: codex
+    threshold_minutes: 720
+    cron: "0 * * * *"
+    suppress_minutes: 1440
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  - name: gemini
+    index: gemini
+    threshold_minutes: 720
+    cron: "0 * * * *"
+    suppress_minutes: 1440
+    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+  # openai (copilot) / vscode: both indexes hold only a handful of lifetime
+  # events because their Cribl Edge inputs tail log paths the tools do not
+  # actually write. Until those inputs are repointed at real paths these would
+  # fire on every cycle, so they ship disabled — flip to 0 in the SAME change
+  # that fixes the source paths, not before.
+  - name: openai
+    index: openai
+    threshold_minutes: 1440
+    cron: "0 */2 * * *"
+    suppress_minutes: 1440
+    disabled: 1
+  - name: vscode
+    index: vscode
+    threshold_minutes: 1440
+    cron: "0 */2 * * *"
+    suppress_minutes: 1440
+    disabled: 1

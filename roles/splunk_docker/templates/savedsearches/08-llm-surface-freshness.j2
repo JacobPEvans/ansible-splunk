@@ -1,0 +1,37 @@
+{# ---------------------------------------------------------------------------
+   Operator report: one-glance freshness across every LLM/agent surface.
+
+   Not an alert — a report, run on demand, that answers "which surface is
+   stale and by how much" in a single table. The silence detectors above tell
+   you when ONE index crosses ITS threshold; this tells you the state of all
+   of them at once, which is what you want in your hand while diagnosing.
+--------------------------------------------------------------------------- #}
+[llm_surface_freshness]
+description = Most-recent-event age per LLM/agent observability surface. age_hours = NEVER means the index has never received a single event, which is a different failure from "went quiet" and must not be reported as a missing row.
+{# NOTE: plain {# #}, never {#- -#}. The whitespace-stripping form eats the
+   newline on BOTH sides of this comment, which welds `description = ...` and
+   `search = ...` into a single line. Splunk then reads the whole search as
+   part of the description, leaves `search` undefined, and the report runs to
+   HTTP 200 with zero rows — it does not error. That shipped and reached the
+   live instance; see the deployed-value assertion in
+   tests/templates/test_savedsearches_render.py.
+
+   The makeresults/mvexpand/join shape is load-bearing and is NOT equivalent to
+   a bare `tstats latest(_time) by index`. tstats returns NO ROW AT ALL for an
+   index that has never received an event, so the surface most in need of
+   attention is precisely the one that silently vanishes from the output. The
+   left join against a synthesized roster keeps every surface on the report and
+   renders the never-populated ones as NEVER. The since-removed index=otel was
+   in exactly this state — a missing row that read as "nothing to see here",
+   and it stayed invisible until this report was built. #}
+search = | makeresults | eval surface="{{ splunk_docker_llm_freshness_indexes | join(',') }}" \
+  | makemv delim="," surface | mvexpand surface \
+  | join type=left surface [| tstats latest(_time) as last_seen WHERE index IN ({{ splunk_docker_llm_freshness_indexes | join(',') }}) by index | rename index as surface] \
+  | eval age_hours=if(isnull(last_seen), "NEVER", round((now() - last_seen) / 3600, 1)) \
+  | eval last_event=if(isnull(last_seen), "-", strftime(last_seen, "%Y-%m-%d %H:%M:%S")) \
+  | table surface age_hours last_event | sort surface
+dispatch.earliest_time = -30d
+dispatch.latest_time = now
+enableSched = 0
+is_visible = 1
+disabled = 0

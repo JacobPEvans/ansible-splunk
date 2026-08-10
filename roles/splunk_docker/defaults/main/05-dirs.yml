@@ -1,0 +1,23 @@
+---
+# Splunk data directories
+splunk_docker_data_dir: /opt/splunk
+splunk_docker_var_dir: "{{ splunk_docker_data_dir }}/var"
+splunk_docker_etc_dir: "{{ splunk_docker_data_dir }}/etc"
+
+# Splunk configuration directory (for compose and configs)
+splunk_docker_config_dir: /opt/splunk-config
+
+# Cold-tier data directory. Default nests it under splunk_docker_data_dir, but
+# operators SHOULD point this at a separate, larger/slower mounted disk when
+# one exists (override in inventory) — nesting it here just gives a working
+# default with no second-disk plumbing assumed.
+splunk_docker_cold_dir: "{{ splunk_docker_data_dir }}/cold"
+
+# Reserved-block percentage on the filesystem holding splunk_docker_var_dir.
+# The ext4 default of 5% reserves capacity for the superuser, but splunkd runs
+# unprivileged (uid 41812) and so can only use the 'available' figure. On the
+# index volume that reserve is pure loss, and large enough to trip Splunk's own
+# minimum free-space guard while `df` still reports plenty free. Splunk enforces
+# retention itself, so the reserve protects nothing here. Set to 0 to disable
+# entirely; the tuning step is skipped on filesystems without the setting.
+splunk_docker_data_disk_reserved_percent: 1

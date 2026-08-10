@@ -1,0 +1,258 @@
+---
+- name: Resolve latest release per Splunkbase entry
+  ansible.builtin.uri:
+    url: "{{ splunkbase_api }}/api/v1/app/{{ item.splunkbase_id }}/release/"
+    method: GET
+    return_content: true
+    status_code: 200
+    timeout: 30
+  register: splunkbase_release_q
+  loop: "{{ splunkbase_entries }}"
+  loop_control:
+    label: "app {{ item.splunkbase_id }}"
+  changed_when: false
+  failed_when: false
+
+- name: Compute every resolved release's desired version
+  ansible.builtin.set_fact:
+    splunkbase_desired_all: >-
+      {{ splunkbase_desired_all | default([]) + [item.0 | combine({
+        'desired_version': (
+          item.0.pin_version if item.0.pin_version is defined
+          else (
+            (item.1.content | from_json | first).name
+            if (item.1.status | default(0)) == 200
+               and (item.1.content | default('') | trim)[:1] == '['
+               and (item.1.content | from_json | length) > 0
+            else ''
+          )
+        )
+      })] }}
+  loop: "{{ splunkbase_entries | zip(splunkbase_release_q.results) | list }}"
+  loop_control:
+    label: "{{ item.0.filename }}"
+
+- name: Warn about entries whose latest version could not be resolved
+  ansible.builtin.debug:
+    msg: >-
+      Could not resolve a version for {{ item.filename }}
+      (splunkbase_id {{ item.splunkbase_id }}); skipping it this run.
+  loop: "{{ splunkbase_desired_all | selectattr('desired_version', 'equalto', '') | list }}"
+  loop_control:
+    label: "{{ item.filename }}"
+
+- name: Keep only deployable resolvable entries
+  ansible.builtin.set_fact:
+    splunkbase_desired: >-
+      {{ ((splunkbase_desired_all | selectattr('install', 'undefined') | list)
+          + (splunkbase_desired_all | selectattr('install', 'defined')
+             | selectattr('install', 'equalto', true) | list))
+         | rejectattr('desired_version', 'equalto', '') | list }}
+
+# `aws s3api get-object-tagging` returns nonzero for a missing object
+# ("NoSuchKey" in stderr) — expected, drives a sync. Any other nonzero
+# (auth/network/bucket) must fail loud, validated in the next task.
+# `--query`/`--output text` reduces the reply to the bare tag value, or
+# empty when the object carries no `version` tag.
+- name: Query current object-storage version tag for each entry
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3api
+      - get-object-tagging
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ item.filename }}"
+      - --query
+      - TagSet[?Key=='version'].Value
+      - --output
+      - text
+  environment: "{{ s3_env }}"
+  loop: "{{ splunkbase_desired }}"
+  loop_control:
+    label: "{{ item.filename }}"
+  register: object_storage_tag_query
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Validate query errors are only missing-object cases
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.rc == 0
+        or 'NoSuchKey' in ((item.stdout | default('')) ~ (item.stderr | default('')))
+    fail_msg: >-
+      get-object-tagging failed for {{ item.item.filename }} with rc={{ item.rc }}.
+      Not a "missing object" — check object-storage connectivity,
+      OBJECT_STORAGE_ROOT_USER/PASSWORD, and bucket existence.
+    quiet: true
+  loop: "{{ object_storage_tag_query.results }}"
+  loop_control:
+    label: "{{ item.item.filename }}"
+
+- name: Compute sync decisions (bucket tag vs resolved latest)
+  ansible.builtin.set_fact:
+    splunkbase_plan: >-
+      {{ splunkbase_plan | default([]) + [item.item | combine({
+        'current_version': (item.stdout | default('') | trim) if item.rc == 0 else '',
+        'needs_sync': (
+          item.rc != 0
+          or (item.stdout | default('') | trim)
+             != (item.item.desired_version | string | trim)
+        ),
+      })] }}
+  loop: "{{ object_storage_tag_query.results }}"
+  loop_control:
+    label: "{{ item.item.filename }}"
+
+- name: Show sync decisions
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.filename }}: latest={{ item.desired_version }}
+      store={{ item.current_version or '(none)' }}
+      → {{ 'SYNC' if item.needs_sync else 'skip' }}
+  loop: "{{ splunkbase_plan }}"
+  loop_control:
+    label: "{{ item.filename }}"
+
+- name: Build list of entries that need sync
+  ansible.builtin.set_fact:
+    splunkbase_to_sync: "{{ splunkbase_plan | selectattr('needs_sync') | list }}"
+
+- name: Authenticate to Splunkbase (only when something needs downloading)
+  ansible.builtin.uri:
+    url: "{{ splunkbase_api }}/api/account:login/"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      username: "{{ lookup('env', 'SPLUNKBASE_USERNAME') }}"
+      password: "{{ lookup('env', 'SPLUNKBASE_PASSWORD') }}"
+    return_content: true
+    status_code: 200
+  register: splunkbase_login
+  when: splunkbase_to_sync | length > 0
+  no_log: true
+
+- name: Extract Splunkbase session token
+  ansible.builtin.set_fact:
+    splunkbase_token: >-
+      {{ splunkbase_login.content
+         | regex_search('<id>([^<]+)</id>', '\1')
+         | default([], true)
+         | first | default('') }}
+  when: splunkbase_to_sync | length > 0
+  no_log: true
+
+- name: Fail if session token not returned
+  ansible.builtin.assert:
+    that:
+      - splunkbase_token is defined
+      - splunkbase_token | length > 0
+    fail_msg: >-
+      Splunkbase login returned no session token. Check
+      SPLUNKBASE_USERNAME / SPLUNKBASE_PASSWORD in Doppler.
+  when: splunkbase_to_sync | length > 0
+
+- name: Download drifted entries from Splunkbase
+  ansible.builtin.get_url:
+    url: >-
+      {{ splunkbase_api }}/app/{{ item.splunkbase_id }}/release/{{ item.desired_version }}/download/
+    dest: "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
+    headers:
+      X-Auth-Token: "{{ splunkbase_token }}"
+    force: true
+    mode: "0600"
+    timeout: 120
+  loop: "{{ splunkbase_to_sync }}"
+  loop_control:
+    label: "{{ item.filename }} v{{ item.desired_version }}"
+
+- name: Upload synced archives to object storage
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3
+      - cp
+      - "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
+      - "s3://{{ object_storage_bucket }}/{{ item.filename }}"
+  environment: "{{ s3_env }}"
+  loop: "{{ splunkbase_to_sync }}"
+  loop_control:
+    label: "{{ item.filename }}"
+  changed_when: true
+
+# put-object-tagging replaces the whole tag set, matching the previous
+# client's semantics. The tagging document is built as JSON so a version
+# string can never be mistaken for shorthand syntax.
+- name: Tag object-storage objects with version + splunkbase_id
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3api
+      - put-object-tagging
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ item.filename }}"
+      - --tagging
+      - "{{ {'TagSet': [
+             {'Key': 'version', 'Value': item.desired_version | string | trim},
+             {'Key': 'splunkbase_id', 'Value': item.splunkbase_id | string}]} | to_json }}"
+  environment: "{{ s3_env }}"
+  loop: "{{ splunkbase_to_sync }}"
+  loop_control:
+    label: "{{ item.filename }}"
+  changed_when: true
+
+- name: Remove downloaded archives from controller tmpdir
+  ansible.builtin.file:
+    path: "{{ splunkbase_sync_tmpdir }}/{{ item.filename }}"
+    state: absent
+  loop: "{{ splunkbase_to_sync }}"
+  loop_control:
+    label: "{{ item.filename }}"
+
+# Manifest = the version bridge the air-gapped Splunk VM reads over HTTP.
+# Written from the FULL resolved set (not just synced) so it always
+# reflects what the bucket currently holds.
+- name: Build manifest (app_dir → {version, filename})
+  ansible.builtin.set_fact:
+    splunkbase_manifest: >-
+      {{ splunkbase_manifest | default({}) | combine({
+        item.app_dir: {'version': item.desired_version, 'filename': item.filename}
+      }) }}
+  loop: "{{ splunkbase_desired }}"
+  loop_control:
+    label: "{{ item.app_dir }}"
+
+- name: Write manifest to controller tmpdir
+  ansible.builtin.copy:
+    content: "{{ splunkbase_manifest | to_nice_json }}\n"
+    dest: "{{ splunkbase_sync_tmpdir }}/manifest.json"
+    mode: "0600"
+
+- name: Publish manifest.json to object storage
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3
+      - cp
+      - "{{ splunkbase_sync_tmpdir }}/manifest.json"
+      - "s3://{{ object_storage_bucket }}/manifest.json"
+  environment: "{{ s3_env }}"
+  changed_when: true
+
+- name: Remove manifest from controller tmpdir
+  ansible.builtin.file:
+    path: "{{ splunkbase_sync_tmpdir }}/manifest.json"
+    state: absent
+
+- name: Summary
+  ansible.builtin.debug:
+    msg: >-
+      Splunkbase sync complete.
+      {{ splunkbase_to_sync | length }} of
+      {{ splunkbase_desired | length }} resolvable entries updated;
+      manifest.json published with {{ splunkbase_manifest | length }} apps.

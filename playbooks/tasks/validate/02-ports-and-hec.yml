@@ -1,0 +1,105 @@
+---
+- name: Check HEC port is listening
+  ansible.builtin.wait_for:
+    port: "{{ (splunk_docker_hec_port | default(_splunk_docker_defaults.splunk_docker_hec_port)) }}"
+    timeout: 5
+  register: hec_port
+  failed_when: false
+
+- name: Record HEC port status
+  vars:
+    hec_check: "HEC port {{ (splunk_docker_hec_port | default(_splunk_docker_defaults.splunk_docker_hec_port)) }} listening"
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': hec_check, 'passed': hec_port.failed is false}] }}
+
+- name: Check Splunk web interface
+  ansible.builtin.wait_for:
+    port: "{{ (splunk_docker_web_port | default(_splunk_docker_defaults.splunk_docker_web_port)) }}"
+    timeout: 5
+  register: web_port
+  failed_when: false
+
+- name: Record web interface status
+  vars:
+    web_check: "Web port {{ (splunk_docker_web_port | default(_splunk_docker_defaults.splunk_docker_web_port)) }} listening"
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': web_check, 'passed': web_port.failed is false}] }}
+
+- name: Check management API port is listening
+  ansible.builtin.wait_for:
+    port: "{{ (splunk_docker_mgmt_port | default(_splunk_docker_defaults.splunk_docker_mgmt_port)) }}"
+    timeout: 5
+  register: mgmt_port
+  failed_when: false
+
+- name: Record management port status
+  vars:
+    mgmt_check: "Management API port {{ (splunk_docker_mgmt_port | default(_splunk_docker_defaults.splunk_docker_mgmt_port)) }} listening"
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': mgmt_check, 'passed': mgmt_port.failed is false}] }}
+
+- name: Test HEC endpoint per index token
+  ansible.builtin.uri:
+    url: "https://localhost:{{ (splunk_docker_hec_port | default(_splunk_docker_defaults.splunk_docker_hec_port)) }}/services/collector/event"
+    validate_certs: false
+    method: POST
+    headers:
+      Authorization: "Splunk {{ splunk_docker_hec_token_values[item.name] }}"
+    body_format: json
+    body:
+      event: "ansible-validation-test-{{ item.name }}"
+      sourcetype: "_json"
+      index: "{{ item.name }}"
+    status_code: 200
+  register: splunk_docker_hec_test
+  failed_when: false
+  loop: "{{ (splunk_docker_indexes | default(_splunk_docker_defaults.splunk_docker_indexes)) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: splunk_docker_hec_token_values[item.name] is defined
+  no_log: true
+
+- name: Record HEC POST test results
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': 'HEC POST (' + item.item.name + ')',
+         'passed': (item.status | default(0)) == 200}] }}
+  loop: "{{ splunk_docker_hec_test.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: splunk_docker_hec_test is defined and (item.skipped is not defined or not item.skipped)
+
+- name: Test HEC endpoint with legacy token
+  ansible.builtin.uri:
+    url: "https://localhost:{{ (splunk_docker_hec_port | default(_splunk_docker_defaults.splunk_docker_hec_port)) }}/services/collector/event"
+    validate_certs: false
+    method: POST
+    headers:
+      Authorization: "Splunk {{ splunk_docker_hec_token_values.legacy }}"
+    body_format: json
+    body:
+      event: "ansible-validation-test-legacy"
+      sourcetype: "_json"
+      index: "main"
+    status_code: 200
+  register: splunk_docker_hec_legacy_test
+  failed_when: false
+  when: splunk_docker_hec_token_values.legacy | default('') | length > 0
+  no_log: true
+
+- name: Record legacy HEC POST test result
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': 'HEC POST (legacy token)',
+         'passed': (splunk_docker_hec_legacy_test.status | default(0)) == 200}] }}
+  when: splunk_docker_hec_token_values.legacy | default('') | length > 0
+
+- name: Record missing HEC token
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': 'HEC POST (legacy token)',
+         'passed': false}] }}
+  when: splunk_docker_hec_token_values.legacy | default('') | length == 0

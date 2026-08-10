@@ -48,7 +48,7 @@ import sys
 import time
 from pathlib import Path
 
-import yaml
+from _defaults_loader import load_defaults
 
 from _render_env import ansible_env
 
@@ -59,7 +59,7 @@ except ImportError:
     sys.exit(1)
 
 ROOT = Path(__file__).parent.parent.parent
-DEFAULTS = yaml.safe_load((ROOT / "roles/splunk_docker/defaults/main.yml").read_text())
+DEFAULTS = load_defaults(ROOT)
 
 # Same stanza-block extraction as test_cutover_gate.py's STANZA_RE.
 STANZA_RE = re.compile(r"^\[(\S+)\]$(.*?)(?=^\[|\Z)", re.M | re.S)

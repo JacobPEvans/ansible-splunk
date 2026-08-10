@@ -1,0 +1,43 @@
+---
+# Splunk Docker role defaults
+#
+# Split across this directory rather than one file: Ansible loads every file
+# in defaults/main/ for the role, and a single flat file had grown past the
+# point where the section you want could be found by reading.
+
+# Docker configuration
+splunk_docker_package_name: docker.io
+splunk_docker_compose_package: docker-compose-plugin
+
+# Splunk container configuration
+# Splunk image - use :latest or pin a specific version like 9.1.2 when upgrading.
+# Note: If specifying a version not yet pulled, ensure the VM has network access to Docker Hub.
+splunk_docker_image: splunk/splunk:latest
+splunk_docker_hostname: splunk
+splunk_docker_container_name: splunk
+
+# Splunk credentials (from Doppler) - set in playbook vars
+splunk_docker_password: ""
+
+# Saved-search alert delivery: ntfy + Slack, never email (operator directive
+# 2026-07-16). Empty string disables that channel on every alert (the saved
+# search still runs and surfaces in the Splunk UI's Triggered Alerts panel).
+#
+# ntfy: full topic URL, delivered via Splunk's built-in webhook alert action
+# (the URL is allowlisted in alert_actions.conf.j2). Defaults to the keystone
+# topic — the same one the hermes brain-watchdog pushes to — derived from
+# PROXMOX_DOMAIN when the converge env carries it.
+splunk_docker_alert_ntfy_url: >-
+  {{ ('https://ntfy.' ~ lookup('env', 'PROXMOX_DOMAIN') ~ '/keystone')
+     if lookup('env', 'PROXMOX_DOMAIN') else '' }}
+# Slack: incoming-webhook URL for TA-slack-add-on-for-splunk, sourced from the
+# shared alerting webhook (RUNSON_ALERT_SLACK_WEBHOOK_URL in the converge env,
+# e.g. under `doppler run -p iac-conf-mgmt -c prd`). Rendered into
+# alert_actions.conf (0600) — never into savedsearches.conf.
+splunk_docker_alert_slack_webhook: >-
+  {{ lookup('env', 'RUNSON_ALERT_SLACK_WEBHOOK_URL') | default('', true) }}
+
+# Splunk General Terms acceptance string for SPLUNK_GENERAL_TERMS env var.
+# Override in staging to point at non-prod terms acceptance strings if Splunk
+# publishes a new SGT version mid-release cycle.
+splunk_docker_sgt_accept: "--accept-sgt-current-at-splunk-com"

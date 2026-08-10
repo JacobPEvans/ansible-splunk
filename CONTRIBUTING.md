@@ -155,8 +155,9 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
 
 To add a new index to the default configuration:
 
-1. Edit `roles/splunk_docker/defaults/main.yml`
-2. Add the index to the `splunk_docker_indexes` list
+1. Edit `roles/splunk_docker/defaults/main/09-custom-indexes-core.yml` (or
+   `10-custom-indexes-extra.yml`)
+2. Add the index to the `splunk_docker_indexes_core` (or `_extra`) list
 3. Test with molecule
 4. Update documentation if significant
 
@@ -165,7 +166,7 @@ To add a new index to the default configuration:
 To add a new TA:
 
 1. Place the `.tar` or `.tgz` file in `roles/splunk_docker/files/`
-2. Add the entry to `splunk_docker_addons` in `defaults/main.yml`
+2. Add the entry to `splunk_docker_addons` in `roles/splunk_docker/vars/addons.yml`
 3. Re-run the playbook
 
 ## Questions?

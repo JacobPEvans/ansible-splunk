@@ -1,0 +1,59 @@
+---
+# Splunk's own indexes, restated so they live inside the hot/warm volume.
+#
+# Shipped defaults put these under $SPLUNK_DB WITHOUT referencing the volume,
+# so the volume cap does not count them and each keeps the stock 500000 MB
+# ceiling — larger than the filesystem holding it. Splunk says so itself on
+# every bucket rebuild:
+#
+#   Path homePath='...' is inside volume=hot_warm ... but does not reference
+#   that volume. Space used by homePath will *not* be volume-mananged.
+#
+# That is the same "a cap larger than its own filesystem enforces nothing"
+# defect the tiered indexes above were built to remove, left in place for the
+# indexes Splunk creates for itself. It matters because the guard underneath is
+# minFreeSpace, and that is a HALT: indexing and search stop, and the first
+# signal an operator gets is the outage.
+#
+# Restating them here binds them to the same volume cap as everything else, so
+# one number bounds the whole filesystem. Sizes are ordered by observed volume:
+# the internal/introspection pair carry real traffic, the rest are near-idle.
+# These are NOT frozen to the archive — operational telemetry is not worth
+# offsite storage, so they age out normally.
+splunk_docker_system_indexes:
+  - name: _internal
+    db_dir: _internaldb
+    max_size_mb: 20480
+    frozen_time_secs: 2592000      # 30 days
+  - name: _introspection
+    db_dir: _introspection
+    max_size_mb: 10240
+    frozen_time_secs: 1209600      # 14 days
+  - name: _audit
+    db_dir: audit
+    max_size_mb: 10240
+    frozen_time_secs: 31536000     # 365 days — audit trail, keep a year
+  - name: _telemetry
+    db_dir: _telemetry
+    max_size_mb: 1024
+    frozen_time_secs: 5184000      # 60 days
+  - name: _configtracker
+    db_dir: _configtracker
+    max_size_mb: 1024
+    frozen_time_secs: 5184000
+  - name: _thefishbucket
+    db_dir: fishbucket
+    max_size_mb: 1024
+    frozen_time_secs: 2592000
+  - name: main
+    db_dir: defaultdb
+    max_size_mb: 10240
+    frozen_time_secs: 2592000
+  - name: history
+    db_dir: historydb
+    max_size_mb: 1024
+    frozen_time_secs: 604800       # 7 days
+  - name: summary
+    db_dir: summarydb
+    max_size_mb: 5120
+    frozen_time_secs: 2592000

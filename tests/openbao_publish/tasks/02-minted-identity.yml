@@ -1,0 +1,73 @@
+---
+# The mint response has no id, so identity comes from the listing diff.
+# A token minted concurrently by someone else must not be mistaken for ours.
+- name: Provide post-mint listing with a concurrently minted token
+  ansible.builtin.set_fact:
+    splunk_docker_token_list_after_mint:
+      json:
+        entry: >-
+          {{ splunk_docker_token_list.json.entry
+             + [{'name': 'minted-id',
+                 'content': {'status': 'enabled',
+                             'claims': {'sub': 'hermes', 'aud': 'mcp', 'nbr': 2000, 'exp': 3000}}}] }}
+
+- name: Record minted identity from the listing diff
+  ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/record_minted_identity.yml
+
+- name: Save minted identity result
+  ansible.builtin.set_fact:
+    derived_minted_id: "{{ splunk_docker_new_token_id }}"
+    derived_minted_count: "{{ splunk_docker_minted_id_count }}"
+    derived_minted_claims: "{{ splunk_docker_minted_claims }}"
+
+- name: Verify minted identity with a live probe
+  vars:
+    splunk_docker_mcp_probe_ok: true
+  ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/verify_minted_identity.yml
+
+# A token that cannot authenticate must never reach OpenBao, however
+# convincing its claims look.
+- name: Exercise rejection of a minted token that fails its probe
+  block:
+    - name: Verify minted identity with a failed probe
+      vars:
+        splunk_docker_mcp_probe_ok: false
+      ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/verify_minted_identity.yml
+  rescue:
+    - name: Record failed-probe rejection
+      ansible.builtin.set_fact:
+        minted_dead_probe_rejected: true
+
+# set_fact outranks task vars, so the count recorded above has to be
+# overridden with another set_fact - a `vars:` block here would be ignored
+# and the case would silently pass without ever being exercised.
+- name: Exercise rejection when two tokens appeared during the mint
+  block:
+    - name: Simulate an ambiguous listing diff
+      ansible.builtin.set_fact:
+        splunk_docker_minted_id_count: 2
+
+    - name: Verify minted identity with an ambiguous diff
+      vars:
+        splunk_docker_mcp_probe_ok: true
+      ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/verify_minted_identity.yml
+  rescue:
+    - name: Record ambiguous-diff rejection
+      ansible.builtin.set_fact:
+        minted_ambiguous_rejected: true
+
+- name: Exercise missing published token safety check
+  vars:
+    splunk_docker_new_token_id: minted-id
+    splunk_docker_eligible_tokens:
+      - name: concurrent-id
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+  block:
+    - name: Reject cleanup without eligible published token
+      ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/plan_token_cleanup.yml
+  rescue:
+    - name: Record missing published token rejection
+      ansible.builtin.set_fact:
+        missing_published_token_rejected: true

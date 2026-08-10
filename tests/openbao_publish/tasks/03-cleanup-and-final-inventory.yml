@@ -1,0 +1,47 @@
+---
+- name: Provide published and concurrently minted eligible tokens
+  ansible.builtin.set_fact:
+    splunk_docker_new_token_id: minted-id
+    splunk_docker_token_list:
+      json:
+        entry:
+          - name: concurrent-id
+            content:
+              status: enabled
+              claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+          - name: minted-id
+            content:
+              status: enabled
+              claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+
+- name: Exercise post-publication inventory planning
+  ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/plan_token_reconciliation.yml
+
+- name: Exercise concurrent token cleanup planning
+  ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/plan_token_cleanup.yml
+
+- name: Save concurrent token cleanup result
+  ansible.builtin.set_fact:
+    concurrent_cleanup_ids: >-
+      {{ splunk_docker_noncanonical_eligible_tokens | map(attribute='name') | list }}
+
+- name: Provide final post-cleanup token inventory
+  ansible.builtin.set_fact:
+    splunk_docker_token_list:
+      json:
+        entry:
+          - name: concurrent-id
+            content:
+              status: disabled
+              claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+          - name: minted-id
+            content:
+              status: enabled
+              claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+
+- name: Exercise final exact-one inventory planning
+  ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/plan_token_reconciliation.yml
+
+- name: Save final eligible token result
+  ansible.builtin.set_fact:
+    final_eligible_ids: "{{ splunk_docker_eligible_tokens | map(attribute='name') | list }}"

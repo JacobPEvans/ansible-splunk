@@ -1,0 +1,72 @@
+---
+- name: Load managed-user task structure
+  ansible.builtin.set_fact:
+    managed_user_tasks: "{{ lookup('ansible.builtin.file', '../../../roles/splunk_docker/tasks/manage_one_user.yml') | from_yaml }}"
+
+- name: Extract workflow structures
+  ansible.builtin.set_fact:
+    token_workflow_owner: "{{ managed_user_tasks | selectattr('name', 'search', '^Ensure a live token') | first }}"
+
+- name: Extract top-level workflow
+  ansible.builtin.set_fact:
+    token_workflow: "{{ token_workflow_owner.block }}"
+    token_workflow_names: "{{ token_workflow_owner.block | map(attribute='name') | list }}"
+
+- name: Extract top-level workflow tasks
+  ansible.builtin.set_fact:
+    token_list_task: "{{ token_workflow | selectattr('name', 'search', '^List existing tokens') | first }}"
+    token_current_secret_task: "{{ token_workflow | selectattr('name', 'search', '^Read current OpenBao secret') | first }}"
+    token_metadata_task: "{{ token_workflow | selectattr('name', 'search', '^Read current OpenBao metadata') | first }}"
+    token_undelete_task: "{{ token_workflow | selectattr('name', 'search', '^Undelete current OpenBao') | first }}"
+    token_recovered_read_task: "{{ token_workflow | selectattr('name', 'search', '^Re-read recovered OpenBao') | first }}"
+    mint_publish_owner: "{{ token_workflow | selectattr('name', 'search', '^Mint and publish replacement') | first }}"
+    token_post_publish_list_task: "{{ token_workflow | selectattr('name', 'search', '^Re-list eligible tokens after publication') | first }}"
+    token_revoke_task: "{{ token_workflow | selectattr('name', 'search', '^Revoke noncanonical eligible tokens') | first }}"
+    token_final_list_task: "{{ token_workflow | selectattr('name', 'search', '^Re-list tokens after final reconciliation') | first }}"
+    token_final_assert_task: "{{ token_workflow | selectattr('name', 'search', '^Verify sole eligible token') | first }}"
+
+- name: Extract mint-publication workflow
+  ansible.builtin.set_fact:
+    mint_publish_names: "{{ mint_publish_owner.block | map(attribute='name') | list }}"
+    mint_publish_rescue_names: "{{ mint_publish_owner.rescue | map(attribute='name') | list }}"
+    token_publish_task: "{{ mint_publish_owner.block | selectattr('name', 'search', '^Publish ') | first }}"
+    token_mint_task: "{{ mint_publish_owner.block | selectattr('name', 'search', '^Mint authorization token') | first }}"
+    token_post_mint_list_task: "{{ mint_publish_owner.block | selectattr('name', 'search', '^Re-list tokens after minting') | first }}"
+    token_cleanup_task: "{{ mint_publish_owner.rescue | selectattr('name', 'search', '^Remove unpublished replacement') | first }}"
+
+- name: Extract the probe task from its own file
+  ansible.builtin.set_fact:
+    probe_tasks: "{{ lookup('ansible.builtin.file', '../../../roles/splunk_docker/tasks/probe_mcp_token.yml') | from_yaml }}"
+
+- name: Extract the probe request
+  ansible.builtin.set_fact:
+    probe_request: "{{ probe_tasks | selectattr('name', 'search', '^Probe the MCP endpoint') | first }}"
+
+- name: Extract ordered top-level names
+  ansible.builtin.set_fact:
+    token_metadata_name: "{{ token_workflow_names | select('search', '^Read current OpenBao metadata') | first }}"
+    token_undelete_name: "{{ token_workflow_names | select('search', '^Undelete current OpenBao') | first }}"
+    token_recovered_read_name: "{{ token_workflow_names | select('search', '^Re-read recovered OpenBao') | first }}"
+    token_state_name: "{{ token_workflow_names | select('search', '^Extract canonical OpenBao state') | first }}"
+    token_probe_name: "{{ token_workflow_names | select('search', '^Validate canonical OpenBao token') | first }}"
+    token_evaluate_name: "{{ token_workflow_names | select('search', '^Evaluate canonical OpenBao token') | first }}"
+    token_delivery_name: "{{ token_workflow_names | select('search', '^Plan token delivery') | first }}"
+    mint_publish_name: "{{ token_workflow_names | select('search', '^Mint and publish replacement') | first }}"
+    token_post_publish_list_name: "{{ token_workflow_names | select('search', '^Re-list eligible tokens after publication') | first }}"
+    token_post_publish_plan_name: "{{ token_workflow_names | select('search', '^Plan post-publication token reconciliation') | first }}"
+    token_cleanup_plan_name: "{{ token_workflow_names | select('search', '^Plan noncanonical token cleanup') | first }}"
+    token_revoke_name: "{{ token_workflow_names | select('search', '^Revoke noncanonical eligible tokens') | first }}"
+    token_final_list_name: "{{ token_workflow_names | select('search', '^Re-list tokens after final reconciliation') | first }}"
+    token_final_plan_name: "{{ token_workflow_names | select('search', '^Plan final token state') | first }}"
+    token_final_assert_name: "{{ token_workflow_names | select('search', '^Verify sole eligible token') | first }}"
+
+- name: Extract ordered mint-publication names
+  ansible.builtin.set_fact:
+    token_mint_name: "{{ mint_publish_names | select('search', '^Mint authorization token') | first }}"
+    token_post_mint_list_name: "{{ mint_publish_names | select('search', '^Re-list tokens after minting') | first }}"
+    minted_record_name: "{{ mint_publish_names | select('search', '^Record minted token identity') | first }}"
+    minted_probe_name: "{{ mint_publish_names | select('search', '^Probe minted token') | first }}"
+    minted_verify_name: "{{ mint_publish_names | select('search', '^Verify minted token identity') | first }}"
+    token_publish_name: "{{ mint_publish_names | select('search', '^Publish ') | first }}"
+    token_cleanup_name: "{{ mint_publish_rescue_names | select('search', '^Remove unpublished replacement') | first }}"
+    token_failure_name: "{{ mint_publish_rescue_names | select('search', '^Fail replacement publication') | first }}"

@@ -1,0 +1,27 @@
+{% import 'savedsearches/00-macros.j2' as m with context %}
+[llm_pipeline_silence_detector]
+description = Alerts when any llama-swap emitter feeding the llm index goes silent for more than 30 minutes. Detection is PER-HOST (`by host`) so a healthy emitter can never mask a dead one — with the fabric running multiple llama-swap serving guests, an index-wide `latest(_time)` would stay fresh as long as a single host reports, hiding the failure of every other host. Each silent host produces its own result row, so the alert fires once per dead emitter. A host that has never emitted has no baseline and cannot be detected here (same inherent limitation as the macOS edge detector).
+# `by host` over a fully-empty index returns ZERO rows, not a null-last_seen
+# row for a synthetic host — so a plain eval/where guard never runs during a
+# whole-index outage (verified live: index=llm was empty for 18 days and this
+# detector never fired). appendpipe synthesizes a single sentinel row when
+# the tstats result set is empty, giving eval something to set last_seen = 0
+# on so the where clause below can fire.
+search = | tstats latest(_time) as last_seen WHERE index=llm by host | appendpipe [ stats count as _rows | where _rows == 0 | eval host = "(no hosts reporting)", last_seen = 0 | fields - _rows ] | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 30
+dispatch.earliest_time = -24h
+dispatch.latest_time = now
+cron_schedule = */10 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 1
+alert.severity = 3
+alert.suppress = 1
+alert.suppress.period = 120m
+# Scope suppression per host: without this, the first silent host suppresses
+# the alert globally and a second host failing inside the window goes unseen.
+alert.suppress.fields = host
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+{{ m.alert_deliver('llm emitter silent (per-host)', 'One or more llama-swap emitters feeding the llm index have delivered no events for 30+ minutes (see the host field in the results for which). Investigate that host llama-swap serving guest, its Cribl Edge daemon, the HAProxy :10300 frontend, the Cribl Stream input, and Splunk HEC ingestion.') }}

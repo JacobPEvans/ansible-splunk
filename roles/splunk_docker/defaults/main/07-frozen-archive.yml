@@ -1,0 +1,102 @@
+---
+# Freeze-path health check.
+#
+# A coldToFrozenScript that exits non-zero makes Splunk KEEP the bucket it just
+# decided to evict. Retention silently stops enforcing, the volume fills, and
+# nothing reports it — the failures land in splunkd.log and nowhere else. That
+# is the exact sequence that filled the index volume: the archive upload failed
+# for days while every quota looked correctly configured.
+#
+# Scanning splunkd.log is deliberate. The condition is only ever visible there;
+# there is no counter, no health-report item, and no REST endpoint that exposes
+# a failed freeze.
+splunk_docker_frozen_failure_patterns:
+  - "coldToFrozenScript.*exited with non-zero"
+  - "refusing to freeze"
+  - "bucket left on disk for retry"
+
+# Frozen-bucket archive.
+#
+# Splunk DELETES a bucket when it ages out unless told otherwise. That default
+# was inert while no quota could bind, but volume caps make it live: the first
+# time a cap is reached, data starts leaving permanently. Enabling this turns
+# ageing out into archiving.
+#
+# coldToFrozenDir and coldToFrozenScript are mutually exclusive in Splunk, and
+# it silently prefers the Dir form when both are set — so a stray dir would
+# disable the upload without any error. indexes.conf.j2 renders only one, and
+# the template test asserts that.
+splunk_docker_frozen_archive_enabled: false
+splunk_docker_frozen_script_path: "{{ splunk_docker_etc_dir }}/system/local/cold_to_frozen.py"
+# The restore half of the archive. Deployed beside the freeze script so it sees
+# the same credential file; splunkd never calls it, it is run by an operator.
+# Its own default for that file matches splunk_docker_frozen_config_path below,
+# and SPLUNK_FROZEN_CONFIG_PATH overrides it if the layout ever moves.
+splunk_docker_frozen_restore_script_path: "{{ splunk_docker_etc_dir }}/system/local/restore_from_frozen.py"
+# splunkd invokes coldToFrozenScript with a restricted environment, so the
+# compose-injected SPLUNK_FROZEN_S3_* vars it sees under `docker exec` are not
+# visible to the script when splunkd runs it. This file is the fallback the
+# script reads when the environment is empty - written next to the script
+# itself, inside the same bind-mounted config volume.
+splunk_docker_frozen_config_path: "{{ splunk_docker_etc_dir }}/system/local/cold_to_frozen_creds.conf"
+
+# The archive scripts shell out to rclone instead of speaking S3 themselves: it
+# provides multipart uploads with parallel parts, retry, and integrity checks,
+# all of which were previously hand-written and none of which are worth owning.
+#
+# It lives in the config volume rather than the image because that volume is
+# bind-mounted into the container, so splunkd can execute it without the vendor
+# image being modified - and it survives an image upgrade, which anything
+# installed into the container would not.
+splunk_docker_frozen_bin_dir: "{{ splunk_docker_etc_dir }}/system/local/bin"
+splunk_docker_frozen_rclone_path: "{{ splunk_docker_frozen_bin_dir }}/rclone"
+# Pinned with the checksum upstream publishes for this exact archive, and
+# verified before anything is unpacked. Renovate bumps the pair together; they
+# must never be changed independently.
+splunk_docker_rclone_version: "1.74.4"
+splunk_docker_rclone_zip_sha256: "fe435e0c36228e7c2f116a8701f01127bb1f694005fc11d1f27186c8bca4115d"
+# Left empty deliberately. Setting it alongside the script would take priority
+# and silently turn archiving back into local-only retention.
+splunk_docker_frozen_dir: ""
+
+# Where the archive credential lives. The secret is read at converge time and
+# passed to the container through the compose environment, never written to a
+# file of its own.
+splunk_docker_frozen_bao_addr: "{{ lookup('env', 'BAO_ADDR') | default('', true) }}"
+splunk_docker_frozen_bao_role_id: "{{ lookup('env', 'OPENBAO_APPROLE_ANSIBLE_ROLE_ID') | default('', true) }}"
+splunk_docker_frozen_bao_secret_id: "{{ lookup('env', 'OPENBAO_APPROLE_ANSIBLE_SECRET_ID') | default('', true) }}"
+#
+# The archive lives in its own dedicated B2 bucket (`splunk`), on the
+# `secrets-external` mount that separates SaaS/external credentials from
+# internal ones. This bucket is NOT shared with Postgres backups (those stay
+# on the old `secret/data/platform/backblaze` path, untouched) - a
+# large, continuously-growing index archive does not belong in the same
+# bucket as critical remote backups, and a dedicated bucket gets its own
+# lifecycle policy, size cap, and least-privilege keys instead of borrowing
+# someone else's. The RW key is used here because the freeze path writes.
+splunk_docker_frozen_secret_path: secrets-external/data/platform/backblaze-splunk
+splunk_docker_frozen_endpoint_field: B2_SPLUNK_S3_ENDPOINT
+splunk_docker_frozen_bucket_field: B2_SPLUNK_BUCKET
+splunk_docker_frozen_key_id_field: B2_SPLUNK_RW_KEY_ID
+splunk_docker_frozen_app_key_field: B2_SPLUNK_RW_APP_KEY
+# Left empty on purpose for endpoints that encode their region in the hostname.
+# Setting it there and here creates two sources of truth that can silently
+# disagree, and a mismatch surfaces as an opaque signature failure. Override
+# only for an endpoint whose host does not carry its region.
+splunk_docker_frozen_region: ""
+
+# Idle timeout for a single transfer, in seconds - a stall detector, not a
+# budget for the whole object. Size it to the worst stall the archive link
+# produces, never to how long a bucket "should" take: a value tuned to
+# throughput fails every large bucket and leaves it on disk forever, which is
+# exactly the defect that filled the index volume. Lower it only for an archive
+# target that is reliably fast, where a multi-minute stall is a real fault.
+splunk_docker_frozen_upload_timeout_seconds: 900
+
+# Concurrent transfers, and concurrent parts within a single large file. The
+# offsite endpoint throttles per connection, so this - not the timeout - is what
+# governs archive throughput: measured there at 318 KB/s on one connection
+# versus 1.64 MB/s across eight, with per-connection speed barely moving.
+# Lower it for an on-network target, where one connection is already fast and
+# extra connections only add contention.
+splunk_docker_frozen_upload_concurrency: 8
