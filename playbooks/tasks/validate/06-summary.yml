@@ -1,0 +1,19 @@
+---
+- name: Display validation summary
+  ansible.builtin.debug:
+    msg: |
+      ==========================================
+      SPLUNK DOCKER VALIDATION RESULTS
+      ==========================================
+      {% for result in validation_results %}
+      [{{ 'PASS' if result.passed else 'FAIL' }}] {{ result.check }}
+      {% endfor %}
+      ==========================================
+
+      Disk Usage (Splunk volume):
+      {{ disk_usage.stdout | default('Unable to retrieve disk info') }}
+
+- name: Fail if any validation failed
+  ansible.builtin.fail:
+    msg: "One or more validation checks failed. Review the results above."
+  when: validation_results | selectattr('passed', 'equalto', false) | list | length > 0

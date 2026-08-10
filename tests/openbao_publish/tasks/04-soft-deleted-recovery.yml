@@ -1,0 +1,22 @@
+---
+- name: Exercise soft-deleted OpenBao source recovery
+  vars:
+    splunk_docker_bao_current: { status: 404, json: {} }
+    splunk_docker_bao_metadata: { status: 200, json: { data: { current_version: 14 } } }
+    splunk_docker_bao_recovered:
+      status: 200
+      json:
+        data:
+          data: "{{ existing_secret }}"
+  ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/extract_openbao_state.yml
+
+- name: Save soft-deleted OpenBao recovery result
+  ansible.builtin.set_fact:
+    recovered_cas: "{{ splunk_docker_bao_cas_version }}"
+    recovered_source_data: "{{ splunk_docker_bao_source_data }}"
+    recovered_published_token: "{{ splunk_docker_bao_published_token }}"
+    recovered_merge: >-
+      {{ splunk_docker_bao_source_data | combine({
+           splunk_docker_url_openbao_key: splunk_docker_mcp_url,
+           splunk_docker_token_openbao_key: opaque_minted_token
+         }) }}

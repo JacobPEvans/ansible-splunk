@@ -24,7 +24,7 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
+from _defaults_loader import load_defaults
 
 from _render_env import ansible_env
 
@@ -35,7 +35,7 @@ except ImportError:
     sys.exit(1)
 
 ROOT = Path(__file__).parent.parent.parent
-DEFAULTS = yaml.safe_load((ROOT / "roles/splunk_docker/defaults/main.yml").read_text())
+DEFAULTS = load_defaults(ROOT)
 DETECTORS = DEFAULTS["splunk_docker_silence_detectors"]
 MULTIPLIER = DEFAULTS["splunk_docker_silence_lookback_multiplier"]
 

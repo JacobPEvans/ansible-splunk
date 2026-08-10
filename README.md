@@ -49,7 +49,8 @@ doppler run -- ansible-playbook playbooks/validate.yml
 ## Custom Indexes
 
 Per-index size caps and retention are set in
-`roles/splunk_docker/defaults/main.yml` (`splunk_docker_indexes`); most
+`roles/splunk_docker/defaults/main/09-custom-indexes-core.yml` and
+`10-custom-indexes-extra.yml` (`splunk_docker_indexes`); most
 indexes use the 365-day/10 GiB defaults, but `netflow`, `host_metrics`,
 `llm_metrics`, `netmon_metrics`, `os_metrics`, and `unifi_metrics` use
 90-day retention, and `netflow` caps at 50 GiB rather than the default. Two
@@ -109,7 +110,7 @@ archives only and are never installed. Historical releases are stored under
 
 ```text
 roles/splunk_docker/
-├── defaults/main.yml       # Core Docker + Splunk configuration
+├── defaults/main/          # Core Docker + Splunk configuration (one file per topic)
 ├── tasks/
 │   ├── main.yml            # Orchestrates all tasks
 │   ├── java.yml            # Optional JRE-21 for DB Connect
@@ -127,7 +128,7 @@ roles/splunk_docker/
 
 ## Configuration Variables
 
-Key defaults in `roles/splunk_docker/defaults/main.yml`:
+Key defaults in `roles/splunk_docker/defaults/main/`:
 
 | Variable | Default | Description |
 | --- | --- | --- |

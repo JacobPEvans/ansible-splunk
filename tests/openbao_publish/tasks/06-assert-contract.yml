@@ -1,0 +1,84 @@
+---
+- name: Assert identity, recovery, and sibling-preservation contracts
+  ansible.builtin.assert:
+    that:
+      - matching_ids == ['live-future-expiry', 'live-no-expiry', 'future-not-before', 'expired', 'disabled', 'missing-not-before', 'invalid-not-before']
+      - eligible_ids == ['live-future-expiry', 'live-no-expiry']
+      - valid_canonical_token
+      - not dead_probe_token
+      - not empty_published_token
+      - not ambiguous_inventory_token
+      - not valid_delivery_mint_required
+      - invalid_delivery_mint_required
+      - orphan_recovery_mint_required
+      # Identity is derived from the listing diff, never from the token.
+      - derived_minted_id == 'minted-id'
+      - derived_minted_count | int == 1
+      - derived_minted_claims.sub == 'hermes'
+      - derived_minted_claims.aud == 'mcp'
+      - minted_dead_probe_rejected | default(false)
+      - minted_ambiguous_rejected | default(false)
+      - missing_published_token_rejected | default(false)
+      - concurrent_cleanup_ids == ['concurrent-id']
+      - final_eligible_ids == ['minted-id']
+      - recovered_cas | int == 14
+      - recovered_published_token == opaque_published_token
+      - recovered_source_data.SIBLING_FIELD == 'preserve-me'
+      - recovered_merge.SIBLING_FIELD == 'preserve-me'
+      - recovered_merge.SPLUNK_MCP_TOKEN == opaque_minted_token
+      # The probe must target the MCP endpoint, not a general REST path:
+      # an aud=mcp token answers 401 everywhere else, and reading that as
+      # death is what caused a remint on every converge.
+      - probe_request['ansible.builtin.uri'].url is search('/services/mcp')
+      - probe_request['ansible.builtin.uri'].url is not search('current-context')
+      - probe_request['ansible.builtin.uri'].method == 'POST'
+      # Revocation must name the id in the query string. Splunk answers 200
+      # for a request that names no real id and deletes nothing.
+      - token_cleanup_task['ansible.builtin.uri'].url is search('id=')
+      - token_revoke_task['ansible.builtin.uri'].url is search('id=')
+      - token_cleanup_task['ansible.builtin.uri'].body is not defined
+      - token_revoke_task['ansible.builtin.uri'].body is not defined
+      - token_undelete_task['ansible.builtin.uri'].url is search('/undelete/')
+      - token_publish_task['ansible.builtin.uri'].body.data is search('splunk_docker_bao_source_data')
+      - token_current_secret_task.delegate_to == 'localhost'
+      - token_current_secret_task['ansible.builtin.uri'].validate_certs | bool
+      - token_metadata_task.delegate_to == 'localhost'
+      - token_metadata_task['ansible.builtin.uri'].validate_certs | bool
+      - token_undelete_task.delegate_to == 'localhost'
+      - token_undelete_task['ansible.builtin.uri'].validate_certs | bool
+      - token_recovered_read_task.delegate_to == 'localhost'
+      - token_recovered_read_task['ansible.builtin.uri'].validate_certs | bool
+      - token_publish_task.delegate_to == 'localhost'
+      - token_publish_task['ansible.builtin.uri'].validate_certs | bool
+      - token_list_task.delegate_to is not defined
+      - token_mint_task.delegate_to is not defined
+      - token_post_mint_list_task.delegate_to is not defined
+      - token_cleanup_task.delegate_to is not defined
+      - token_post_publish_list_task.delegate_to is not defined
+      - token_revoke_task.delegate_to is not defined
+      - token_final_list_task.delegate_to is not defined
+      - token_cleanup_task.when is search('splunk_docker_new_token_id')
+      - token_revoke_task.loop is search('splunk_docker_noncanonical_eligible_tokens')
+      - token_final_assert_task['ansible.builtin.assert'].that | length == 2
+      - token_workflow_names.index(token_metadata_name) < token_workflow_names.index(token_undelete_name)
+      - token_workflow_names.index(token_undelete_name) < token_workflow_names.index(token_recovered_read_name)
+      - token_workflow_names.index(token_recovered_read_name) < token_workflow_names.index(token_state_name)
+      - token_workflow_names.index(token_state_name) < token_workflow_names.index(token_probe_name)
+      - token_workflow_names.index(token_probe_name) < token_workflow_names.index(token_evaluate_name)
+      - token_workflow_names.index(token_evaluate_name) < token_workflow_names.index(token_delivery_name)
+      - token_workflow_names.index(token_delivery_name) < token_workflow_names.index(mint_publish_name)
+      - token_workflow_names.index(mint_publish_name) < token_workflow_names.index(token_post_publish_list_name)
+      - token_workflow_names.index(token_post_publish_list_name) < token_workflow_names.index(token_post_publish_plan_name)
+      - token_workflow_names.index(token_post_publish_plan_name) < token_workflow_names.index(token_cleanup_plan_name)
+      - token_workflow_names.index(token_cleanup_plan_name) < token_workflow_names.index(token_revoke_name)
+      - token_workflow_names.index(token_revoke_name) < token_workflow_names.index(token_final_list_name)
+      - token_workflow_names.index(token_final_list_name) < token_workflow_names.index(token_final_plan_name)
+      - token_workflow_names.index(token_final_plan_name) < token_workflow_names.index(token_final_assert_name)
+      # The listing must be refreshed BEFORE identity is derived from it.
+      - mint_publish_names.index(token_mint_name) < mint_publish_names.index(token_post_mint_list_name)
+      - mint_publish_names.index(token_post_mint_list_name) < mint_publish_names.index(minted_record_name)
+      - mint_publish_names.index(minted_record_name) < mint_publish_names.index(minted_probe_name)
+      - mint_publish_names.index(minted_probe_name) < mint_publish_names.index(minted_verify_name)
+      - mint_publish_names.index(minted_verify_name) < mint_publish_names.index(token_publish_name)
+      - mint_publish_rescue_names.index(token_cleanup_name) < mint_publish_rescue_names.index(token_failure_name)
+    fail_msg: Splunk MCP OpenBao publication contract is invalid

@@ -40,13 +40,13 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
+from _defaults_loader import load_defaults
 
 from _render_env import ansible_env
 
 ROOT = Path(__file__).parent.parent.parent
 TEMPLATES = ROOT / "roles/splunk_docker/templates"
-DEFAULTS = yaml.safe_load((ROOT / "roles/splunk_docker/defaults/main.yml").read_text())
+DEFAULTS = load_defaults(ROOT)
 
 # Directives whose values are executable and must never absorb a comment.
 # `description` is excluded deliberately: it is free prose and a '#' in it is

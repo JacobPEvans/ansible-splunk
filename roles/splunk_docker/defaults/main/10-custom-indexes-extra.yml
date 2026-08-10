@@ -1,0 +1,160 @@
+---
+# Second half of the custom-indexes list — see 09-custom-indexes-core.yml for
+# why this is split into two default-precedence variables instead of one, and
+# for the splunk_docker_indexes combine below.
+splunk_docker_indexes_extra:
+  # llm_metrics: LLM-stack metric series (Mac Studio + serving guests via the
+  # llm-family Cribl output) — high-volume, 90-day retention matching
+  # netmon_metrics. Splunkmetric -> metric index (mstats), NOT events.
+  - name: llm_metrics
+    datatype: metric
+    max_size_mb: 25600
+    frozen_time_secs: 7776000
+  - name: mac_perf
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # netflow: high-volume UniFi IPFIX flow records (split from network) — 90-day
+  # retention + 50 GB cap per terraform-proxmox docs/SPLUNK_INDEXES.md, not the default.
+  - name: netflow
+    max_size_mb: 51200
+    frozen_time_secs: 7776000
+  # netmon_metrics: high-volume per-WAN probe telemetry (Telegraf via Cribl) — 90-day
+  # retention per terraform-proxmox docs/NETWORK_DIAGNOSIS.md, not the 365-day default.
+  # Telegraf ships splunkmetric -> metric index (queryable via mstats), NOT events.
+  # Metric indexes carry the _metrics suffix by convention.
+  - name: netmon_metrics
+    datatype: metric
+    max_size_mb: 25600
+    frozen_time_secs: 7776000
+  # network: SUPERSEDED by `netflow` (above) — do not send new data here, and do
+  # not delete it. It holds 89 real IPFIX events (sourcetype=ipfix) from a single
+  # ~11h window on 2026-06-11/12 and nothing since: it WAS the live IPFIX
+  # destination until the per-index HEC split moved the pipeline to index=netflow.
+  # Left fully enabled ON PURPOSE. `disabled = 1` in indexes.conf makes existing
+  # data unsearchable, so disabling this would destroy access to those 89 events —
+  # the opposite of retiring it safely. Nothing writes here (no HEC token grants
+  # it), so leaving it enabled costs nothing and keeps the history queryable.
+  # It fired a permanent critical INGEST SILENCE in the Hermes digest; the fix is
+  # to stop watching it (ansible-proxmox-ai #191), not to disable the index. Name
+  # reconciliation across docs, the pipeline validator and the Docker Cribl
+  # templates is ansible-proxmox-apps #1270.
+  #
+  # Counting caveat: enumerate indexes with `| eventcount summarize=false index=*`,
+  # NOT `| tstats ... by index`. tstats only lists indexes with data in the search
+  # window, so a 30-day tstats hides every dormant index — it showed neither these
+  # 89 events nor 13 other valid indexes (28 exist here). A guard built on the
+  # tstats list would reject valid indexes and fail closed.
+  - name: network
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  - name: openai
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # openbao_audit: OpenBao audit-device logs. Security/audit trail — keep the
+  # full 365-day default retention for incident lookback.
+  - name: openbao_audit
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # otel_traces: every OTLP trace span, via Cribl Stream in_otel -> otel_stamp.
+  # Events, not metrics. This is the SOLE trace index. A second `otel` index
+  # once existed to hold LLM-fabric spans apart from agent-tooling spans, but
+  # otel_stamp stamps `index || 'otel_traces'` and no producer anywhere targets
+  # bare `otel`, so the split was never implemented and that index measured 0
+  # events by `| eventcount summarize=false` on 2026-08-06 while this one held
+  # 4123. Isolating span classes is a field-level concern (service.name /
+  # source), not a reason for a second index with its own retention, roster
+  # entry, and permanently-firing silence detector.
+  - name: otel_traces
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # os: host syslog. Historically a catch-all — measured 2026-07-26 it held
+  # 39.3M events over 13 months from 30+ unrelated hosts, 96.9% of it a single
+  # `syslog` sourcetype. os_proxmox and os_ai below carve out the two domains
+  # that account for most of that volume; what remains here is the long tail,
+  # and it should be driven toward zero rather than treated as a home.
+  - name: os
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # os_proxmox: hypervisor syslog (pve*). 38.3% of the os catch-all's daily
+  # volume when measured, the single largest slice, and the one most likely to
+  # be wanted in isolation during a storage or cluster incident.
+  #
+  # Routing happens at the source, in the Cribl Edge syslog pipeline, keyed on
+  # host. Nothing here re-routes anything: a Splunk-side index override would
+  # split the data after the fact and leave the actual routing wrong.
+  - name: os_proxmox
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # os_ai: AI/agent stack syslog (llm-router-*, open-webui, hermes-agent,
+  # agentgateway, agent-exec, llm-light). 35.2% of the catch-all when measured.
+  # Ingest here grows fastest of any os slice, so expect this one to need its
+  # own retention sooner than the others.
+  - name: os_ai
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # os_metrics: per-host OS metric series (CPU/memory/disk/network, incl.
+  # per-process) shipped via Cribl Edge — the metric-datatype sibling of the os
+  # event index. High-volume, 90-day retention matching the other _metrics
+  # indexes. Splunkmetric -> metric index (queryable via mstats), NOT events.
+  - name: os_metrics
+    datatype: metric
+    max_size_mb: 25600
+    frozen_time_secs: 7776000
+  # proxy: forward-proxy access logs shipped via Cribl.
+  - name: proxy
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # qdrant: one index per AI Docker service/vendor — see the agentgateway
+  # entry above for why this is not a shared catch-all. Single-container
+  # vector database. Pre-deployment estimate (nothing has shipped yet;
+  # re-measure and adjust after 30 days live): ~4 MB/day -> ~2.3 GB/year at
+  # the measured ~1.55x on-disk/raw ratio.
+  - name: qdrant
+    max_size_mb: 2500
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # unifi: ~29% of all ingested data. tier: large, same volume split as
+  # `firewall` above.
+  - name: unifi
+    tier: large
+    home_max_size_mb: 15360
+    # Size, not time — see the sizing note on the firewall entry above.
+    # 35,000 was the matching emergency value from the same 200 GB squeeze and
+    # is likewise no longer necessary: 51,200 MB (50 GB) clears the ~49 GB
+    # currently held. home_max_size_mb (15,360) is the hot/warm floor, so the
+    # cold tier takes the remainder.
+    #
+    # A time threshold was tried here first and measured useless: the cold data
+    # sits in buckets that are almost all the same age, so every threshold from
+    # 45d to 120d evicts the same single 1 MB bucket. A bucket's age is its
+    # NEWEST event and buckets span wide time ranges, which made the apparent
+    # 180-day "span" misleading.
+    max_size_mb: 51200
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+    # The Cribl Edge unifi_fw pipeline splits FW/IPS events out of the UniFi
+    # syslog stream and stamps index=firewall on them, but they still arrive
+    # via the unifi HEC token — so that token must also be allowed to write
+    # to the firewall index.
+    extra_hec_indexes: [firewall]
+  # unifi_metrics: UniFi controller telemetry (unpoller -> Telegraf -> Cribl).
+  # High-volume metric series — 90-day retention per terraform-proxmox docs, not
+  # the 365-day default. Distinguished from netmon by the stream=unifi_metrics tag.
+  # Telegraf ships splunkmetric -> metric index (queryable via mstats), NOT events.
+  - name: unifi_metrics
+    datatype: metric
+    max_size_mb: 25600
+    frozen_time_secs: 7776000
+  - name: vscode
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # workstation: generic workstation activity text, shipped via Cribl. Larger
+  # cap than the shared default — free text at volume rolls off a 10 GB cap
+  # within weeks.
+  - name: workstation
+    max_size_mb: 51200
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+
+# The two halves are concatenated back into one list here, so every consumer
+# (roles/splunk_docker/tasks/*, playbooks/validate.yml,
+# roles/splunk_docker/tasks/verify_volume_capacity.yml) keeps reading the
+# single splunk_docker_indexes name it already expects.
+splunk_docker_indexes: "{{ splunk_docker_indexes_core + splunk_docker_indexes_extra }}"

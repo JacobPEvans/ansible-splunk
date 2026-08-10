@@ -1,0 +1,49 @@
+---
+ansible_date_time:
+  epoch: "2000"
+ansible_host: splunk.example.test
+splunk_user:
+  name: hermes
+  roles: [admin]
+# Shape-accurate: two base64 segments, nothing decodable as claims.
+opaque_published_token: "SxN4GfO1z8nHrDw27vxmm33J6dDBrT4DcAkS70GC/Rw==.hqPQrCebYFj7goVTm5yUll2x2Su6/Ag=="
+opaque_minted_token: "Zm9vYmFyYmF6cXV4MDAwMTExMjIyMzMzNDQ0NTU1/Ng==.c2lnbmF0dXJlLWJ5dGVzLWhlcmUtZm9y/Zg=="
+existing_secret:
+  SIBLING_FIELD: preserve-me
+  SPLUNK_MCP_URL: https://old.example.test/services/mcp
+  SPLUNK_MCP_TOKEN: "{{ opaque_published_token }}"
+splunk_docker_token_list:
+  json:
+    entry:
+      - name: live-future-expiry
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: mcp, nbr: 1500, exp: 3000 }
+      - name: live-no-expiry
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 0 }
+      - name: future-not-before
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: mcp, nbr: 2001, exp: 3000 }
+      - name: expired
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: mcp, nbr: 1500, exp: 1999 }
+      - name: disabled
+        content:
+          status: disabled
+          claims: { sub: hermes, aud: mcp, nbr: 1500, exp: 3000 }
+      - name: missing-not-before
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: mcp, exp: 3000 }
+      - name: invalid-not-before
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: mcp, nbr: later, exp: 3000 }
+      - name: different-audience
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: api, nbr: 1500, exp: 3000 }

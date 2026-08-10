@@ -1,0 +1,11 @@
+---
+# Artifact store (object-storage / RustFS)
+# Custom add-ons with artifact_store: true are downloaded from this URL.
+# The splunk-addons bucket has an anonymous read policy on the internal network
+# (no auth needed). IP and port come from tofu inventory — no hardcoded values.
+splunk_docker_artifact_base_url: >-
+  http://{{ tofu_data.containers['s3'].reserved_ip | default(tofu_data.containers['s3'].ip, true) }}:{{
+  tofu_data.constants.service_ports.object_storage_s3 }}/splunk-addons
+# VisiCore TA and App are downloaded from GitHub Releases (latest) automatically.
+# object-storage-sourced add-ons use version-free filenames — current version is
+# tracked via the object tag, and prior versions are retained by bucket versioning.

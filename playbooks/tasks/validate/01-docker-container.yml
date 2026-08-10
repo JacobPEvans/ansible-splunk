@@ -1,0 +1,29 @@
+---
+- name: Check Docker service is running
+  ansible.builtin.service_facts:
+
+- name: Record Docker service status
+  ansible.builtin.set_fact:
+    validation_results: |
+      {% set svc = ansible_facts.services.get('docker.service', {}).get('state') | default('') %}
+      {{ validation_results + [{'check': 'Docker service running', 'passed': svc in ['running', 'started']}] }}
+
+- name: Check Splunk container is running
+  community.docker.docker_container_info:
+    name: splunk
+  register: splunk_container
+  failed_when: false
+
+- name: Record container status
+  ansible.builtin.set_fact:
+    validation_results: |
+      {{ validation_results + [{'check': 'Splunk container running', 'passed': splunk_container.container.State.Running | default(false)}] }}
+
+- name: Check docker-compose.yml exists
+  ansible.builtin.stat:
+    path: "{{ (splunk_docker_config_dir | default(_splunk_docker_defaults.splunk_docker_config_dir)) }}/docker-compose.yml"
+  register: compose_file
+
+- name: Record docker-compose.yml status
+  ansible.builtin.set_fact:
+    validation_results: "{{ validation_results + [{'check': 'docker-compose.yml exists', 'passed': compose_file.stat.exists}] }}"

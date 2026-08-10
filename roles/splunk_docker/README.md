@@ -30,7 +30,7 @@ Splunk role would be missing and the play would fail on an unrelated error.
 
 ## Role Variables
 
-See `defaults/main.yml` for all variables. Key variables:
+See `defaults/main/` for all variables (one topic per file). Key variables:
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
@@ -98,7 +98,8 @@ doppler secrets set SPLUNK_HEC_TOKEN "$(uuidgen)"
 
 ### Adding a New Index + Token
 
-1. Add the index to `splunk_docker_indexes` in `defaults/main.yml`
+1. Add the index to `splunk_docker_indexes_core` or `splunk_docker_indexes_extra`
+   in `defaults/main/09-custom-indexes-core.yml` / `10-custom-indexes-extra.yml`
 2. Run `doppler run -- ansible-playbook playbooks/site.yml` — token is auto-derived
 3. Senders derive the same token locally:
 

@@ -1,0 +1,28 @@
+{% import 'savedsearches/00-macros.j2' as m with context %}
+[macos_edge_silence_detector]
+description = Alerts when the macbook-m4 Cribl Edge -> Cribl Cloud -> Splunk chain has been silent for more than 15 minutes. Catches Mac offline, daemon crash, Cribl Cloud enrollment expiry, Stream pipeline stalls, and HEC ingestion failures with a single signal.
+# tstats returns ZERO rows (not a row with a null last_seen) when nothing in
+# the whole lookback window matches, so a bare eval/where guard never runs
+# during full silence (verified live on llm_router_silence_detector below).
+# appendpipe synthesizes the missing row: stats on the empty result set still
+# emits one row (an ungrouped aggregate always does), giving eval a row to
+# set last_seen = 0 on so the where clause below can fire.
+search = | tstats latest(_time) as last_seen WHERE (index=os OR index=mac_perf) sourcetype=macos:* | appendpipe [ stats count as _rows | where _rows == 0 | eval last_seen = 0 | fields - _rows ] | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 15
+# Lookback must exceed the worst-case silence the alert needs to detect.
+# A short window (e.g. -30m) starves tstats of data once silence exceeds
+# the window, so the alert silently stops firing exactly when it matters
+# most. tstats reads only indexed metadata, so a wide window is cheap.
+dispatch.earliest_time = -24h
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 1
+alert.severity = 3
+alert.suppress = 1
+alert.suppress.period = 60m
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+{{ m.alert_deliver('macOS Cribl Edge chain silent', 'The macbook-m4 Cribl Edge pipeline has not delivered any macos:* sourcetype events to Splunk in the last 15+ minutes. Investigate Cribl Edge daemon, Cribl Cloud enrollment, Cribl Stream pipelines, and Splunk HEC ingestion.') }}

@@ -1,0 +1,72 @@
+---
+# Index retention defaults
+# Was a blanket 102400 MiB (100 GiB) per index, which summed to ~2.4 TiB across
+# 25 indexes against a much smaller disk — a quota that couldn't bound
+# anything. 10240 MiB (10 GiB) is a realistic per-index ceiling for the
+# low/no-volume indexes below; the handful of genuinely high-volume metric
+# indexes get an explicit override.
+# 365 days in seconds: 365 * 24 * 60 * 60 = 31536000 seconds
+splunk_docker_index_default_max_size_mb: 10240
+splunk_docker_index_default_frozen_time_secs: 31536000
+
+# Two Splunk volumes back the tiered indexes below:
+#   hot_warm — fast storage ($SPLUNK_DB). Every "small"-tier index lives here
+#              entirely (home + cold); "large"-tier indexes keep only their
+#              hot homePath here.
+#   cold     — larger/slower storage (splunk_docker_cold_dir). Only
+#              "large"-tier indexes roll their coldPath out here.
+# A cap MUST be sized against the filesystem that holds it, never against the
+# sum of the per-index quotas. A cap larger than its own filesystem enforces
+# nothing: the disk fills before the cap binds. That is precisely the defect
+# this tiering work exists to remove, so verify_volume_capacity.yml checks the
+# relationship at converge time and refuses a cap that cannot bind.
+#
+# UNSET BY DEFAULT, and that is the deliberate choice. Setting a cap is an
+# irreversible act on a volume already holding data: the moment it binds, Splunk
+# evicts the oldest buckets to get under it. Where that data goes depends
+# entirely on whether the frozen archive below is enabled — archived, or gone.
+#
+# So the cap is opt-in per environment, sized against the real filesystem, and
+# only after the archive is on. An unset cap leaves the volume uncapped, which
+# is exactly the behaviour that existed before volumes were introduced: it
+# enforces nothing, but it claims nothing either.
+#
+# Ordering that avoids data loss:
+#   1. enable splunk_docker_frozen_archive_enabled and confirm buckets archive
+#   2. attach the intended storage
+#   3. set these caps to fit that storage, and let the preflight verify it
+splunk_docker_volume_hot_warm_max_mb: ""
+splunk_docker_volume_cold_max_mb: ""
+
+# Opt-in hard-fail when the SUM of every index's own max_size_mb already
+# exceeds the volume cap holding them (verify_volume_capacity.yml). Splunk
+# enforces each index's quota independently, so nothing else stops the sum
+# from overcommitting the shared pool — that overcommit already exists in
+# this file today (the indexes below sum to well over the hot_warm cap) and
+# is normal Splunk practice within reason. Default false (warn only): a
+# pre-existing condition should not block every converge, which is exactly
+# the kind of guard people then disable. Flip to true only after sizing every
+# index deliberately against real measured usage.
+splunk_docker_index_overcommit_strict: false
+
+# Runtime headroom alarm on the filesystem holding splunk_docker_var_dir.
+#
+# WHY THIS IS SEPARATE FROM verify_volume_capacity.yml: that check is a
+# PREFLIGHT. It refuses to deploy a cap that could never bind. It says nothing
+# about what the disk is doing days later, and the caps above are unset by
+# default anyway — so on a real host today, nothing at all watches free space.
+#
+# Splunk's own guard is minFreeSpace, and it is a HALT, not a warning: when
+# free space crosses it, indexing and search stop. The first signal an operator
+# gets is the outage. These thresholds exist to fire well above that line,
+# while there is still time to archive, resize, or retune.
+#
+# Literal MB, not expressions over splunk_docker_min_free_space_mb. validate.yml
+# loads these defaults into a NAMESPACE (_splunk_docker_defaults) to survive the
+# vars_files precedence trap, and a Jinja default that referenced a sibling
+# default would resolve against the play scope, where that sibling does not
+# exist. Keep the arithmetic in the comment, the value on the key.
+#   warn = 6x minFreeSpace, fail = 3x minFreeSpace
+splunk_docker_min_free_space_mb: 5000
+splunk_docker_disk_headroom_warn_mb: 30000
+splunk_docker_disk_headroom_fail_mb: 15000

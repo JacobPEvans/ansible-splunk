@@ -10,12 +10,14 @@
   hosts: splunk
   become: true
   gather_facts: false
-  vars_files:
-    # Pull splunk_docker_config_dir so this matches the role handler exactly
-    # (handlers/main.yml: community.docker.docker_compose_v2 with project_src).
-    - ../roles/splunk_docker/defaults/main.yml
 
   tasks:
+    # Pull splunk_docker_config_dir so this matches the role handler exactly
+    # (handlers/main.yml: community.docker.docker_compose_v2 with project_src).
+    - name: Load splunk_docker role defaults
+      ansible.builtin.include_vars:
+        dir: ../roles/splunk_docker/defaults/main
+
     - name: Restart Splunk via docker-compose
       community.docker.docker_compose_v2:
         project_src: "{{ splunk_docker_config_dir }}"

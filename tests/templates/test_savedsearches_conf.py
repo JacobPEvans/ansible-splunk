@@ -22,7 +22,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent.parent
-TEMPLATE = ROOT / "roles/splunk_docker/templates/savedsearches.conf.j2"
+# [hardware_smart_failure] lives in the hardware-detectors fragment (see
+# roles/splunk_docker/templates/savedsearches.conf.j2, which just includes it)
+# since savedsearches.conf.j2 was split one-file-per-detector-group.
+TEMPLATE = ROOT / "roles/splunk_docker/templates/savedsearches/09-hardware-detectors.j2"
 
 # Phrase -> what its absence would stop detecting.
 REQUIRED_PHRASES = {

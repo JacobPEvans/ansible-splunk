@@ -1,0 +1,59 @@
+---
+# --- Managed service users + auth tokens -----------------------------------
+# Create dedicated Splunk users (beyond the built-in admin) and mint each an
+# authorization token, so AI agents / MCP clients get their own scoped REST +
+# search identity instead of sharing the admin password. Off by default; the
+# splunk inventory group enables it and supplies the user list.
+splunk_docker_manage_users: false
+
+# List of managed users. Each: { name, roles: [..] }.
+#   name  - Splunk username (also the token owner / audience owner).
+#   roles - Splunk roles granted (e.g. [admin], [user], [power]).
+# The user's password is randomly generated once at creation and never rotated
+# here — the minted token is the credential that clients actually use.
+splunk_docker_users: []
+
+# Token audience tag used to inventory enabled tokens whose not-before and
+# expiry windows include the current time. Audience is DICTATED by the MCP app
+# (its auth only accepts mcp), not a free-form label.
+splunk_docker_token_audience: "mcp"
+
+# Relative expiry for minted tokens (Splunk relative-time syntax, e.g. +90d).
+# Empty string omits expires_on so Splunk applies its default token lifetime.
+splunk_docker_token_expires_on: "+90d"
+
+# When true, publish the shared MCP connection to OpenBao. Requires a
+# write-capable OpenBao AppRole in the converge environment (see the
+# *_openbao_* vars below), including KV-v2 data read/write, metadata read, and
+# undelete access for the exact secret path. Inert by default: the user is
+# created, but a token is minted only when it can be written to the canonical
+# shared secret.
+splunk_docker_token_publish_openbao: false
+# Explicit one-run rotation control. When true, mint and CAS-publish exactly one
+# replacement, then re-enumerate and revoke every other eligible user/audience
+# token. Keep false for normal converges, which still repair a missing or
+# invalid published token.
+splunk_docker_token_force_rotate: false
+splunk_docker_token_openbao_addr: "{{ lookup('env', 'BAO_ADDR') | default('', true) }}"
+splunk_docker_token_openbao_token: "{{ lookup('env', 'BAO_TOKEN') | default('', true) }}"
+splunk_docker_token_openbao_mount: "secret"
+splunk_docker_token_openbao_path: "ai/mcp/splunk"
+splunk_docker_url_openbao_key: "SPLUNK_MCP_URL"
+splunk_docker_token_openbao_key: "SPLUNK_MCP_TOKEN"
+splunk_docker_mcp_host: >-
+  {{ (hostname ~ '.' ~ tofu_data.domain)
+     if (hostname is defined and tofu_data is defined and tofu_data.domain is defined)
+     else ansible_host }}
+# Published URL = the Traefik-fronted `splunk-mgmt` ingress (a first-class
+# tofu ingress entry), NOT the raw https://<host>:<mgmt_port> endpoint. The
+# raw mgmt port serves Splunk's self-signed cert, which MCP clients rightly
+# refuse — the Hermes gateway parked its splunk MCP server on exactly this
+# ("failed initial connection ... parking") while the token itself was valid,
+# leaving the SIEM blind for cron monitoring (2026-07-18, Zammad incident).
+# Traefik terminates real TLS on the ingress name; publishing that URL makes
+# every consumer verify-clean by default. Fall back to the raw mgmt URL only
+# when tofu_data (and thus the ingress name derivation) is unavailable.
+splunk_docker_mcp_url: >-
+  {{ ('https://splunk-mgmt.' ~ tofu_data.domain ~ '/services/mcp')
+     if (tofu_data is defined and tofu_data.domain is defined)
+     else 'https://' ~ splunk_docker_mcp_host ~ ':' ~ splunk_docker_mgmt_port ~ '/services/mcp' }}

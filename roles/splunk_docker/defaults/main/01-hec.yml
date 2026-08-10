@@ -1,0 +1,16 @@
+---
+# HEC token values — dict of { index_name: token_uuid }.
+# When HEC_NAMESPACE is set, a dedicated per-index token is derived for each
+# index; the 'legacy' shared token always stays = SPLUNK_HEC_TOKEN so it never
+# rotates while senders migrate to their per-index tokens (then it is retired).
+splunk_docker_hec_token_values: {}
+
+# HEC namespace UUID for per-index token derivation (from Doppler HEC_NAMESPACE).
+# Token = 'splunk-hec-<index>' | to_uuid(namespace)  (Ansible core to_uuid =
+# uuid5). Any sender with the same namespace derives the identical token, so no
+# per-index secret is ever stored or shared — only this namespace UUID is.
+splunk_docker_hec_namespace: ""
+# NOTE: HEC uses HTTPS by default (the Splunk Docker image enables SSL).
+# Clients (Cribl Edge, Cribl Stream) must send to https://<host>:<hec_port>.
+# The inputs.conf template does not set enableSSL, so the image default
+# (SSL enabled) applies. Do not change this without updating all HEC senders.

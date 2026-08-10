@@ -12,10 +12,12 @@
   hosts: splunk
   become: true
   gather_facts: true
-  vars_files:
-    - ../roles/splunk_docker/defaults/main.yml
 
   tasks:
+    - name: Load splunk_docker role defaults
+      ansible.builtin.include_vars:
+        dir: ../roles/splunk_docker/defaults/main
+
     - name: Report usable capacity before tuning
       ansible.builtin.debug:
         msg: >-

@@ -65,7 +65,7 @@
     # preserving any group_vars overrides before the role executes.
     - name: Load splunk_docker role defaults (namespaced, pre-role fallback)
       ansible.builtin.include_vars:
-        file: ../roles/splunk_docker/defaults/main.yml
+        dir: ../roles/splunk_docker/defaults/main
         name: _splunk_docker_defaults
 
     - name: Validate required environment variables

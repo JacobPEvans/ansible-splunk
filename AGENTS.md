@@ -96,7 +96,7 @@ documented once at
 
 | What | Where |
 | --- | --- |
-| Index definitions | `roles/splunk_docker/defaults/main.yml` |
+| Index definitions | `roles/splunk_docker/defaults/main/` |
 | Add-on registry | `roles/splunk_docker/vars/addons.yml` |
 | MCP Server configuration | `roles/splunk_docker/vars/mcp.yml` |
 | Inventory | `inventory/load_tofu.yml` |

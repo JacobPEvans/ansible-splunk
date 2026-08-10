@@ -1,0 +1,42 @@
+---
+- name: Load splunk_docker role defaults (namespaced, pre-role fallback)
+  ansible.builtin.include_vars:
+    dir: ../roles/splunk_docker/defaults/main
+    name: _splunk_docker_defaults
+
+- name: Set fallback global defaults for nested templates
+  ansible.builtin.set_fact:
+    splunk_docker_data_dir: "{{ splunk_docker_data_dir | default(_splunk_docker_defaults.splunk_docker_data_dir) }}"
+    splunk_docker_index_default_max_size_mb: >-
+      {{ splunk_docker_index_default_max_size_mb | default(_splunk_docker_defaults.splunk_docker_index_default_max_size_mb) }}
+    splunk_docker_index_default_frozen_time_secs: >-
+      {{ splunk_docker_index_default_frozen_time_secs | default(_splunk_docker_defaults.splunk_docker_index_default_frozen_time_secs) }}
+
+- name: Set derived fallback global defaults
+  ansible.builtin.set_fact:
+    splunk_docker_etc_dir: "{{ splunk_docker_etc_dir | default(_splunk_docker_defaults.splunk_docker_etc_dir) }}"
+
+- name: Set HEC namespace from environment
+  ansible.builtin.set_fact:
+    splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') | default('', true) }}"
+  no_log: true
+
+- name: Derive per-index HEC token values from namespace
+  vars:
+    index_names: "{{ (splunk_docker_indexes | default(_splunk_docker_defaults.splunk_docker_indexes)) | map(attribute='name') | list }}"
+  ansible.builtin.set_fact:
+    splunk_docker_hec_token_values: >-
+      {{
+        dict(index_names | zip(
+          index_names | map('regex_replace', '^', 'splunk-hec-') | map('to_uuid', splunk_docker_hec_namespace)
+        )) | combine({'legacy': lookup('env', 'SPLUNK_HEC_TOKEN') | default('', true)})
+      }}
+  when: splunk_docker_hec_namespace | length > 0
+  no_log: true
+
+- name: Fallback to SPLUNK_HEC_TOKEN if no namespace
+  ansible.builtin.set_fact:
+    splunk_docker_hec_token_values: >-
+      {{ {'legacy': lookup('env', 'SPLUNK_HEC_TOKEN') | default('', true)} }}
+  when: splunk_docker_hec_namespace | length == 0
+  no_log: true

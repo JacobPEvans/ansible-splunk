@@ -1,0 +1,13 @@
+---
+# Splunk Web SSL (enableSplunkWebSSL)
+splunk_docker_web_ssl: true
+
+# Health check control
+# Set to false in CI (Molecule) where 127.0.0.1:8000 is unreachable from inside the test container.
+splunk_docker_wait_enabled: true
+
+# Internet access control
+# Disabled by default for air-gapped/network-isolated VMs.
+# When false, disables Splunkbase app browsing, update checks, and telemetry
+# which otherwise cause ~80-second DNS timeout delays on every page load.
+splunk_docker_allow_internet_access: false

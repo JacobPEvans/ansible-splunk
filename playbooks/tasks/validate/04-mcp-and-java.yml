@@ -1,0 +1,81 @@
+---
+- name: Validate MCP Server REST API
+  when:
+    - splunk_docker_mcp_app_exists
+    - lookup('env', 'SPLUNK_PASSWORD') | length > 0
+  vars:
+    mcp_app_dir: >-
+      {{ (splunk_docker_addons
+          | selectattr('role', 'defined')
+          | selectattr('role', 'equalto', 'mcp_server')
+          | list | first).app_dir }}
+  block:
+    - name: Check MCP Server REST API responds
+      ansible.builtin.uri:
+        url: >-
+          https://localhost:{{ (splunk_docker_mgmt_port | default(_splunk_docker_defaults.splunk_docker_mgmt_port)) }}/services/apps/local/{{ mcp_app_dir }}
+        method: GET
+        user: admin
+        password: "{{ lookup('env', 'SPLUNK_PASSWORD') }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: 200
+      register: splunk_docker_mcp_api_check
+      failed_when: false
+      no_log: true
+
+    - name: Record MCP Server API status
+      ansible.builtin.set_fact:
+        validation_results: >-
+          {{ validation_results + [{'check': 'MCP Server REST API responds', 'passed': (splunk_docker_mcp_api_check.status | default(0)) == 200}] }}
+
+
+- name: Check Java is accessible in Splunk container
+  community.docker.docker_container_exec:
+    container: splunk
+    command: "{{ (splunk_docker_java_container_home | default(_splunk_docker_defaults.splunk_docker_java_container_home)) }}/bin/java -version"
+  register: java_check
+  failed_when: false
+  when: (splunk_docker_java_enabled | default(_splunk_docker_defaults.splunk_docker_java_enabled))
+
+- name: Record Java availability status
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': 'Java accessible in container', 'passed': (java_check.rc | default(1)) == 0}] }}
+  when: (splunk_docker_java_enabled | default(_splunk_docker_defaults.splunk_docker_java_enabled))
+
+- name: Check DB Connect JAVA_HOME configured in container
+  community.docker.docker_container_exec:
+    container: splunk
+    user: root
+    command: >-
+      grep -q "javaHome = {{ (splunk_docker_java_container_home | default(_splunk_docker_defaults.splunk_docker_java_container_home)) }}"
+      /opt/splunk/etc/apps/splunk_app_db_connect/local/dbx_settings.conf
+  register: splunk_docker_dbconnect_check
+  failed_when: false
+  when: (splunk_docker_java_enabled | default(_splunk_docker_defaults.splunk_docker_java_enabled))
+
+- name: Record DB Connect JAVA_HOME status
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': 'DB Connect JAVA_HOME configured', 'passed': (splunk_docker_dbconnect_check.rc | default(1)) == 0}] }}
+  when: (splunk_docker_java_enabled | default(_splunk_docker_defaults.splunk_docker_java_enabled))
+
+- name: Check MS SQL JDBC driver is present
+  ansible.builtin.stat:
+    path: >-
+      {{ (splunk_docker_etc_dir | default(_splunk_docker_defaults.splunk_docker_etc_dir))
+      }}/apps/splunk_app_db_connect/drivers/mssql-jdbc-{{
+      (splunk_docker_mssql_driver_version | default(_splunk_docker_defaults.splunk_docker_mssql_driver_version)) }}.jar
+  register: splunk_docker_mssql_driver_check
+  when:
+    - (splunk_docker_java_enabled | default(_splunk_docker_defaults.splunk_docker_java_enabled))
+    - (splunk_docker_mssql_driver_enabled | default(_splunk_docker_defaults.splunk_docker_mssql_driver_enabled)) | default(false)
+
+- name: Record MS SQL driver status
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{'check': 'MS SQL JDBC driver installed', 'passed': splunk_docker_mssql_driver_check.stat.exists}] }}
+  when:
+    - (splunk_docker_java_enabled | default(_splunk_docker_defaults.splunk_docker_java_enabled))
+    - (splunk_docker_mssql_driver_enabled | default(_splunk_docker_defaults.splunk_docker_mssql_driver_enabled)) | default(false)
