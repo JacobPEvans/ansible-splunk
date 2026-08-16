@@ -53,7 +53,7 @@
     validate_certs: false
     method: POST
     headers:
-      Authorization: "Splunk {{ splunk_docker_hec_token_values[item.name] | default('') }}"
+      Authorization: "Splunk {{ splunk_docker_hec_token_values.get(item.name, '') }}"
     body_format: json
     body:
       event: "ansible-validation-test-{{ item.name }}"
