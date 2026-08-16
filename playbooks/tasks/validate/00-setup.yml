@@ -23,7 +23,9 @@
 
 - name: Derive per-index HEC token values from namespace
   vars:
-    index_names: "{{ (splunk_docker_indexes | default((_splunk_docker_defaults.splunk_docker_indexes_core + _splunk_docker_defaults.splunk_docker_indexes_extra))) | map(attribute='name') | list }}"
+    index_names: >-
+      {{ (splunk_docker_indexes | default((_splunk_docker_defaults.splunk_docker_indexes_core +
+         _splunk_docker_defaults.splunk_docker_indexes_extra))) | map(attribute='name') | list }}
   ansible.builtin.set_fact:
     splunk_docker_hec_token_values: >-
       {{
