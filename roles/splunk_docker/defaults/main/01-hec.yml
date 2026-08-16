@@ -14,3 +14,14 @@ splunk_docker_hec_namespace: ""
 # Clients (Cribl Edge, Cribl Stream) must send to https://<host>:<hec_port>.
 # The inputs.conf template does not set enableSSL, so the image default
 # (SSL enabled) applies. Do not change this without updating all HEC senders.
+
+# limits.conf [http_input] max_mem_usage_mb — the in-memory buffer HEC holds
+# before every further POST gets HTTP 503 "Server is busy", shared across ALL
+# HEC tokens (not per-token). Splunk's factory default is 200 MB, which this
+# deployment was silently running on (nothing had ever templated limits.conf).
+# 200 MB is undersized for this estate's aggregate HEC throughput — the
+# firewall index alone sustains ~135 MB/hr — and was confirmed as the cause of
+# a sustained multi-day 503 storm on the lowest-volume, highest-request-rate
+# token (vscode: small, frequent POSTs are the first to lose the race for
+# buffer space when a high-volume sender is mid-burst).
+splunk_docker_hec_max_mem_usage_mb: 800
