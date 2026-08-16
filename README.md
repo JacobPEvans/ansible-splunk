@@ -150,7 +150,7 @@ All secrets via your Doppler config:
 | Doppler Secret | Ansible Variable | Purpose |
 | --- | --- | --- |
 | `SPLUNK_PASSWORD` | `splunk_docker_password` | Splunk admin password |
-| `HEC_NAMESPACE` | `splunk_docker_hec_namespace` | UUID namespace for per-index HEC token derivation (optional) |
+| `HEC_NAMESPACE` | `splunk_docker_hec_namespace` | UUID namespace for per-index HEC token derivation (required) |
 | `SPLUNK_HEC_TOKEN` | `splunk_docker_hec_token_values.legacy` | Shared legacy HEC token (always required) |
 | `SPLUNK_MCP_TOKEN` | — | MCP Server Bearer token (client-side). Minted per managed user by the role — see [Managed service users](#managed-service-users) |
 | `PROXMOX_SSH_KEY_PATH` | — | SSH key for VM access |

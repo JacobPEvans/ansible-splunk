@@ -42,12 +42,18 @@
       {{ validation_results + [{'check': mgmt_check, 'passed': mgmt_port.failed is false}] }}
 
 - name: Test HEC endpoint per index token
+  # No `when: ... is defined` guard: a missing per-index token (e.g.
+  # HEC_NAMESPACE absent from the run) must show up as a failed check below,
+  # not silently vanish from validation_results. default('') sends a POST
+  # with an empty/invalid Authorization header, which the mgmt API rejects
+  # with a non-200 — the "Record HEC POST test results" task below turns
+  # that into an explicit passed:false row.
   ansible.builtin.uri:
     url: "https://localhost:{{ (splunk_docker_hec_port | default(_splunk_docker_defaults.splunk_docker_hec_port)) }}/services/collector/event"
     validate_certs: false
     method: POST
     headers:
-      Authorization: "Splunk {{ splunk_docker_hec_token_values[item.name] }}"
+      Authorization: "Splunk {{ splunk_docker_hec_token_values[item.name] | default('') }}"
     body_format: json
     body:
       event: "ansible-validation-test-{{ item.name }}"
@@ -59,7 +65,6 @@
   loop: "{{ (splunk_docker_indexes | default(_splunk_docker_defaults.splunk_docker_indexes)) }}"
   loop_control:
     label: "{{ item.name }}"
-  when: splunk_docker_hec_token_values[item.name] is defined
   no_log: true
 
 - name: Record HEC POST test results
@@ -70,7 +75,7 @@
   loop: "{{ splunk_docker_hec_test.results | default([]) }}"
   loop_control:
     label: "{{ item.item.name }}"
-  when: splunk_docker_hec_test is defined and (item.skipped is not defined or not item.skipped)
+  when: splunk_docker_hec_test is defined
 
 - name: Test HEC endpoint with legacy token
   ansible.builtin.uri:
