@@ -60,64 +60,88 @@
 
 
   tasks:
-    # Precedence trap: play-level vars_files (#14) clobbers inventory group_vars (#6).
-    # Load defaults into a namespace here so pre-role tasks can fall back safely,
-    # preserving any group_vars overrides before the role executes.
-    - name: Load splunk_docker role defaults (namespaced, pre-role fallback)
-      ansible.builtin.include_vars:
-        dir: ../roles/splunk_docker/defaults/main
-        name: _splunk_docker_defaults
+    # Wrapped in block/always so the HEC completeness check at the bottom
+    # fires no matter where in this sequence a task fails — a converge that
+    # fails partway (or that silently "succeeds" after rendering an
+    # incomplete inputs.conf) is exactly the condition that let 20 of 36
+    # indexes run with no HEC listener for 9 days, undetected.
+    - name: Deploy Splunk, then verify every configured index actually has a live HEC listener
+      block:
+        # Precedence trap: play-level vars_files (#14) clobbers inventory group_vars (#6).
+        # Load defaults into a namespace here so pre-role tasks can fall back safely,
+        # preserving any group_vars overrides before the role executes.
+        #
+        # `_splunk_docker_defaults.splunk_docker_indexes` (the combine of
+        # splunk_docker_indexes_core + splunk_docker_indexes_extra, defined in
+        # 10-custom-indexes-extra.yml) is unusable here: normal role-defaults
+        # merging flattens all default files into one namespace before that
+        # combine template is ever evaluated, but include_vars: dir: with name:
+        # loads it lazily, so at access time `splunk_docker_indexes_core` (a bare
+        # name living in a SIBLING file) isn't in scope and the combine dies with
+        # "'splunk_docker_indexes_core' is undefined". Every call site below
+        # reconstructs the same combine directly from the two namespaced halves
+        # instead of trusting the pre-combined field.
+        - name: Load splunk_docker role defaults (namespaced, pre-role fallback)
+          ansible.builtin.include_vars:
+            dir: ../roles/splunk_docker/defaults/main
+            name: _splunk_docker_defaults
 
-    - name: Validate required environment variables
-      ansible.builtin.assert:
-        that:
-          - lookup('env', 'SPLUNK_PASSWORD') | length > 0
-          - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
-          - lookup('env', 'HEC_NAMESPACE') | length > 0
-        fail_msg: >-
-          SPLUNK_PASSWORD, SPLUNK_HEC_TOKEN, and HEC_NAMESPACE must be set
-          (use: doppler run -- ansible-playbook ...). HEC_NAMESPACE is no
-          longer optional: every per-index HEC token is derived from it, so
-          a run without it silently re-templates inputs.conf down to only
-          the legacy token and drops every per-index sender's token —
-          causing a live multi-index ingest outage on the next restart.
-      run_once: true
-      delegate_to: localhost
+        - name: Validate required environment variables
+          ansible.builtin.assert:
+            that:
+              - lookup('env', 'SPLUNK_PASSWORD') | length > 0
+              - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
+              - lookup('env', 'HEC_NAMESPACE') | length > 0
+            fail_msg: >-
+              SPLUNK_PASSWORD, SPLUNK_HEC_TOKEN, and HEC_NAMESPACE must be set
+              (use: doppler run -- ansible-playbook ...). HEC_NAMESPACE is no
+              longer optional: every per-index HEC token is derived from it, so
+              a run without it silently re-templates inputs.conf down to only
+              the legacy token and drops every per-index sender's token —
+              causing a live multi-index ingest outage on the next restart.
+          run_once: true
+          delegate_to: localhost
 
-    - name: Set Splunk credentials from environment
-      ansible.builtin.set_fact:
-        splunk_docker_password: "{{ lookup('env', 'SPLUNK_PASSWORD') }}"
-        splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') }}"
-      no_log: true
+        - name: Set Splunk credentials from environment
+          ansible.builtin.set_fact:
+            splunk_docker_password: "{{ lookup('env', 'SPLUNK_PASSWORD') }}"
+            splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') }}"
+          no_log: true
 
-    - name: Validate HEC_NAMESPACE is a valid UUID
-      ansible.builtin.assert:
-        that:
-          - splunk_docker_hec_namespace is match('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
-        fail_msg: >-
-          HEC_NAMESPACE must be a valid UUID (e.g. uuidgen output).
-          Got: {{ splunk_docker_hec_namespace | default('(empty)') }}
+        - name: Validate HEC_NAMESPACE is a valid UUID
+          ansible.builtin.assert:
+            that:
+              - splunk_docker_hec_namespace is match('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+            fail_msg: >-
+              HEC_NAMESPACE must be a valid UUID (e.g. uuidgen output).
+              Got: {{ splunk_docker_hec_namespace | default('(empty)') }}
 
-    # Derive a dedicated per-index HEC token via UUID v5 (Ansible core to_uuid:
-    # uuid5('splunk-hec-<index>', HEC_NAMESPACE)). The legacy token deliberately
-    # stays = SPLUNK_HEC_TOKEN (NOT derived) so rotating it does not disturb
-    # per-index tokens — senders migrate to their per-index token one at a
-    # time, then legacy is retired.
-    - name: Derive per-index HEC token values from namespace
-      vars:
-        index_names: "{{ (splunk_docker_indexes | default(_splunk_docker_defaults.splunk_docker_indexes)) | map(attribute='name') | list }}"
-      ansible.builtin.set_fact:
-        splunk_docker_hec_token_values: >-
-          {{
-            dict(index_names | zip(
-              index_names | map('regex_replace', '^', 'splunk-hec-') | map('to_uuid', splunk_docker_hec_namespace)
-            )) | combine({'legacy': lookup('env', 'SPLUNK_HEC_TOKEN')})
-          }}
-      no_log: true
+        # Derive a dedicated per-index HEC token via UUID v5 (Ansible core to_uuid:
+        # uuid5('splunk-hec-<index>', HEC_NAMESPACE)). The legacy token deliberately
+        # stays = SPLUNK_HEC_TOKEN (NOT derived) so rotating it does not disturb
+        # per-index tokens — senders migrate to their per-index token one at a
+        # time, then legacy is retired.
+        - name: Derive per-index HEC token values from namespace
+          vars:
+            index_names: >-
+              {{ (splunk_docker_indexes | default((_splunk_docker_defaults.splunk_docker_indexes_core +
+                 _splunk_docker_defaults.splunk_docker_indexes_extra))) | map(attribute='name') | list }}
+          ansible.builtin.set_fact:
+            splunk_docker_hec_token_values: >-
+              {{
+                dict(index_names | zip(
+                  index_names | map('regex_replace', '^', 'splunk-hec-') | map('to_uuid', splunk_docker_hec_namespace)
+                )) | combine({'legacy': lookup('env', 'SPLUNK_HEC_TOKEN')})
+              }}
+          no_log: true
 
-    - name: Deploy Splunk Docker
-      ansible.builtin.include_role:
-        name: splunk_docker
+        - name: Deploy Splunk Docker
+          ansible.builtin.include_role:
+            name: splunk_docker
+      always:
+        - name: Verify every configured index has a live, enabled HEC input stanza
+          ansible.builtin.include_tasks: ../roles/splunk_docker/tasks/verify_hec_completeness.yml
+          when: _splunk_docker_defaults is defined
 
   post_tasks:
     - name: Wait for Splunk to be ready after any restarts

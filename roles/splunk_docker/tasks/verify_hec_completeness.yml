@@ -1,0 +1,57 @@
+---
+# Fires from site.yml's `always:` regardless of whether the deploy tasks
+# above succeeded — a converge that fails partway is exactly the condition
+# that let 20 of 36 indexes go without a live HEC listener for 9 days,
+# undetected (root cause: a whole-file inputs.conf template overwrite driven
+# by a narrowed index list, which exits 0). Checked against Splunk's own REST
+# API rather than local derived state, so it still means something even if
+# credential/token derivation earlier in the play never ran.
+- name: Query live HEC input stanzas from Splunk
+  vars:
+    splunk_docker_verify_mgmt_port: "{{ splunk_docker_mgmt_port | default(_splunk_docker_defaults.splunk_docker_mgmt_port) }}"
+  ansible.builtin.uri:
+    url: "https://localhost:{{ splunk_docker_verify_mgmt_port }}/services/data/inputs/http?output_mode=json&count=0"
+    validate_certs: false
+    method: GET
+    user: admin
+    password: "{{ splunk_docker_password | default(lookup('env', 'SPLUNK_PASSWORD')) }}"
+    force_basic_auth: true
+    status_code: 200
+  register: splunk_docker_verify_hec_live_stanzas
+  failed_when: false
+  no_log: true
+
+# Fail fast and specifically if the query itself didn't work, so a Splunk
+# outage or bad credential reads as that, not as "every index is missing."
+- name: Fail if the live HEC stanza query itself failed
+  ansible.builtin.fail:
+    msg: >-
+      Could not query Splunk's HEC input list (status
+      {{ splunk_docker_verify_hec_live_stanzas.status | default('unknown') }}) --
+      cannot verify index completeness. Check that Splunk is up and
+      SPLUNK_PASSWORD is correct.
+  when: (splunk_docker_verify_hec_live_stanzas.status | default(0)) != 200
+
+- name: Compute which configured indexes are missing a live, enabled HEC stanza
+  vars:
+    verify_hec_expected: >-
+      {{ (splunk_docker_indexes | default((_splunk_docker_defaults.splunk_docker_indexes_core +
+         _splunk_docker_defaults.splunk_docker_indexes_extra))) | map(attribute='name') | list }}
+    verify_hec_live: >-
+      {{ (splunk_docker_verify_hec_live_stanzas.json.get('entry', []))
+         | selectattr('content.disabled', 'equalto', false)
+         | map(attribute='name') | map('regex_replace', '^http://', '') | list }}
+  ansible.builtin.set_fact:
+    splunk_docker_verify_hec_missing: "{{ verify_hec_expected | difference(verify_hec_live) }}"
+
+- name: Fail if any configured index lacks a live, enabled HEC stanza
+  ansible.builtin.fail:
+    msg: >-
+      {{ splunk_docker_verify_hec_missing | length }} of
+      {{ (splunk_docker_indexes | default((_splunk_docker_defaults.splunk_docker_indexes_core +
+         _splunk_docker_defaults.splunk_docker_indexes_extra))) | length }}
+      configured indexes have no live, enabled HEC input stanza:
+      {{ splunk_docker_verify_hec_missing | join(', ') }}.
+      A converge reporting success while an index has no HEC listener is
+      exactly the outage this check exists to catch.
+  when: splunk_docker_verify_hec_missing | length > 0

@@ -62,7 +62,7 @@
     status_code: 200
   register: splunk_docker_hec_test
   failed_when: false
-  loop: "{{ (splunk_docker_indexes | default(_splunk_docker_defaults.splunk_docker_indexes)) }}"
+  loop: "{{ (splunk_docker_indexes | default((_splunk_docker_defaults.splunk_docker_indexes_core + _splunk_docker_defaults.splunk_docker_indexes_extra))) }}"
   loop_control:
     label: "{{ item.name }}"
   no_log: true
