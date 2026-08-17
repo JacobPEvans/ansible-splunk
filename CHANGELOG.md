@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.61.3](https://github.com/dryvist/ansible-splunk/compare/v0.61.2...v0.61.3) (2026-08-17)
+
+
+### Bug Fixes
+
+* **splunk_docker:** fail fast on a failed HEC query, avoid unsafe dot access ([a3bb678](https://github.com/dryvist/ansible-splunk/commit/a3bb678bdbd51cbea5ea1c2dd23d31b7c41f365e))
+* **splunk_docker:** repair pre-role index-combine reference, add HEC stanza completeness check ([b3a46b7](https://github.com/dryvist/ansible-splunk/commit/b3a46b7b918aaf76d2d4a0d62f6ff5a9c65c12fe))
+* **splunk_docker:** repair pre-role index-combine reference, add HEC stanza completeness check ([#484](https://github.com/dryvist/ansible-splunk/issues/484)) ([51de9e3](https://github.com/dryvist/ansible-splunk/commit/51de9e3a9874f8ecf76fa82c6d4585d6fb15bbd8))
+* **splunk_docker:** satisfy ansible-lint on the completeness check ([3d452f0](https://github.com/dryvist/ansible-splunk/commit/3d452f0396591d0646716f0386ec181ecef4011b))
+
 ## [0.61.2](https://github.com/dryvist/ansible-splunk/compare/v0.61.1...v0.61.2) (2026-08-16)
 
 
