@@ -19,8 +19,8 @@ vendored `splunk.splunk` role (v2.1.6).
 | `splunk-mgmt-40` | `421140` | proxmox-4 | CM + license master + monitoring console + 3rd SH | `full,clustermanager,licensemaster,dmc,search,splunk_mgmt` |
 
 One indexer + one search head per node across proxmox-1 and proxmox-4; the
-management VM on proxmox-4. pve2 is hands-off; pve3 is unused (a third node is
-not required at this size).
+management VM on proxmox-4. The remaining nodes are hands-off or unused (a
+third node is not required at this size).
 
 ### Why this shape
 

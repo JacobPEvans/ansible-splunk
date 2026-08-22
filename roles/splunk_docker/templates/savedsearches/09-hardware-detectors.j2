@@ -11,7 +11,7 @@
    bad drive/host cannot mute alerts for another.
 --------------------------------------------------------------------------- #}
 [hardware_smart_failure]
-description = Fires on SMART failure signatures in the hardware index: a drive self-check FAILED, an attribute crossed into FAILING_NOW, pending / offline-uncorrectable sectors are present, or the raw value of a sector-health counter moved. These are the predictive signals that precede a disk dropping out of a pool (the pve2 bulk case, 2026-07).
+description = Fires on SMART failure signatures in the hardware index: a drive self-check FAILED, an attribute crossed into FAILING_NOW, pending / offline-uncorrectable sectors are present, or the raw value of a sector-health counter moved. These are the predictive signals that precede a disk dropping out of a pool (the bulk-pool case, 2026-07).
 # The "<name> changed" phrases catch the raw-value tracking emitted for
 # attributes 5 / 197 / 198. They are the counters that actually matter, and
 # their NORMALIZED values sit at the ceiling long after the raw counts start
@@ -38,7 +38,7 @@ quantity = 0
 {{ m.alert_deliver('SMART failure signature on a host disk', 'A drive on the named host reported a SMART failure signal (FAILING_NOW / failed self-check / pending or offline-uncorrectable sectors) into index=hardware. Check smartctl on that host and whether the disk backs a ZFS pool; plan a replacement before it drops out.', priority='high') }}
 
 [hardware_zfs_fault]
-description = Fires when a ZFS vdev enters a non-healthy state (FAULTED / DEGRADED / UNAVAIL / REMOVED) via zed statechange events or the zpool exec pack. A raidz1/mirror losing a member drops to zero/reduced redundancy — the pve2 bulk failure that started this workstream.
+description = Fires when a ZFS vdev enters a non-healthy state (FAULTED / DEGRADED / UNAVAIL / REMOVED) via zed statechange events or the zpool exec pack. A raidz1/mirror losing a member drops to zero/reduced redundancy — the bulk-pool failure that started this workstream.
 search = index=hardware ("vdev_state=FAULTED" OR "vdev_state=DEGRADED" OR "vdev_state=UNAVAIL" OR "vdev_state=REMOVED" OR "state: FAULTED" OR "state: DEGRADED" OR "state: UNAVAIL")
 dispatch.earliest_time = -20m
 dispatch.latest_time = now
