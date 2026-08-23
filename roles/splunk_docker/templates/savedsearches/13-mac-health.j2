@@ -1,13 +1,24 @@
 {# ---------------------------------------------------------------------------
    Mac health detectors (index=mac_perf, plus the existing os/llm indexes).
 
-   Feeds the new macos-wired-memory exec input: {"wired_bytes", "wired_ceiling_mb",
-   "wired_ceiling_bytes", "wired_ratio", "resident_bytes"}. Thresholds derive from
-   observed wired-memory exhaustion on these hosts.
+   Fed by the macos-wired-memory exec input, which publishes sourcetype
+   macos:perf:wired_memory with {"wired_bytes", "wired_ceiling_mb",
+   "wired_ceiling_bytes", "wired_ratio", "resident_bytes"}. Thresholds derive
+   from observed wired-memory exhaustion on these hosts.
+
+   SOURCETYPE NAMES ARE LOAD-BEARING AND WERE WRONG HERE. Four of the six
+   stanzas below shipped asking for sourcetypes that do not exist —
+   `macos-wired-memory` (real: macos:perf:wired_memory) and `macos:unifiedlog`
+   (real: macos:unified_log). A stanza pointed at a non-existent sourcetype
+   returns zero rows on every run forever, which is indistinguishable from
+   "all clear", and it does so while enabled with an alert action attached, so
+   it looks healthier than a detector that occasionally fires. Take a
+   sourcetype from `| tstats count where index=<i> by sourcetype` against the
+   live indexer, never from a design document.
 --------------------------------------------------------------------------- #}
 [mac_wired_ratio_warn]
-description = Warns when a Mac's wired/ceiling ratio (wired_bytes / wired_ceiling_bytes) sustains above 80% for 5 minutes. 80% is chosen to give lead time before the band where exhaustion has been observed, rather than tripping only once already there.
-search = index=mac_perf sourcetype=macos-wired-memory | stats avg(wired_ratio) as avg_ratio by host | where avg_ratio > 0.80
+description = Warns when a Mac's wired/ceiling ratio (wired_bytes / wired_ceiling_bytes) sustains above 80% for 5 minutes. 80% is chosen to give lead time before the band where exhaustion has been observed, rather than tripping only once already there. VERIFIED BOTH DIRECTIONS 2026-08-23 after the sourcetype fix: the base search now reaches 37 real events (it reached 0 before, by construction); replayed with the condition satisfied it returns 1 row, and with a 0.12 ratio it returns 0. Live ratio on this host is ~0.12, so silence today is the correct answer, not a dark detector.
+search = index=mac_perf sourcetype="macos:perf:wired_memory" | stats avg(wired_ratio) as avg_ratio by host | where avg_ratio > 0.80
 dispatch.earliest_time = -5m
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
@@ -24,8 +35,8 @@ relation = greater than
 quantity = 0
 
 [mac_wired_ratio_critical]
-description = Critical: wired/ceiling ratio above 90% sustained for 5 minutes — inside the band where exhaustion has been observed. Same signal as mac_wired_ratio_warn at a higher band so critical pages are distinct from the early warning.
-search = index=mac_perf sourcetype=macos-wired-memory | stats avg(wired_ratio) as avg_ratio by host | where avg_ratio > 0.90
+description = Critical: wired/ceiling ratio above 90% sustained for 5 minutes — inside the band where exhaustion has been observed. Same signal as mac_wired_ratio_warn at a higher band so critical pages are distinct from the early warning. VERIFIED BOTH DIRECTIONS 2026-08-23 after the sourcetype fix: replayed at 0.95 it returns 1 row, at 0.85 it returns 0 — so the band boundary is exercised, not just the happy path.
+search = index=mac_perf sourcetype="macos:perf:wired_memory" | stats avg(wired_ratio) as avg_ratio by host | where avg_ratio > 0.90
 dispatch.earliest_time = -5m
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
@@ -42,8 +53,8 @@ relation = greater than
 quantity = 0
 
 [mac_leaked_wired_memory]
-description = Detects orphaned wired GPU memory: wired_bytes minus resident_bytes minus the measured ~3.4 GiB non-MLX baseline. 20 GiB is chosen to give lead time roughly halfway to the level at which exhaustion has been observed.
-search = index=mac_perf sourcetype=macos-wired-memory | eval leaked_gb = round((wired_bytes - resident_bytes - (3.4*1024*1024*1024)) / 1024 / 1024 / 1024, 1) | where leaked_gb > 20
+description = Detects orphaned wired GPU memory: wired_bytes minus resident_bytes minus the measured ~3.4 GiB non-MLX baseline. 20 GiB is chosen to give lead time roughly halfway to the level at which exhaustion has been observed. VERIFIED BOTH DIRECTIONS 2026-08-23 after the sourcetype fix: replayed with a 38 GiB gap it returns 1 row, with a 2 GiB gap it returns 0.
+search = index=mac_perf sourcetype="macos:perf:wired_memory" | eval leaked_gb = round((wired_bytes - resident_bytes - (3.4*1024*1024*1024)) / 1024 / 1024 / 1024, 1) | where leaked_gb > 20
 dispatch.earliest_time = -10m
 dispatch.latest_time = now
 cron_schedule = */10 * * * *
@@ -77,8 +88,8 @@ relation = greater than
 quantity = 0
 
 [mac_windowserver_watchdog_checkin_gap]
-description = Fires on a "userspace watchdog timeout" line in sourcetype=macos:unifiedlog . NOT PIPELINE-VERIFIED: this sourcetype has delivered zero events in the last 30 days, so this detector stays dark until that input is repaired. The search logic itself was verified against `log show` output on the host directly, not against Splunk-delivered data.
-search = index=os sourcetype=macos:unifiedlog "userspace watchdog timeout"
+description = Fires on a "userspace watchdog timeout" line from either the live unified log or a crash-report artifact. VERIFIED BOTH DIRECTIONS against real data: 6 matches over the trailing 365 days (all from macos:crashreport, the .spin artifacts a stall produces) and 0 over the trailing 15 minutes, so it fires on the real signal and is silent when it is absent. Two sources on purpose: the unified-log line is the live path and the crash-report artifact is how a stall that killed the compositor actually surfaces afterwards, so a detector on either alone has a blind side. macos:unified_log currently carries the predicate feed but no watchdog line, because the only such event on this host predates the input being repaired.
+search = index=os (sourcetype="macos:unified_log" OR sourcetype=macos:crashreport) "userspace watchdog timeout"
 dispatch.earliest_time = -10m
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
