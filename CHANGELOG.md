@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.63.0](https://github.com/dryvist/ansible-splunk/compare/v0.62.0...v0.63.0) (2026-08-23)
+
+
+### Features
+
+* **splunk:** add Mac-health detectors ([#490](https://github.com/dryvist/ansible-splunk/issues/490)) ([352dbbd](https://github.com/dryvist/ansible-splunk/commit/352dbbdf9850470b4b1040fed6665b3435f6729f))
+
 ## [0.62.0](https://github.com/dryvist/ansible-splunk/compare/v0.61.3...v0.62.0) (2026-08-23)
 
 
