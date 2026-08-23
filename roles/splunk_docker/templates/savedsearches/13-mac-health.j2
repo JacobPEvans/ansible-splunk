@@ -1,0 +1,113 @@
+{# ---------------------------------------------------------------------------
+   Mac health detectors (index=mac_perf, plus the existing os/llm indexes).
+
+   Feeds the new macos-wired-memory exec input: {"wired_bytes", "wired_ceiling_mb",
+   "wired_ceiling_bytes", "wired_ratio", "resident_bytes"}. Thresholds derive from
+   observed wired-memory exhaustion on these hosts.
+--------------------------------------------------------------------------- #}
+[mac_wired_ratio_warn]
+description = Warns when a Mac's wired/ceiling ratio (wired_bytes / wired_ceiling_bytes) sustains above 80% for 5 minutes. 80% is chosen to give lead time before the band where exhaustion has been observed, rather than tripping only once already there.
+search = index=mac_perf sourcetype=macos-wired-memory | stats avg(wired_ratio) as avg_ratio by host | where avg_ratio > 0.80
+dispatch.earliest_time = -5m
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 3
+alert.suppress = 1
+alert.suppress.period = 30m
+alert.suppress.fields = host
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+
+[mac_wired_ratio_critical]
+description = Critical: wired/ceiling ratio above 90% sustained for 5 minutes — inside the band where exhaustion has been observed. Same signal as mac_wired_ratio_warn at a higher band so critical pages are distinct from the early warning.
+search = index=mac_perf sourcetype=macos-wired-memory | stats avg(wired_ratio) as avg_ratio by host | where avg_ratio > 0.90
+dispatch.earliest_time = -5m
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 5
+alert.suppress = 1
+alert.suppress.period = 15m
+alert.suppress.fields = host
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+
+[mac_leaked_wired_memory]
+description = Detects orphaned wired GPU memory: wired_bytes minus resident_bytes minus the measured ~3.4 GiB non-MLX baseline. 20 GiB is chosen to give lead time roughly halfway to the level at which exhaustion has been observed.
+search = index=mac_perf sourcetype=macos-wired-memory | eval leaked_gb = round((wired_bytes - resident_bytes - (3.4*1024*1024*1024)) / 1024 / 1024 / 1024, 1) | where leaked_gb > 20
+dispatch.earliest_time = -10m
+dispatch.latest_time = now
+cron_schedule = */10 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 4
+alert.suppress = 1
+alert.suppress.period = 30m
+alert.suppress.fields = host
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+
+[mac_metal_oom_burst]
+description = Fires on MLX Metal command-buffer OOM aborts (kIOGPUCommandBufferCallbackErrorOutOfMemory / libc++abi terminating) in index=llm sourcetype=mlx:model-server — a leading indicator of wired-memory exhaustion. VERIFIED by replay against live data: 280 matching events over the trailing 365 days, so the match logic is proven against real history. The trailing `| where count > 0` is load-bearing: a bare `| stats count` emits one row even when nothing matched, and the alert triggers on result rows, so without it this fires every cycle forever.
+search = index=llm sourcetype=mlx:model-server ("kIOGPUCommandBufferCallbackErrorOutOfMemory" OR "libc++abi: terminating") | stats count | where count > 0
+dispatch.earliest_time = -15m
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 4
+alert.suppress = 1
+alert.suppress.period = 30m
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+
+[mac_windowserver_watchdog_checkin_gap]
+description = Fires on a "userspace watchdog timeout" line in sourcetype=macos:unifiedlog . NOT PIPELINE-VERIFIED: this sourcetype has delivered zero events in the last 30 days, so this detector stays dark until that input is repaired. The search logic itself was verified against `log show` output on the host directly, not against Splunk-delivered data.
+search = index=os sourcetype=macos:unifiedlog "userspace watchdog timeout"
+dispatch.earliest_time = -10m
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 5
+alert.suppress = 1
+alert.suppress.period = 30m
+alert.suppress.fields = host
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+
+[mac_kernel_panic_jetsam_arrival]
+description = Fires when a new kernel panic or JetsamEvent artifact lands in sourcetype=macos:crashreport. VERIFIED live: this sourcetype carries ~1,339 events/24h on this host, and the search below matched real .ips artifacts directly.
+search = index=os sourcetype=macos:crashreport (source="*panic*" OR source="*JetsamEvent*")
+dispatch.earliest_time = -10m
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 5
+alert.suppress = 1
+alert.suppress.period = 15m
+alert.suppress.fields = host
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
