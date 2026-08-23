@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.64.0](https://github.com/dryvist/ansible-splunk/compare/v0.63.0...v0.64.0) (2026-08-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **splunk_docker:** savedsearches/00-macros.j2 and alert_deliver() are removed. A fragment still calling the macro fails to render.
+
+### Features
+
+* **splunk_docker:** default every saved search to Slack + Zammad ([#489](https://github.com/dryvist/ansible-splunk/issues/489)) ([17420eb](https://github.com/dryvist/ansible-splunk/commit/17420ebdf04700a7c19bc5bd319734a3a5889c18))
+
 ## [0.63.0](https://github.com/dryvist/ansible-splunk/compare/v0.62.0...v0.63.0) (2026-08-23)
 
 
