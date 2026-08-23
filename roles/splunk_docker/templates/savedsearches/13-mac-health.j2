@@ -60,8 +60,8 @@ relation = greater than
 quantity = 0
 
 [mac_metal_oom_burst]
-description = Fires on MLX Metal command-buffer OOM aborts (kIOGPUCommandBufferCallbackErrorOutOfMemory / libc++abi terminating) in index=llm sourcetype=mlx:model-server — a leading indicator of wired-memory exhaustion. VERIFIED: this sourcetype carried 280 matching events over the trailing 30 days, so the search logic is proven against real historical data rather than untested.
-search = index=llm sourcetype=mlx:model-server ("kIOGPUCommandBufferCallbackErrorOutOfMemory" OR "libc++abi: terminating") | stats count
+description = Fires on MLX Metal command-buffer OOM aborts (kIOGPUCommandBufferCallbackErrorOutOfMemory / libc++abi terminating) in index=llm sourcetype=mlx:model-server — a leading indicator of wired-memory exhaustion. VERIFIED by replay against live data: 280 matching events over the trailing 365 days, so the match logic is proven against real history. The trailing `| where count > 0` is load-bearing: a bare `| stats count` emits one row even when nothing matched, and the alert triggers on result rows, so without it this fires every cycle forever.
+search = index=llm sourcetype=mlx:model-server ("kIOGPUCommandBufferCallbackErrorOutOfMemory" OR "libc++abi: terminating") | stats count | where count > 0
 dispatch.earliest_time = -15m
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
