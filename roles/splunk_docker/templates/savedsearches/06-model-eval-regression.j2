@@ -17,7 +17,10 @@ dispatch.latest_time = now
 cron_schedule = 15 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 1
+# ponytail: index=ai has zero events ever, so this regression comparison has
+# no rows to compare and cannot fire meaningfully until promptfoo actually
+# publishes into it. Not a false alarm — it is just inert.
+disabled = 0
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 6h

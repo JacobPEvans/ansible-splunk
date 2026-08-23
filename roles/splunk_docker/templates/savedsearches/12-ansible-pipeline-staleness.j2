@@ -32,7 +32,12 @@ dispatch.latest_time = now
 cron_schedule = 17 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 1
+# ponytail: index=ansible has zero events ever, so the sentinel "(no hosts
+# reporting)" row will satisfy this where clause on every cron cycle --
+# suppression throttles repeat NOTIFICATIONS but the underlying condition
+# never clears. Expect a false-alarm loop, not real staleness, until the
+# converge_telemetry producer chain actually ships events.
+disabled = 0
 alert.severity = 4
 alert.digest_mode = 1
 alert.suppress = 1
@@ -61,7 +66,12 @@ dispatch.latest_time = now
 cron_schedule = 40 6 * * *
 enableSched = 1
 is_visible = 1
-disabled = 1
+# ponytail: index=ansible has zero events ever, so the sentinel "(no hosts
+# reporting)" row will satisfy this where clause on every cron cycle --
+# suppression throttles repeat NOTIFICATIONS but the underlying condition
+# never clears. Expect a false-alarm loop, not real staleness, until the
+# converge_telemetry producer chain actually ships events.
+disabled = 0
 alert.severity = 4
 alert.digest_mode = 1
 alert.suppress = 1
@@ -95,7 +105,12 @@ dispatch.latest_time = now
 cron_schedule = 25 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 1
+# ponytail: index=ansible has zero events ever, so the sentinel "(no hosts
+# reporting)" row will satisfy this where clause on every cron cycle --
+# suppression throttles repeat NOTIFICATIONS but the underlying condition
+# never clears. Expect a false-alarm loop, not real staleness, until the
+# converge_telemetry producer chain actually ships events.
+disabled = 0
 alert.severity = 4
 alert.digest_mode = 1
 alert.suppress = 1
