@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.62.0](https://github.com/dryvist/ansible-splunk/compare/v0.61.3...v0.62.0) (2026-08-23)
+
+
+### Features
+
+* **splunk_docker:** lift the alerting cutover gate, enable all detectors ([#491](https://github.com/dryvist/ansible-splunk/issues/491)) ([14fb22d](https://github.com/dryvist/ansible-splunk/commit/14fb22d7f31987e1e4062e1a27fa656e879b39c9))
+
 ## [0.61.3](https://github.com/dryvist/ansible-splunk/compare/v0.61.2...v0.61.3) (2026-08-17)
 
 
