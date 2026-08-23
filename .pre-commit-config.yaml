@@ -38,6 +38,21 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
+      - id: template-tests
+        name: template render tests
+        # tests/templates/*.py were reachable only by hand: 29 workflows and
+        # none run them, and no other hook did either. A suite that never runs
+        # is not coverage -- a tree that fails to render could merge green and
+        # only break at converge, which is exactly what happened when a macro
+        # was deleted while a fragment still imported it.
+        # uv --with keeps the deps here rather than requiring a system install;
+        # tests/templates/requirements.txt stays the source of truth for CI.
+        entry: bash -c 'for t in tests/templates/test_*.py; do uv run -q --with jinja2 --with pyyaml python "$t" || exit 1; done'
+        language: system
+        files: ^(roles/splunk_docker/(templates|defaults)/|tests/templates/)
+        pass_filenames: false
+        stages: [pre-commit]
+
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.22.0
     hooks:
