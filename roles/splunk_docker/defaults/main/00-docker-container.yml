@@ -37,6 +37,20 @@ splunk_docker_alert_ntfy_url: >-
 splunk_docker_alert_slack_webhook: >-
   {{ lookup('env', 'RUNSON_ALERT_SLACK_WEBHOOK_URL') | default('', true) }}
 
+# Zammad: incident delivery for the `zammad` custom alert action shipped by the
+# splunk-homelab-alerts app. Empty by default -- the [default] stanza in
+# savedsearches.conf.j2 gates `action.zammad` on this, so the action stays off
+# until the svc-splunk token is wired rather than firing into a 401.
+# Sourced from OpenBao secret/ai/mcp/splunk (SPLUNK_ZAMMAD_TOKEN); the handler
+# reads it back from storage/passwords, never from savedsearches.conf.
+splunk_docker_alert_zammad_token: >-
+  {{ lookup('env', 'SPLUNK_ZAMMAD_TOKEN') | default('', true) }}
+splunk_docker_alert_zammad_url: >-
+  {{ lookup('env', 'SPLUNK_ZAMMAD_URL') | default('', true) }}
+# Default Zammad group for Splunk-opened incidents; per-search override is one
+# `action.zammad.param.group` line in the stanza.
+splunk_docker_alert_zammad_group: Homelab Infrastructure
+
 # Splunk General Terms acceptance string for SPLUNK_GENERAL_TERMS env var.
 # Override in staging to point at non-prod terms acceptance strings if Splunk
 # publishes a new SGT version mid-release cycle.

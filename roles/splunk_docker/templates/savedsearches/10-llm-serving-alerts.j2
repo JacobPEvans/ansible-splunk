@@ -1,4 +1,3 @@
-{% import 'savedsearches/00-macros.j2' as m with context %}
 [llm_serving_memory_headroom]
 description = Warns BEFORE the serving host's memory reaches the Metal cache-clear trip (~85% of a 128 GB host = ~109 GB). Rides the mlx:metrics system-metrics feed (node_memory_used_percent) so it works even while the vllm-mlx log input is broken (nix-darwin#1623). Sustained-average over 5 minutes so a single load spike (a model swap-in) does not page anyone.
 search = index=llm sourcetype=mlx:metrics node_memory_used_percent=* | stats avg(node_memory_used_percent) as used_pct by host | where used_pct > 85
@@ -16,7 +15,6 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{{ m.alert_deliver('LLM serving host near memory ceiling', 'A serving host 5-minute average memory use exceeds 85% (see host + used_pct in results) — the Metal cache-clear trip sits at ~85% of device memory, so serving quality degrades next. Check resident model composition (/running via the gate), the daily brain-rotation phase, and idle-unload behavior before the trip fires.') }}
 
 [llm_metal_resource_limit_detector]
 description = Fires on any MLX Metal buffer-count ceiling error ("[metal::malloc] Resource limit (499000) exceeded") reaching the llm index — the mid-stream-abort failure mode the 2026-07 serving fixes (buffer-cache cap + paged-block sizing) are meant to make impossible. Zero-noise by design: any single event is a regression worth investigating. Depends on the vllm-mlx log input (nix-darwin#1623); inert until that delivers.
@@ -34,7 +32,6 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{{ m.alert_deliver('Metal buffer-count ceiling tripped on a serving host', 'A vllm-mlx worker hit the Metal buffer-count ceiling (Resource limit 499000) — requests are aborting mid-stream. This regression was supposed to be impossible after the 2026-07 buffer-cache/block-size fixes; check concurrent long-context load, MLX_BUFFER_CACHE_LIMIT in the worker env, and paged-cache block sizes (nix-ai catalog).', priority='urgent') }}
 
 [llm_night_rank_error_detector]
 description = Fires on night-cluster rank/link-watcher errors (JACCL init failures, rank crashes, distributed aborts) in the night logs shipped by the serving hosts' in_night_logs input. Zero-noise by design: the night fabric is supposed to converge silently, so any error line is worth a look before the next plug night.
@@ -52,7 +49,6 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{{ m.alert_deliver('Night-cluster rank/watcher errors', 'The two-Mac night cluster logged errors (rank crash, JACCL failure, or repeated watcher kickstarts). The fabric falls back to the solo brain automatically, but the night capacity is degraded — check night-rank.error.log on both Macs before the next plug night.', priority='default') }}
 
 [llm_night_idle_cluster_detector]
 description = "Night mode active but unused": the night rank has been up (rank log activity in the last hour) yet the gate's night endpoint saw zero completions in 30 minutes. Cluster capacity is burning memory on both Macs while Hermes/router traffic is not reaching it — usually a router flag (ai_night_brain_enabled) or fallback chain issue.
@@ -70,4 +66,3 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{{ m.alert_deliver('Night cluster up but receiving no traffic', 'The night rank is running but the gated night endpoint served nothing for 30 minutes. Check the router large-phase config (night deployment + fallbacks) and whether the fallback chain silently drained all traffic to the solo brain.', priority='default') }}

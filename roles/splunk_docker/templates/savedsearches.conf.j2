@@ -1,4 +1,36 @@
-{% include 'savedsearches/00-macros.j2' %}
+{# Default alert actions for EVERY saved search below.
+
+   Splunk `.conf` files have NO prefix-based stanza inheritance -- a stanza
+   named `[Foo - bar]` inherits nothing from `[Foo]` (verified empirically
+   against Splunk 10.2.0: a child stanza read back the global default
+   severity and an empty cron). `[default]` is the only inheritance
+   mechanism savedsearches.conf offers, and it is scoped to the app that
+   declares it -- also measured: a `[default]` in a throwaway app reached
+   its own searches and none of the 787 owned by the other 24 apps.
+
+   So delivery is declared ONCE here instead of per-stanza. Adding a saved
+   search below gets Slack + Zammad with no per-search configuration; there
+   is no macro to remember to call. Replaces alert_deliver(), deleted with
+   savedsearches/00-macros.j2.
+
+   $name$ is the stanza name, so the message needs no per-search title.
+   Both actions stay gated on their credential being present: enabling an
+   action whose alert_actions.conf half is unconfigured fires the alert and
+   then fails delivery silently.
+#}
+[default]
+{% if splunk_docker_alert_slack_webhook %}
+action.slack = 1
+action.slack.param.message = [$name$] $job.resultCount$ result(s) — $view_link$
+{% endif %}
+{% if splunk_docker_alert_zammad_token %}
+action.zammad = 1
+action.zammad.param.group = {{ splunk_docker_alert_zammad_group }}
+action.zammad.param.priority = 2 normal
+action.zammad.param.state = new
+action.zammad.param.correlation_key = $name$
+{% endif %}
+
 {% include 'savedsearches/01-macos-edge.j2' %}
 
 {% include 'savedsearches/02-llm-pipeline.j2' %}
