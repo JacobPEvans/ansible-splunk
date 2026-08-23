@@ -16,15 +16,15 @@
    alert_actions.conf.j2); Slack rides TA-slack-add-on-for-splunk with the
    shared alerting webhook. Each stanza calls alert_deliver() below.
 
-   CUTOVER GATE: every stanza below ships `disabled = 1` regardless of its
-   prior state. Fixing the app-namespace defect (see tasks/main.yml) makes
-   these dispatchable for the first time ever; enabling all of them at once
-   after months of accumulated silent conditions would fire a burst on the
-   very first cron cycle. Re-enabling is staged, one detector at a time, each
-   its own reviewed change — flip a single `disabled = 0` (or its
+   CUTOVER GATE LIFTED (2026-08-23): the staged, one-detector-at-a-time
+   re-enable described below was superseded by an operator decision to enable
+   every stanza at once and tune from real firing data instead. Every stanza
+   in this directory now ships `disabled = 0` (or its
    `splunk_docker_silence_detectors` list equivalent in
-   defaults/main/11-silence-detectors.yml) per wave, never all of them
-   together.
+   defaults/main/11-silence-detectors.yml). Several are known to misbehave on
+   an empty or currently-silent index and are commented at their own stanza
+   (or list entry) rather than re-gated — read those comments before assuming
+   a firing alert is a false positive or a broken detector.
 
    Split across ../savedsearches/ (one file per detector/report group,
    included from the top-level savedsearches.conf.j2) rather than one file:

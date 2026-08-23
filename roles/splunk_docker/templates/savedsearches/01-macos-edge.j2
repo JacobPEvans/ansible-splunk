@@ -17,7 +17,10 @@ dispatch.latest_time = now
 cron_schedule = */5 * * * *
 enableSched = 1
 is_visible = 1
-disabled = 1
+# ponytail: scope is (index=os OR index=mac_perf); mac_perf is currently
+# empty (a separate lane is adding its emitter), so this detector only
+# effectively watches index=os until that lands. Do not narrow the scope.
+disabled = 0
 alert.severity = 3
 alert.suppress = 1
 alert.suppress.period = 60m

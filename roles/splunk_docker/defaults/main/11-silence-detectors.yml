@@ -67,7 +67,7 @@ splunk_docker_silence_detectors:
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   # by_host means this only ever alerts on a host it currently SEES in index=os.
   # os_proxmox/os_ai/os_metrics above carve hosts out of the os catch-all at the
   # Cribl source, so a host that migrates to one of those simply stops
@@ -81,67 +81,73 @@ splunk_docker_silence_detectors:
     cron: "*/5 * * * *"
     suppress_minutes: 60
     by_host: true
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   # hardware: alert if the hardware index stops receiving telemetry (packs /
-  # Cribl / HEC dead). Shipped disabled until the Cribl hardware packs + syslog
-  # reclassify are converged and index=hardware is actually emitting — a
-  # silence detector on an empty index would false-fire continuously.
+  # Cribl / HEC dead). Nothing else watches whether the reclassify is
+  # delivering, so while this stayed disabled an index that receives nothing
+  # was indistinguishable from an index whose drives are all healthy — and
+  # the content alerts below cannot tell you either, because a search over an
+  # empty index returns zero results and reports success. This detector is
+  # the only thing that closes that gap.
   #
-  # FLIP THIS TO 0 IN THE SAME CHANGE THAT CONVERGES THE SYSLOG COLLECTORS.
-  # Nothing else watches whether the reclassify is delivering, so while this
-  # stays disabled an index that receives nothing is indistinguishable from an
-  # index whose drives are all healthy — and the content alerts below cannot
-  # tell you either, because a search over an empty index returns zero results
-  # and reports success. This detector is the only thing that closes that gap.
+  # ponytail: enabled ahead of the syslog-collector convergence this comment
+  # originally gated on (operator decision to lift the cutover gate wholesale,
+  # 2026-08-23). If index=hardware is still empty, this will false-fire
+  # continuously until the Cribl hardware packs / syslog reclassify converge.
   - name: hardware
     index: hardware
     threshold_minutes: 60
     cron: "*/15 * * * *"
     suppress_minutes: 120
     by_host: true
-    disabled: 1
+    disabled: 0
   - name: claude
     index: claude
     threshold_minutes: 60
     cron: "*/15 * * * *"
     suppress_minutes: 240
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   - name: dns
     index: dns
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   - name: proxy
     index: proxy
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    # ponytail: 7.7M lifetime events but ZERO in the last 7 days as of
+    # 2026-08-23 — this will fire immediately on enable. Likely a genuine
+    # undetected ingestion outage, not a false alarm.
+    disabled: 0
   - name: firewall
     index: firewall
     threshold_minutes: 60
     cron: "*/15 * * * *"
     suppress_minutes: 240
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   # The gateway emits ZERO IPFIX despite NetFlow showing enabled in its
   # console (a gateway-side export gap — the collector/receive chain is armed
   # and idle; see tofu-unifi live/gateway-telemetry.tf). Structurally-empty
-  # index: ship the detector disabled so it stops firing on every cycle.
-  # Flip to disabled: 0 if the gateway ever starts exporting.
+  # index.
+  # ponytail: enabled by the 2026-08-23 gate-lift despite the gap above still
+  # being open — expect this to fire on every cycle until the gateway starts
+  # exporting.
   - name: netflow
     index: netflow
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
-    disabled: 1
+    disabled: 0
   # Audit trail is low-volume; a full day of silence is the signal.
   - name: openbao_audit
     index: openbao_audit
     threshold_minutes: 1440
     cron: "0 * * * *"
     suppress_minutes: 1440
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   # Voter-health sampler ships every openbao_voter_health_interval (5min
   # default) from whichever node is Raft leader; the script itself never exits
   # non-zero on a probe failure, so this silence detector is the only signal
@@ -152,15 +158,17 @@ splunk_docker_silence_detectors:
     threshold_minutes: 15
     cron: "*/5 * * * *"
     suppress_minutes: 60
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
-  # No honeypot emitter is wired up yet — ship the stanza disabled so it
-  # can be flipped on (disabled: 0) when the deception fabric starts sending.
+    disabled: 0
+  # No honeypot emitter is wired up yet.
+  # ponytail: enabled by the 2026-08-23 gate-lift anyway — this index is
+  # structurally empty until the deception fabric starts sending, so expect
+  # it to fire every cycle until then.
   - name: honeypot
     index: honeypot
     threshold_minutes: 1440
     cron: "0 * * * *"
     suppress_minutes: 1440
-    disabled: 1
+    disabled: 0
   # --- LLM fabric surfaces -----------------------------------------------
   # otel_traces: the trace spine. LiteLLM/hermes/orchestration spans AND Claude
   # Code agent-tooling spans both arrive here via the Cribl Stream in_otel
@@ -169,12 +177,10 @@ splunk_docker_silence_detectors:
   # rendered config and nothing watched the result. This detector is the thing
   # that would have noticed.
   #
-  # FIRST DETECTOR OFF THE CUTOVER GATE (2026-08-06). Chosen because this index
-  # is the busiest and steadiest surface on the instance — measured over 6h it
-  # ran a 1.1-minute worst-case gap against a 30-minute threshold, so staging it
-  # live carries the least chance of an inherited silent condition firing on the
-  # first cron cycle. tests/templates/test_cutover_gate.py records the exception
-  # by stanza name; every other detector stays gated.
+  # FIRST DETECTOR OFF THE CUTOVER GATE (2026-08-06, since superseded by the
+  # 2026-08-23 wholesale gate-lift above). Chosen because this index is the
+  # busiest and steadiest surface on the instance — measured over 6h it ran a
+  # 1.1-minute worst-case gap against a 30-minute threshold.
   - name: otel_traces
     index: otel_traces
     threshold_minutes: 30
@@ -188,7 +194,7 @@ splunk_docker_silence_detectors:
     threshold_minutes: 120
     cron: "*/15 * * * *"
     suppress_minutes: 240
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   # codex / gemini: interactive CLI sessions. A quiet day is normal operator
   # behaviour, not a fault, so the threshold is deliberately a half-day —
   # long enough that this only fires on a genuinely broken collector.
@@ -197,27 +203,28 @@ splunk_docker_silence_detectors:
     threshold_minutes: 720
     cron: "0 * * * *"
     suppress_minutes: 1440
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   - name: gemini
     index: gemini
     threshold_minutes: 720
     cron: "0 * * * *"
     suppress_minutes: 1440
-    disabled: 1  # cutover-gated pending staged re-enable, see savedsearches.conf.j2 header
+    disabled: 0
   # openai (copilot) / vscode: both indexes hold only a handful of lifetime
   # events because their Cribl Edge inputs tail log paths the tools do not
-  # actually write. Until those inputs are repointed at real paths these would
-  # fire on every cycle, so they ship disabled — flip to 0 in the SAME change
-  # that fixes the source paths, not before.
+  # actually write.
+  # ponytail: enabled by the 2026-08-23 gate-lift ahead of the source-path
+  # fix this comment originally gated on — expect both to fire every cycle
+  # until the Cribl Edge inputs are repointed at real paths.
   - name: openai
     index: openai
     threshold_minutes: 1440
     cron: "0 */2 * * *"
     suppress_minutes: 1440
-    disabled: 1
+    disabled: 0
   - name: vscode
     index: vscode
     threshold_minutes: 1440
     cron: "0 */2 * * *"
     suppress_minutes: 1440
-    disabled: 1
+    disabled: 0
