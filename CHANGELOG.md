@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.64.1](https://github.com/dryvist/ansible-splunk/compare/v0.64.0...v0.64.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* **splunk_docker:** point the Mac detectors at sourcetypes that exist ([#495](https://github.com/dryvist/ansible-splunk/issues/495)) ([5c005ec](https://github.com/dryvist/ansible-splunk/commit/5c005ec821ea771bc4993d0dd6a580f91e53035c))
+
 ## [0.64.0](https://github.com/dryvist/ansible-splunk/compare/v0.63.0...v0.64.0) (2026-08-23)
 
 
