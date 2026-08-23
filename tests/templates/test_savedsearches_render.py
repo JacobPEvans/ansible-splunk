@@ -51,10 +51,14 @@ STANZA_RE = re.compile(r"^\[(\S+)\]$(.*?)(?=^\[|\Z)", re.M | re.S)
 # line ends in a backslash) are values, not keys, and are skipped below.
 KEY_RE = re.compile(r"^([A-Za-z_][\w.]*)\s*=\s*(.*)$")
 
-# Stanzas that legitimately carry no `search` key. Empty today; an entry here
-# is a deliberate, reviewed exemption, same contract as the cutover gate's
-# register.
-NO_SEARCH_EXPECTED: set = set()
+# Stanzas that legitimately carry no `search` key. An entry here is a
+# deliberate, reviewed exemption, same contract as the cutover gate's register.
+#
+# `default` is Splunk's config-inheritance stanza, not a saved search: it
+# carries the alert actions every stanza below inherits and has nothing to
+# dispatch. It is exempt because it is not a search, NOT because it renders
+# one this test cannot see -- the weld regression below still covers it.
+NO_SEARCH_EXPECTED: set = {"default"}
 
 
 def stanza_keys(body):

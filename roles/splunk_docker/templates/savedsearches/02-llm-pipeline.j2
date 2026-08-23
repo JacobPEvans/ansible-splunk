@@ -1,4 +1,3 @@
-{% import 'savedsearches/00-macros.j2' as m with context %}
 [llm_pipeline_silence_detector]
 description = Alerts when any llama-swap emitter feeding the llm index goes silent for more than 30 minutes. Detection is PER-HOST (`by host`) so a healthy emitter can never mask a dead one — with the fabric running multiple llama-swap serving guests, an index-wide `latest(_time)` would stay fresh as long as a single host reports, hiding the failure of every other host. Each silent host produces its own result row, so the alert fires once per dead emitter. A host that has never emitted has no baseline and cannot be detected here (same inherent limitation as the macOS edge detector).
 # `by host` over a fully-empty index returns ZERO rows, not a null-last_seen
@@ -24,4 +23,3 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{{ m.alert_deliver('llm emitter silent (per-host)', 'One or more llama-swap emitters feeding the llm index have delivered no events for 30+ minutes (see the host field in the results for which). Investigate that host llama-swap serving guest, its Cribl Edge daemon, the HAProxy :10300 frontend, the Cribl Stream input, and Splunk HEC ingestion.') }}

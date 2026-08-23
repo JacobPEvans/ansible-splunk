@@ -1,4 +1,3 @@
-{% import 'savedsearches/00-macros.j2' as m with context %}
 {# ---------------------------------------------------------------------------
    Generic per-index silence detectors.
 
@@ -74,6 +73,5 @@ alert.track = 1
 counttype = number of events
 relation = greater than
 quantity = 0
-{{ m.alert_deliver(det.index ~ ' index silent' ~ (' (per-host)' if det.by_host | default(false) else ''), 'The ' ~ det.index ~ ' index has received no events for ' ~ det.threshold_minutes ~ '+ minutes' ~ (' from one or more hosts (see the host field in the results)' if det.by_host | default(false) else '') ~ '. Investigate the emitter, its Cribl pipeline, and Splunk HEC ingestion.', priority='default') }}
 
 {% endfor %}
