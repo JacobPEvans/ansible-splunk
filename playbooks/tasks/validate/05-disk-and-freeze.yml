@@ -121,3 +121,66 @@
   when:
     - splunk_docker_freeze_failures is defined
     - splunk_docker_freeze_failures.skipped is not defined
+
+# ---------------------------------------------------------------------
+# Volume membership.
+#
+# An index whose homePath/coldPath is a bare $SPLUNK_DB instead of a
+# volume: reference is outside volume accounting: maxVolumeDataSizeMB does
+# not count it and it never rolls under volume pressure. It still lands on
+# the same physical disk, so every disk-level check above passes and the gap
+# is invisible. That is how out-of-band indexes — created through the REST
+# API or the UI, which write into an app's local scope — silently escape.
+#
+# ASK BTOOL, NEVER THE FILES. Two files can both define an index; only
+# btool says which one wins, and grepping stanzas across them measures
+# nothing. This reads effective config and reports the resolved value.
+#
+# NO ALLOWLIST. The check is "every index resolves to a volume:", not "these
+# known indexes do" — a hand-enumerated list fails by omission, which is
+# exactly the failure mode being closed here. Non-index stanzas (volume:*,
+# provider-family:*, [default]) are excluded structurally, not by name.
+#
+# btool omits DISABLED stanzas from a bulk list, so a disabled out-of-band
+# index is not reported. A disabled index indexes nothing, so it consumes no
+# volume either; the converge removes its definition regardless.
+# ---------------------------------------------------------------------
+- name: List indexes whose effective paths bypass a Splunk volume
+  community.docker.docker_container_exec:
+    container: splunk
+    user: root
+    argv:
+      - /bin/bash
+      - -c
+      - >-
+        /opt/splunk/bin/splunk btool indexes list --debug | awk '
+        $2 ~ /^\[/ { s = substr($2, 2, length($2) - 2);
+        skip = (s ~ /^(volume|provider-family):/ || s == "default"); next }
+        !skip && ($2 == "homePath" || $2 == "coldPath") && $4 !~ /^volume:/
+        { print s "." $2 " = " $4 }'
+  register: splunk_docker_index_volume_bypass
+  changed_when: false
+  failed_when: false
+
+# rc is part of the verdict, not just stdout: a btool that failed to run
+# produces no output either, and treating that as "nothing bypasses" would be
+# a green light for a check that never examined anything.
+- name: Record index volume membership
+  vars:
+    bypass_rc: "{{ splunk_docker_index_volume_bypass.rc | default(-1) }}"
+    bypass_list: "{{ splunk_docker_index_volume_bypass.stdout | default('') | trim }}"
+  ansible.builtin.set_fact:
+    validation_results: >-
+      {{ validation_results + [{
+           'check': (
+             'Every enabled index resolves to a volume: path'
+             if (bypass_rc | int) == 0
+             else 'Index volume membership UNVERIFIED (btool exited '
+                  + bypass_rc | string + ': '
+                  + (splunk_docker_index_volume_bypass.stderr | default('no stderr') | trim) + ')'
+           ) + (
+             ' — OUTSIDE VOLUME ACCOUNTING: ' + (bypass_list | replace('\n', '; '))
+             if bypass_list | length > 0 else ''
+           ),
+           'passed': ((bypass_rc | int) == 0) and (bypass_list | length == 0)
+         }] }}

@@ -57,3 +57,44 @@ splunk_docker_system_indexes:
     db_dir: summarydb
     max_size_mb: 5120
     frozen_time_secs: 2592000
+  # The rest of what Splunk (and the bundled apps) create for themselves. Same
+  # reasoning as the block above, found by auditing effective config with
+  # `btool indexes list --debug` rather than by reading this file: these
+  # stanzas ship in system/default and app default/ directories, resolve to
+  # bare $SPLUNK_DB, and were therefore the only remaining indexes outside
+  # volume accounting. Restating them here — same physical location, since
+  # volume:hot_warm's path IS $SPLUNK_DB — brings them under the one cap
+  # without moving a single bucket, and lets the volume-membership check in
+  # playbooks/tasks/validate/ be absolute instead of carrying an allowlist.
+  - name: _dm_summary
+    db_dir: _dm_summary
+    max_size_mb: 5120
+    frozen_time_secs: 2592000
+  - name: _metrics
+    db_dir: _metrics
+    max_size_mb: 5120
+    frozen_time_secs: 2592000
+  - name: _metrics_rollup
+    db_dir: _metrics_rollup
+    max_size_mb: 5120
+    frozen_time_secs: 2592000
+  - name: _dsappevent
+    db_dir: _dsappevent
+    max_size_mb: 1024
+    frozen_time_secs: 2592000
+  - name: _dsclient
+    db_dir: _dsclient
+    max_size_mb: 1024
+    frozen_time_secs: 2592000
+  - name: _dsphonehome
+    db_dir: _dsphonehome
+    max_size_mb: 1024
+    frozen_time_secs: 2592000
+  - name: splunklogger
+    db_dir: splunklogger
+    max_size_mb: 1024
+    frozen_time_secs: 2592000
+  - name: genai_traces
+    db_dir: genai_traces
+    max_size_mb: 5120
+    frozen_time_secs: 2592000

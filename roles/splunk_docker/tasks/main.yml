@@ -135,6 +135,28 @@
 - name: Verify Splunk volume caps can actually bound their filesystems
   ansible.builtin.include_tasks: verify_volume_capacity.yml
 
+# An index defined anywhere but the file below is an index nothing here can
+# reach. Splunk writes REST/UI-created indexes into the CURRENT app's local
+# directory — in practice apps/search/local/indexes.conf — where they inherit
+# the stock $SPLUNK_DB paths instead of a volume:, sitting outside volume
+# accounting and never rolling under volume pressure. They still land on the
+# same physical disk, so every disk-level check passes and the gap is
+# invisible.
+#
+# Removing the file makes the divergence unrepresentable rather than merely
+# discouraged: indexes.conf.j2 DERIVES every path, so an index declared
+# through splunk_docker_indexes cannot be given a divergent one. Anything that
+# needs an index — CI included — declares it there.
+#
+# No handler on purpose. What this removes is either shadowed (system/local
+# already defines the same stanza and wins, so effective config does not
+# change) or a disabled stanza Splunk is not serving. Neither needs a restart,
+# and the validate check below catches an enabled one that somehow survives.
+- name: Remove out-of-band index definitions from app-local scope
+  ansible.builtin.file:
+    path: "{{ splunk_docker_etc_dir }}/apps/search/local/indexes.conf"
+    state: absent
+
 - name: Deploy indexes.conf
   ansible.builtin.template:
     src: indexes.conf.j2
