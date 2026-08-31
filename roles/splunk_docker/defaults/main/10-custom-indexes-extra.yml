@@ -112,6 +112,12 @@ splunk_docker_indexes_extra:
   - name: qdrant
     max_size_mb: 2500
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # semaphore: Ansible run UI Docker container run output, shipped via the
+  # semaphore Cribl log-ingest route. Low volume; keeps the shared default
+  # size and retention.
+  - name: semaphore
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # unifi: ~29% of all ingested data. tier: large, same volume split as
   # `firewall` above.
   - name: unifi
