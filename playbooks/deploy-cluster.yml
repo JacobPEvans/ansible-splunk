@@ -34,10 +34,11 @@
           - lookup('env', 'SPLUNK_GENERAL_PASS4SYMMKEY') | length > 0
           - lookup('env', 'PROXMOX_DOMAIN') | length > 0
           - lookup('env', 'SPLUNK_LICENSE') | length > 0
+          - lookup('env', 'PROXMOX_SSH_KEY_PATH') | length > 0
         fail_msg: >-
           Set SPLUNK_PASSWORD, SPLUNK_PACKAGE_URL_FULL,
           SPLUNK_IDXC_PASS4SYMMKEY, SPLUNK_GENERAL_PASS4SYMMKEY,
-          PROXMOX_DOMAIN and SPLUNK_LICENSE
+          PROXMOX_DOMAIN, SPLUNK_LICENSE and PROXMOX_SSH_KEY_PATH
           (doppler run -- ansible-playbook ...).
 
 # Order matters: install everywhere, then license master, then cluster manager,
