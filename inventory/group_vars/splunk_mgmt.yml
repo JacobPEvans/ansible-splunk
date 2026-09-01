@@ -4,7 +4,17 @@
 #
 # LICENSE REQUIREMENT: a Splunk *Free* license cannot run indexer clustering,
 # distributed search, or authentication — an Enterprise or developer license is
-# REQUIRED. Provide the license file path(s) via SPLUNK_LICENSE_FILE, or apply
-# the license out-of-band and leave it empty.
+# REQUIRED, and deploy-cluster.yml asserts it is present before converging.
+#
+# SPLUNK_LICENSE holds the raw .lic XML and is read injection-agnostically like
+# every other secret (see splunk_cluster.yml) — the wrapper that runs the
+# playbook decides where the value comes from. deploy-cluster.yml writes it to
+# the license master, so a changed license re-applies on the next converge.
 splunk_license_group: Enterprise
+splunk_license_xml: "{{ lookup('env', 'SPLUNK_LICENSE') }}"
+
+# Legacy path-based escape hatch for the upstream role's own copy loop. Defaults
+# to [] so that loop is a no-op. Only sound for a bare filename resolvable from
+# a files/ directory: the role builds its destination as
+# `etc/licenses/enterprise/{{ item }}`, so an absolute path mangles the target.
 splunk_license_file: "{{ [lookup('env', 'SPLUNK_LICENSE_FILE')] if lookup('env', 'SPLUNK_LICENSE_FILE') else [] }}"

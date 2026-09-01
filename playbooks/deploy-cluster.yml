@@ -14,8 +14,8 @@
 #
 # Required environment (injection-agnostic; wrapper supplies them):
 #   SPLUNK_PASSWORD, SPLUNK_PACKAGE_URL_FULL, SPLUNK_IDXC_PASS4SYMMKEY,
-#   SPLUNK_GENERAL_PASS4SYMMKEY, PROXMOX_DOMAIN, PROXMOX_SSH_KEY_PATH
-#   (optional: SPLUNK_LICENSE_FILE)
+#   SPLUNK_GENERAL_PASS4SYMMKEY, PROXMOX_DOMAIN, PROXMOX_SSH_KEY_PATH,
+#   SPLUNK_LICENSE (raw .lic XML — clustering cannot run on a Free license)
 
 - name: Load OpenTofu inventory
   ansible.builtin.import_playbook: ../inventory/load_tofu.yml
@@ -33,10 +33,12 @@
           - lookup('env', 'SPLUNK_IDXC_PASS4SYMMKEY') | length > 0
           - lookup('env', 'SPLUNK_GENERAL_PASS4SYMMKEY') | length > 0
           - lookup('env', 'PROXMOX_DOMAIN') | length > 0
+          - lookup('env', 'SPLUNK_LICENSE') | length > 0
         fail_msg: >-
           Set SPLUNK_PASSWORD, SPLUNK_PACKAGE_URL_FULL,
-          SPLUNK_IDXC_PASS4SYMMKEY, SPLUNK_GENERAL_PASS4SYMMKEY and
-          PROXMOX_DOMAIN (doppler run -- ansible-playbook ...).
+          SPLUNK_IDXC_PASS4SYMMKEY, SPLUNK_GENERAL_PASS4SYMMKEY,
+          PROXMOX_DOMAIN and SPLUNK_LICENSE
+          (doppler run -- ansible-playbook ...).
 
 # Order matters: install everywhere, then license master, then cluster manager,
 # then peers, then attach search heads, then the monitoring console.
@@ -57,6 +59,24 @@
     deployment_task: configure_license.yml
   roles:
     - role: splunk.splunk
+  # After the role, not before: splunk_home is `auto_determined` in the role
+  # defaults and only resolves once the role has run, and the role creates
+  # etc/licenses/enterprise/. Handlers flush at end of play, so the role's
+  # active_group change and this write coalesce into ONE restart.
+  tasks:
+    - name: Install the Enterprise license
+      ansible.builtin.copy:
+        # `content` checksums against the remote file, so this is the whole
+        # auto-apply mechanism: unchanged is a no-op, a changed license
+        # rewrites and restarts. Fixed filename — Splunk stacks every file in
+        # this directory, so a stable name replaces rather than accumulates.
+        content: "{{ splunk_license_xml }}"
+        dest: "{{ splunk_home }}/etc/licenses/enterprise/enterprise.lic"
+        owner: "{{ splunk_nix_user }}"
+        group: "{{ splunk_nix_group }}"
+        mode: "0600"
+      no_log: true
+      notify: restart splunk
 
 - name: Configure the indexer cluster manager
   hosts: clustermanager
