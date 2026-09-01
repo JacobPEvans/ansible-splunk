@@ -242,6 +242,7 @@ connection is an output published to OpenBao when explicitly enabled:
 | `SPLUNK_HEC_TOKEN` | Shared legacy HEC token (always required) |
 | `SPLUNK_MCP_TOKEN` | Client-side MCP Bearer token minted per managed user and published with `SPLUNK_MCP_URL` to OpenBao `secret/ai/mcp/splunk` |
 | `PROXMOX_SSH_KEY_PATH` | SSH key for VM access |
+| `SPLUNK_LICENSE` | Raw `.lic` XML for the cluster license master; required — clustering needs Enterprise. Re-applied on every converge |
 
 ## Tooling baseline (inherited from dryvist/.github)
 
