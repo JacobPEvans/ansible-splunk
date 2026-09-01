@@ -97,14 +97,14 @@ See [`roles/splunk_docker/files/README.md`](roles/splunk_docker/files/README.md)
 | `deploy_docker.yml` | Deploys Splunk container, assuming Docker is pre-installed |
 | `validate.yml` | Post-deploy validation: ports, HEC, web UI |
 | `configure_indexes.yml` | Index configuration only (idempotent) |
-| `sync-splunkbase.yml` | Mirrors deployable latest releases and, when run directly, archives every exposed Splunkbase release with SHA-256 verification |
+| `sync-splunkbase.yml` | Mirrors current Splunkbase releases at stable artifact keys and publishes the deployment manifest |
 
-`sync-splunkbase.yml` keeps the VM manifest limited to entries whose registry
-field is `install: true` or absent. Entries with `install: false` are analysis
-archives only and are never installed. Historical releases are stored under
-`splunk-addons/archive/splunkbase/<id>/<version>/<filename>` with a catalog at
-`splunk-addons/archive/catalog.json`. Pinned source references use the separate
-`archive/references/` prefix and retain their observed license status.
+`sync-splunkbase.yml` stores each app at one version-free key. Native S3 bucket
+versioning retains prior object versions, while current objects carry
+`channel=latest`, `version`, and `splunkbase_id` tags. Run the priority vendor
+AI scope with `-e splunkbase_update_scope=official_ai`; it updates Python for
+Scientific Computing, Splunk AI Toolkit, MLTK Container, and Splunk AI Assistant
+without replacing unrelated manifest entries.
 
 ## Role Structure
 

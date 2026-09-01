@@ -4,16 +4,10 @@
 # For every deployable addons.yml entry with a `splunkbase_id`, resolves the latest release
 # from the PUBLIC Splunkbase API (no auth needed for resolution), downloads it with
 # the authenticated session, and mirrors it into the `splunk-addons` bucket on the
-# RustFS object-storage LXC, tagged `version=X.Y.Z&splunkbase_id=NNNN`. Finally
 # writes `manifest.json` (app_dir → {version, filename}) to the bucket — the version
 # bridge the air-gapped Splunk VM reads over the LAN to know which apps to (re)extract.
 #
 # `pin_version` on an entry overrides resolution (hold back a bad release).
-#
-# The standalone workflow also archives every release exposed by Splunkbase under
-# immutable keys and publishes an integrity catalog. The archive is deliberately
-# disabled when this file is imported by site.yml: deployment retains its existing
-# fail-soft behavior while archival failures stay visible to archive operators.
 #
 # Idempotent: skips download when the bucket `version` tag already matches the
 # resolved latest. Fail-soft: if Splunkbase is unreachable, the whole resolve/sync
@@ -53,11 +47,6 @@
         http://{{ hostvars['localhost']['tofu_data']['containers']['s3']['ip'] }}:{{
         hostvars['localhost']['tofu_data']['constants']['service_ports']['object_storage_s3'] }}
 
-  # Split across playbooks/tasks/sync-splunkbase/ (one file per phase: preflight
-  # checks, registry load + validation, the resolve/sync block, post-sync
-  # verification, and the immutable archive) rather than one flat tasks: list —
-  # an agent touching the archive path should not have to also read the
-  # resolve/sync logic to find it.
   tasks:
     - name: Check environment and object-storage client prerequisites
       ansible.builtin.include_tasks: tasks/sync-splunkbase/preflight.yml
@@ -65,35 +54,25 @@
     - name: Load and validate the add-on registry
       ansible.builtin.include_tasks: tasks/sync-splunkbase/prepare-run.yml
 
-    # Resolve → download → mirror → manifest. Wrapped in block/rescue so a
-    # Splunkbase outage degrades gracefully: the deploy continues from whatever
-    # the object store already holds (the existing manifest is left untouched).
     - name: Resolve latest, sync drifted apps, and publish manifest
       block:
         - name: Resolve, download, and mirror drifted Splunkbase entries
           ansible.builtin.include_tasks: tasks/sync-splunkbase/resolve-and-sync.yml
       rescue:
-        - name: Splunkbase sync failed — continue from existing object-storage contents (fail-soft)
+        - name: Stop a fail-closed Splunkbase update
+          ansible.builtin.fail:
+            msg: >-
+              Splunkbase resolve/sync failed; bucket + manifest.json were left
+              unchanged. {{ ansible_failed_result.msg | default('See preceding task.') }}
+          when: not (splunkbase_sync_fail_open | default(true) | bool)
+
+        - name: Continue a fail-open interactive deployment from existing object-storage contents
           ansible.builtin.debug:
             msg: >-
               Splunkbase resolve/sync failed; leaving the bucket + manifest.json as-is and
               proceeding with whatever is already mirrored. Error:
               {{ ansible_failed_result.msg | default('see preceding task') }}
+          when: splunkbase_sync_fail_open | default(true) | bool
 
     - name: Verify published object-storage tags and manifest
       ansible.builtin.include_tasks: tasks/sync-splunkbase/verify-manifest.yml
-
-    # Archive is intentionally distinct from the latest-object deployment path:
-    # its release catalog is immutable and integrity failures must stop this
-    # standalone workflow rather than silently changing a deployment outcome.
-    - name: Archive every exposed Splunkbase release and pinned reference
-      when: splunkbase_archive_history | default(true) | bool
-      block:
-        - name: Build and publish the immutable archive catalog
-          ansible.builtin.include_tasks: tasks/sync-splunkbase/archive-splunkbase.yml
-      always:
-        - name: Remove local immutable archive catalog
-          ansible.builtin.file:
-            path: "{{ splunkbase_sync_tmpdir }}/archive-catalog.json"
-            state: absent
-          changed_when: false
