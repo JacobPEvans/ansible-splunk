@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.65.0](https://github.com/dryvist/ansible-splunk/compare/v0.64.2...v0.65.0) (2026-09-01)
+
+
+### Features
+
+* **splunk_docker:** add semaphore Splunk index ([#503](https://github.com/dryvist/ansible-splunk/issues/503)) ([84eca0c](https://github.com/dryvist/ansible-splunk/commit/84eca0c400a1381969149ee5d586cabf7fb2e9b6))
+
 ## [0.64.2](https://github.com/dryvist/ansible-splunk/compare/v0.64.1...v0.64.2) (2026-08-25)
 
 
