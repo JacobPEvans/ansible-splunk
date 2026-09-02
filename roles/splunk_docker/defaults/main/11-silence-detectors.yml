@@ -52,6 +52,7 @@ splunk_docker_silence_lookback_multiplier: 2000
 # infrastructure indexes that are not LLM surfaces at all.
 splunk_docker_llm_freshness_indexes:
   - otel_traces
+  - ai_usage
   - claude
   - codex
   - gemini
@@ -186,6 +187,16 @@ splunk_docker_silence_detectors:
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
+    disabled: 0
+  # ai_usage: per-request OTLP log records from the agent CLIs. Sessions are
+  # bursty and human-paced, so the threshold is a working day rather than the
+  # trace spine's half hour: a day without a single request means the log
+  # exporter or the Cribl leg is broken, not that nobody was working.
+  - name: ai_usage
+    index: ai_usage
+    threshold_minutes: 1440
+    cron: "17 * * * *"
+    suppress_minutes: 720
     disabled: 0
   # hermes: agent card/goal execution. Scheduled cards run hourly, so two
   # hours of silence means the agent tier is not running, not merely idle.
