@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.2](https://github.com/dryvist/ansible-splunk/compare/v0.68.1...v0.68.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* **splunk_docker:** fail the converge on an unset alert gate or a missing detector index ([62b3a43](https://github.com/dryvist/ansible-splunk/commit/62b3a43a68ddb2174a88d58e6a909975c8681e85))
+
 ## [0.68.1](https://github.com/dryvist/ansible-splunk/compare/v0.68.0...v0.68.1) (2026-09-02)
 
 
