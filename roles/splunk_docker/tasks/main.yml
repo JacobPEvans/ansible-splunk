@@ -217,6 +217,10 @@
 # zero tasks and exit 0 — indistinguishable from "already converged", and the
 # same silent-success shape that hid the original pipeline outage. Deploying
 # alert config without also rotating service tokens needs this scope.
+- name: Assert alerting is configured for real delivery, on real indexes
+  ansible.builtin.include_tasks: assert_alerting_gates.yml
+  tags: [alerting]
+
 - name: Create the homelab_alerts app directories
   ansible.builtin.file:
     path: "{{ splunk_docker_etc_dir }}/apps/homelab_alerts/{{ item }}"
