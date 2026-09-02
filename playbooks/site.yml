@@ -138,6 +138,15 @@
         - name: Deploy Splunk Docker
           ansible.builtin.include_role:
             name: splunk_docker
+          # `always`, so that --tags reaches INSIDE the role. A dynamic
+          # include_role is itself a task: an untagged one is filtered out by
+          # any --tags run, and the tags on the role's own tasks
+          # (splunk_docker uses `alerting`) are then never evaluated. The
+          # symptom is a converge that reports ok=1 and changes nothing while
+          # looking like it ran. This does not widen what a tagged run does —
+          # inside the role, only tasks matching the requested tag execute.
+          tags:
+            - always
       always:
         - name: Verify every configured index has a live, enabled HEC input stanza
           ansible.builtin.include_tasks: ../roles/splunk_docker/tasks/verify_hec_completeness.yml
