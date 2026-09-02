@@ -141,12 +141,20 @@ splunk_docker_silence_detectors:
     cron: "*/5 * * * *"
     suppress_minutes: 60
     disabled: 0
-  # Audit trail is low-volume; a full day of silence is the signal.
+  # Low-volume, but a DAY of silence was the wrong bar and hid a real outage.
+  # The shipping path stalls in multi-hour bursts and then recovers by itself,
+  # so a 1440-minute threshold never fired once across 32 zero-hours in 30
+  # days — including a four-hour blackout of the security audit trail on
+  # 2026-09-02 that had to be found by hand. The observed floor is ~96
+  # records/hour (timer traffic alone), so 90 minutes of true silence is
+  # unambiguous and cannot be mistaken for an idle period.
+  # Detection is bounded by threshold + cron, so the hourly schedule is kept
+  # deliberately: worst case ~2.5h to alert, against ~24h+ before.
   - name: openbao_audit
     index: openbao_audit
-    threshold_minutes: 1440
+    threshold_minutes: 90
     cron: "0 * * * *"
-    suppress_minutes: 1440
+    suppress_minutes: 180
     disabled: 0
   # Voter-health sampler ships every openbao_voter_health_interval (5min
   # default) from whichever node is Raft leader; the script itself never exits
