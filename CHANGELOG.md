@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.0](https://github.com/dryvist/ansible-splunk/compare/v0.67.1...v0.68.0) (2026-09-02)
+
+
+### Features
+
+* **alerts:** OpenBao privileged-use, audit/snapshot/voter silence, and raft quorum alerts ([93e0201](https://github.com/dryvist/ansible-splunk/commit/93e02013a76eb680dcc41bbca26e9d5196a69c4f))
+* **alerts:** OpenBao privileged-use, snapshot silence, and raft quorum alerts ([520e74e](https://github.com/dryvist/ansible-splunk/commit/520e74eee67346256e78c380c8046b08e237a33d))
+
 ## [0.67.1](https://github.com/dryvist/ansible-splunk/compare/v0.67.0...v0.67.1) (2026-09-02)
 
 
