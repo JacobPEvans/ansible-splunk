@@ -50,11 +50,14 @@ relation = greater than
 quantity = 0
 
 [openbao_raft_quorum]
-description = Alerts when fewer than 9 raft voters have reported healthy for 15 minutes. DEPENDS on the openbao-voter-health emit carrying a `voters=<n>` key=value token (roles/openbao/templates/openbao-voter-health.sh.j2 in ansible-proxmox-apps) -- adjust the rex below if that format lands differently.
+description = Alerts when fewer than 9 raft voters have reported healthy for 15 minutes, OR the voter-health sampler has stopped shipping entirely (this is the repo's only voter-health implementation -- see the removed generic silence-detector entry in defaults/main/11-silence-detectors.yml). DEPENDS on the openbao-voter-health emit carrying a `voters=<n>` key=value token (roles/openbao/templates/openbao-voter-health.sh.j2 in ansible-proxmox-apps) -- adjust the rex below if that format lands differently.
 # min(voters) over the whole window, not latest(voters) alone, so a single
-# low-voter blip that recovered inside the 15m window does not fire --
-# the alert is meant for a SUSTAINED deficit, not one bad sample.
-search = index=os sourcetype=syslog "openbao-voter-health" | rex "voters=(?<voters>\d+)" | where isnotnull(voters) | stats min(voters) as min_voters count as samples | where samples > 0 AND min_voters < 9
+# low-voter blip that recovered inside the 15m window does not fire -- the
+# alert is meant for a SUSTAINED deficit, not one bad sample. `stats` on zero
+# matching events still yields one row (count=0, min_voters=null), so
+# `samples == 0` catches total silence and `min_voters < 9` catches a
+# degraded-but-shipping quorum -- one search, both failure modes.
+search = index=os sourcetype=syslog "openbao-voter-health" | rex "voters=(?<voters>\d+)" | where isnotnull(voters) | stats min(voters) as min_voters count as samples | where samples == 0 OR min_voters < 9
 dispatch.earliest_time = -15m
 dispatch.latest_time = now
 cron_schedule = */5 * * * *
