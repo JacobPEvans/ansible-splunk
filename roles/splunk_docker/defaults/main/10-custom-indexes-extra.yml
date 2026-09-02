@@ -67,6 +67,16 @@ splunk_docker_indexes_extra:
   - name: otel_traces
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # ai_usage: OTLP log records from the agent CLIs (api_request, tool_result,
+  # user_prompt ...), via Cribl Stream in_otel -> otel_logs. Events, not spans:
+  # the api_request record is the only per-request token accounting the
+  # producers emit, which is what the usage dashboards need and what the
+  # cumulative metric cannot give back once its export window has summed
+  # several requests. Kept apart from otel_traces because the two are
+  # different event shapes with different retention needs, not for isolation.
+  - name: ai_usage
+    max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # os: host syslog. Historically a catch-all — measured 2026-07-26 it held
   # 39.3M events over 13 months from 30+ unrelated hosts, 96.9% of it a single
   # `syslog` sourcetype. os_proxmox and os_ai below carve out the two domains

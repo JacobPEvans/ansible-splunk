@@ -24,6 +24,7 @@
       network: "molecule-test-token-network"
       openai: "molecule-test-token-openai"
       otel_traces: "molecule-test-token-otel-traces"
+      ai_usage: "molecule-test-token-ai-usage"
       os: "molecule-test-token-os"
       unifi: "molecule-test-token-unifi"
       vscode: "molecule-test-token-vscode"
