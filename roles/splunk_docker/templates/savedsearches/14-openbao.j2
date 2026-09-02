@@ -1,0 +1,71 @@
+{# ---------------------------------------------------------------------------
+   OpenBao privileged-use and raft-quorum detectors (index=openbao_audit,
+   index=os). The index-silence and voter-health silence detectors for this
+   surface are generic entries in splunk_docker_silence_detectors (see
+   defaults/main/11-silence-detectors.yml, names openbao_audit and
+   openbao_voter_health) and are NOT duplicated here.
+
+   Audit events are syslog-wrapped JSON, not auto-extracted:
+     <182>Sep  2 18:27:21 openbao-20 openbao-audit: {"time":...,"auth":{...},
+     "request":{...}}
+   so every search below peels the JSON out with rex + spath before touching
+   auth.* / request.* fields.
+--------------------------------------------------------------------------- #}
+[openbao_privileged_use]
+description = Alerts on OpenBao requests using a privileged policy/token (ai-admin, root) or hitting a sensitive management path (policy, audit, mount, auth-method, or AppRole secret-id changes; generate-root; rekey). Every hit is worth a human look even when expected, since these are the paths that can grant or exfiltrate broader access.
+search = index=openbao_audit sourcetype=openbao:audit | rex "openbao-audit: (?<j>\{.*)" | spath input=j | eval token_type='auth.token_type', policies=mvjoin('auth.policies{}', ",") | where token_type="root" OR like(policies, "%root%") OR like(policies, "%ai-admin%") OR like('request.path', "sys/generate-root%") OR like('request.path', "sys/rekey%") OR (('request.operation'="create" OR 'request.operation'="update" OR 'request.operation'="delete") AND (like('request.path', "sys/policies/%") OR like('request.path', "sys/audit%") OR like('request.path', "sys/mounts%") OR like('request.path', "sys/auth%") OR like('request.path', "auth/approle/role/%"))) | eval reason=case(token_type="root", "root token used", like(policies, "%root%"), "root policy attached", like(policies, "%ai-admin%"), "ai-admin policy used", like('request.path', "auth/approle/role/%"), "approle secret-id mint/config", like('request.path', "sys/generate-root%"), "generate-root operation", like('request.path', "sys/rekey%"), "rekey operation", true(), "privileged path access") | table _time host token_type reason policies request.path request.operation
+dispatch.earliest_time = -6m
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 4
+alert.suppress = 1
+alert.suppress.period = 15m
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+
+[openbao_snapshot_silence_detector]
+description = Alerts when the OpenBao raft leader has not logged a successful snapshot (openbao-snapshot: "snapshot OK") in index=os for more than 7 hours. Only the raft leader runs the snapshot timer, so this is deliberately not by-host -- see roles/openbao/templates in ansible-proxmox-apps for the timer that emits this line.
+# `stats count` on zero matching events still yields one count=0 row (an
+# ungrouped aggregate always emits a row), so unlike the tstats-based
+# generator this needs no appendpipe sentinel -- same reasoning as the
+# ansible-pipeline detectors above.
+search = index=os sourcetype=syslog "openbao-snapshot" "snapshot OK" | stats count as event_count latest(_time) as last_seen | eval minutes_silent = (now() - coalesce(last_seen, 0)) / 60 | where minutes_silent > 420
+dispatch.earliest_time = -1440m
+dispatch.latest_time = now
+cron_schedule = 0 */2 * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 4
+alert.suppress = 1
+alert.suppress.period = 420m
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+
+[openbao_raft_quorum]
+description = Alerts when fewer than 9 raft voters have reported healthy for 15 minutes. DEPENDS on the openbao-voter-health emit carrying a `voters=<n>` key=value token (roles/openbao/templates/openbao-voter-health.sh.j2 in ansible-proxmox-apps) -- adjust the rex below if that format lands differently.
+# min(voters) over the whole window, not latest(voters) alone, so a single
+# low-voter blip that recovered inside the 15m window does not fire --
+# the alert is meant for a SUSTAINED deficit, not one bad sample.
+search = index=os sourcetype=syslog "openbao-voter-health" | rex "voters=(?<voters>\d+)" | where isnotnull(voters) | stats min(voters) as min_voters count as samples | where samples > 0 AND min_voters < 9
+dispatch.earliest_time = -15m
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+is_visible = 1
+disabled = 0
+alert.severity = 5
+alert.suppress = 1
+alert.suppress.period = 30m
+alert.track = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+
