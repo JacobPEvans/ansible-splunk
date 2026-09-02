@@ -16,7 +16,13 @@
   ansible.builtin.set_fact:
     splunk_docker_eligible_tokens: >-
       {%- set eligible = [] -%}
-      {%- set current_epoch = ansible_date_time.epoch | int -%}
+      {# Live-rendered, not the ansible_date_time fact -- that fact is
+         gathered once near play start and is stale by the time this task
+         runs deep in a long converge. A token minted moments ago carries an
+         nbr stamped with the SERVER's real mint time, which is already past
+         the stale snapshot, so it fails "not yet valid" and gets excluded
+         from its own eligible list. now() evaluates at render time. #}
+      {%- set current_epoch = now(utc=true, fmt='%s') | int -%}
       {%- for token in splunk_docker_matching_tokens -%}
         {%- set status = token.content.status | default('') -%}
         {%- set expires_text = token.content.claims.exp | default('') | string -%}
