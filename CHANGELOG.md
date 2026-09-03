@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.3](https://github.com/dryvist/ansible-splunk/compare/v0.68.2...v0.68.3) (2026-09-03)
+
+
+### Bug Fixes
+
+* **splunk_docker:** use live time, not a stale gathered fact, for token eligibility ([e14688c](https://github.com/dryvist/ansible-splunk/commit/e14688c51e37d8af31c72faa3c6526557d086e48))
+* **splunk_docker:** use live time, not a stale gathered fact, for token eligibility ([966641f](https://github.com/dryvist/ansible-splunk/commit/966641f6337469fc1d094092b2c8b01f0e9fe43a))
+
 ## [0.68.2](https://github.com/dryvist/ansible-splunk/compare/v0.68.1...v0.68.2) (2026-09-02)
 
 
