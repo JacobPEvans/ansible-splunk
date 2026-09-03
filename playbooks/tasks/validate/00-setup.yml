@@ -1,7 +1,7 @@
 ---
 - name: Load splunk_docker role defaults (namespaced, pre-role fallback)
   ansible.builtin.include_vars:
-    dir: ../roles/splunk_docker/defaults/main
+    dir: "{{ playbook_dir }}/../roles/splunk_docker/defaults/main"
     name: _splunk_docker_defaults
 
 - name: Set fallback global defaults for nested templates
