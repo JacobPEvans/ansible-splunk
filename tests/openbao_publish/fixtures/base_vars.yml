@@ -1,6 +1,4 @@
 ---
-ansible_date_time:
-  epoch: "2000"
 ansible_host: splunk.example.test
 splunk_user:
   name: hermes
@@ -12,38 +10,48 @@ existing_secret:
   SIBLING_FIELD: preserve-me
   SPLUNK_MCP_URL: https://old.example.test/services/mcp
   SPLUNK_MCP_TOKEN: "{{ opaque_published_token }}"
+# nbr/exp are relative to render time (now()), not fixed absolute epochs --
+# plan_token_reconciliation.yml compares against a LIVE timestamp, so a
+# fixture pinned to an arbitrary past epoch (e.g. "2000") would make every
+# real-world nbr look like it is in the future and fail eligibility.
 splunk_docker_token_list:
   json:
     entry:
       - name: live-future-expiry
         content:
           status: enabled
-          claims: { sub: hermes, aud: mcp, nbr: 1500, exp: 3000 }
+          claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
       - name: live-no-expiry
         content:
           status: enabled
-          claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 0 }
+          claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: 0 }
+      # A token minted this instant: nbr == now must still be eligible
+      # (the bug this fixture guards: nbr <= current_epoch, not <).
+      - name: live-now
+        content:
+          status: enabled
+          claims: { sub: hermes, aud: mcp, nbr: "{{ now(utc=true, fmt='%s') | int }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
       - name: future-not-before
         content:
           status: enabled
-          claims: { sub: hermes, aud: mcp, nbr: 2001, exp: 3000 }
+          claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 200000 }}" }
       - name: expired
         content:
           status: enabled
-          claims: { sub: hermes, aud: mcp, nbr: 1500, exp: 1999 }
+          claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) - 100 }}" }
       - name: disabled
         content:
           status: disabled
-          claims: { sub: hermes, aud: mcp, nbr: 1500, exp: 3000 }
+          claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
       - name: missing-not-before
         content:
           status: enabled
-          claims: { sub: hermes, aud: mcp, exp: 3000 }
+          claims: { sub: hermes, aud: mcp, exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
       - name: invalid-not-before
         content:
           status: enabled
-          claims: { sub: hermes, aud: mcp, nbr: later, exp: 3000 }
+          claims: { sub: hermes, aud: mcp, nbr: later, exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
       - name: different-audience
         content:
           status: enabled
-          claims: { sub: hermes, aud: api, nbr: 1500, exp: 3000 }
+          claims: { sub: hermes, aud: api, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
