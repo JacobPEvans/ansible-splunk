@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.4](https://github.com/dryvist/ansible-splunk/compare/v0.68.3...v0.68.4) (2026-09-03)
+
+
+### Bug Fixes
+
+* **splunk_docker:** deliver Slack alerts via the built-in webhook action ([b497bce](https://github.com/dryvist/ansible-splunk/commit/b497bcefb05c1b9eb675db2365d7feed9660f14d))
+* **splunk_docker:** deliver Slack alerts via the built-in webhook action ([6b1367c](https://github.com/dryvist/ansible-splunk/commit/6b1367cd09bb190f6d82acb583c1e47e8ae7d2c6))
+* **splunk_docker:** make the Zammad delivery gate loud, not aspirational ([f5788a9](https://github.com/dryvist/ansible-splunk/commit/f5788a9da44a3d4b5e8542403e9e3efadaa501b2))
+
 ## [0.68.3](https://github.com/dryvist/ansible-splunk/compare/v0.68.2...v0.68.3) (2026-09-03)
 
 
