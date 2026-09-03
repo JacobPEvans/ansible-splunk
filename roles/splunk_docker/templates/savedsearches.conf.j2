@@ -9,19 +9,29 @@
    its own searches and none of the 787 owned by the other 24 apps.
 
    So delivery is declared ONCE here instead of per-stanza. Adding a saved
-   search below gets Slack + Zammad with no per-search configuration; there
-   is no macro to remember to call. Replaces alert_deliver(), deleted with
+   search below gets Slack with no per-search configuration; there is no
+   macro to remember to call. Replaces alert_deliver(), deleted with
    savedsearches/00-macros.j2.
 
    $name$ is the stanza name, so the message needs no per-search title.
-   Both actions stay gated on their credential being present: enabling an
+   The action stays gated on its credential being present: enabling an
    action whose alert_actions.conf half is unconfigured fires the alert and
    then fails delivery silently.
+
+   Slack rides Splunk's built-in webhook action (see alert_actions.conf.j2
+   for why -- there is no installed "slack" action script). A search that
+   instead wants ntfy overrides action.webhook.param.url to the ntfy URL.
+
+   Zammad is declared below but NOT a working channel -- no Zammad alert
+   action is installed anywhere (Vikunja 2150), and
+   assert_alerting_gates.yml fails the converge if its gate variable is
+   ever set for exactly that reason. The block stays as the landing point
+   for when that work ships, not as evidence delivery works today.
 #}
 [default]
 {% if splunk_docker_alert_slack_webhook %}
-action.slack = 1
-action.slack.param.message = [$name$] $job.resultCount$ result(s) — $view_link$
+action.webhook = 1
+action.webhook.param.url = {{ splunk_docker_alert_slack_webhook }}
 {% endif %}
 {% if splunk_docker_alert_zammad_token %}
 action.zammad = 1
