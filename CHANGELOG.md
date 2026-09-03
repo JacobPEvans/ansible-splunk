@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.5](https://github.com/dryvist/ansible-splunk/compare/v0.68.4...v0.68.5) (2026-09-03)
+
+
+### Bug Fixes
+
+* **splunk_docker:** install the official Slack Notification Alert app ([0e83ae8](https://github.com/dryvist/ansible-splunk/commit/0e83ae8c874d6fc0474c77764ab08b82c759e01f))
+* **splunk_docker:** install the official Slack Notification Alert app ([9443270](https://github.com/dryvist/ansible-splunk/commit/94432705025dc9b6281e8ea0535da5d095231530))
+
 ## [0.68.4](https://github.com/dryvist/ansible-splunk/compare/v0.68.3...v0.68.4) (2026-09-03)
 
 
