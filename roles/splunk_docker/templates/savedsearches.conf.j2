@@ -17,11 +17,15 @@
    Both actions stay gated on their credential being present: enabling an
    action whose alert_actions.conf half is unconfigured fires the alert and
    then fails delivery silently.
+
+   Slack rides Splunk's built-in webhook action (see alert_actions.conf.j2
+   for why -- there is no installed "slack" action script). A search that
+   instead wants ntfy overrides action.webhook.param.url to the ntfy URL.
 #}
 [default]
 {% if splunk_docker_alert_slack_webhook %}
-action.slack = 1
-action.slack.param.message = [$name$] $job.resultCount$ result(s) — $view_link$
+action.webhook = 1
+action.webhook.param.url = {{ splunk_docker_alert_slack_webhook }}
 {% endif %}
 {% if splunk_docker_alert_zammad_token %}
 action.zammad = 1

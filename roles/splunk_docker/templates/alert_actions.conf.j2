@@ -1,16 +1,27 @@
 {{ ansible_managed | comment }}
 {# Alert-action plumbing for the ntfy + Slack delivery pair used by every
    saved search in savedsearches.conf.j2 (email is deliberately absent —
-   operator directive 2026-07-16). #}
-{% if splunk_docker_alert_ntfy_url %}
+   operator directive 2026-07-16).
+
+   Slack delivery uses Splunk's BUILT-IN [webhook] action, not a custom
+   [slack] alert action — no such action script is installed anywhere in
+   this app or in system/system (verified live: every fired alert logged
+   "Alert action script for action \"slack\" not found" / "Unable to find
+   alert action script for action=\"slack\" in app=\"system\"", ~1/min, for
+   as long as this stanza existed). The webhook action is already installed
+   and enabled for ntfy below; Slack's incoming-webhook endpoint accepts the
+   same POST-JSON shape, so this reuses that mechanism instead of a second,
+   nonexistent one. #}
+{% if splunk_docker_alert_ntfy_url or splunk_docker_alert_slack_webhook %}
 [webhook]
 # Splunk 9+ gates the webhook alert action behind an allowlist; without this
-# the ntfy action fails silently. Anchor the topic URL, allow the per-alert
-# ?title/&priority query suffix.
+# an allowlisted target fails silently. Anchor each URL, allow the per-alert
+# query suffix (ntfy's ?title/&priority).
 enable_allowlist = true
+{% if splunk_docker_alert_ntfy_url %}
 allowlist.ntfy = ^{{ splunk_docker_alert_ntfy_url | regex_escape }}(\?.*)?$
 {% endif %}
 {% if splunk_docker_alert_slack_webhook %}
-[slack]
-param.webhook_url = {{ splunk_docker_alert_slack_webhook }}
+allowlist.slack = ^{{ splunk_docker_alert_slack_webhook | regex_escape }}$
+{% endif %}
 {% endif %}
