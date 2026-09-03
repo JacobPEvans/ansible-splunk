@@ -18,9 +18,14 @@
    action whose alert_actions.conf half is unconfigured fires the alert and
    then fails delivery silently.
 
-   Slack rides Splunk's built-in webhook action (see alert_actions.conf.j2
-   for why -- there is no installed "slack" action script). A search that
-   instead wants ntfy overrides action.webhook.param.url to the ntfy URL.
+   Slack rides the [slack] action shipped by the official "Slack
+   Notification Alert" app (Splunkbase 2878, splunk/slack-alerts --
+   splunk_docker_addons in vars/addons.yml). A prior [webhook]-based
+   attempt failed Slack's incoming-webhook payload validation with 400 --
+   Splunk's built-in webhook action sends a fixed JSON schema it cannot
+   customize, and Slack requires {"text": ...}. This app's alert action
+   generates that shape itself; alert_actions.conf.j2 sets its global
+   default webhook URL, `message` is the one required per-search param.
 
    Zammad is declared below but NOT a working channel -- no Zammad alert
    action is installed anywhere (Vikunja 2150), and
@@ -30,8 +35,8 @@
 #}
 [default]
 {% if splunk_docker_alert_slack_webhook %}
-action.webhook = 1
-action.webhook.param.url = {{ splunk_docker_alert_slack_webhook }}
+action.slack = 1
+action.slack.param.message = [$name$] $job.resultCount$ result(s) — $view_link$
 {% endif %}
 {% if splunk_docker_alert_zammad_token %}
 action.zammad = 1
