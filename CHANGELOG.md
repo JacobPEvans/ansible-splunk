@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.6](https://github.com/dryvist/ansible-splunk/compare/v0.68.5...v0.68.6) (2026-09-03)
+
+
+### Bug Fixes
+
+* **validate:** use playbook_dir in defaults include_vars path ([#526](https://github.com/dryvist/ansible-splunk/issues/526)) ([ee2ec67](https://github.com/dryvist/ansible-splunk/commit/ee2ec6709c6111ab02bde1195fb81ab8dbf12b65))
+
 ## [0.68.5](https://github.com/dryvist/ansible-splunk/compare/v0.68.4...v0.68.5) (2026-09-03)
 
 
