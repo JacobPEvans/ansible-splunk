@@ -15,12 +15,19 @@
 # deploy can still proceed. This playbook also runs as an in-flow pre-play of
 # site.yml; it stays usable standalone for manual/scheduled syncs.
 #
-# Credentials (Doppler):
-#   SPLUNKBASE_USERNAME      / SPLUNKBASE_PASSWORD          — Splunkbase account (download only)
-#   OBJECT_STORAGE_ROOT_USER / OBJECT_STORAGE_ROOT_PASSWORD — object-storage bucket write auth
+# Credentials (OpenBao, resolved in tasks/sync-splunkbase/preflight.yml):
+#   platform/splunk/main      SPLUNKBASE_USERNAME / SPLUNKBASE_PASSWORD
+#                             — Splunkbase account (download only)
+#   platform/object-storage   S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY
+#                             — object-storage bucket write auth
+#
+# Read with community.hashi_vault, which takes VAULT_ADDR / VAULT_TOKEN from
+# the environment. scripts/run-ansible.sh exports both from the AppRole login
+# it already performs to mint the run's SSH certificate, so the playbook needs
+# no credential of its own and no secrets manager around it.
 #
 # Usage:
-#   doppler run -- ansible-playbook playbooks/sync-splunkbase.yml
+#   scripts/run-ansible.sh playbooks/sync-splunkbase.yml
 #
 # Runs entirely on localhost (the Ansible controller, which has internet egress).
 # The Splunk VM never contacts Splunkbase — air-gap preserved.
@@ -39,9 +46,11 @@
     # aws reads credentials and the endpoint from the environment — nothing is
     # ever written to ~/.aws. The region is unused by the object store but the
     # SigV4 signer refuses to run without one.
+    # Set by tasks/sync-splunkbase/preflight.yml. Lazily templated, so it is
+    # safe for this play-level var to name a fact the first task defines.
     s3_env:
-      AWS_ACCESS_KEY_ID: "{{ lookup('env', 'OBJECT_STORAGE_ROOT_USER') }}"
-      AWS_SECRET_ACCESS_KEY: "{{ lookup('env', 'OBJECT_STORAGE_ROOT_PASSWORD') }}"
+      AWS_ACCESS_KEY_ID: "{{ object_storage_secrets.S3_ACCESS_KEY_ID }}"
+      AWS_SECRET_ACCESS_KEY: "{{ object_storage_secrets.S3_SECRET_ACCESS_KEY }}"
       AWS_DEFAULT_REGION: us-east-1
       AWS_ENDPOINT_URL: >-
         http://{{ hostvars['localhost']['tofu_data']['containers']['s3']['ip'] }}:{{

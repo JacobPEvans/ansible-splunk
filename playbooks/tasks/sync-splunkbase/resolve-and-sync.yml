@@ -82,8 +82,9 @@
         or 'NoSuchKey' in ((item.stdout | default('')) ~ (item.stderr | default('')))
     fail_msg: >-
       get-object-tagging failed for {{ item.item.filename }} with rc={{ item.rc }}.
-      Not a "missing object" — check object-storage connectivity,
-      OBJECT_STORAGE_ROOT_USER/PASSWORD, and bucket existence.
+      Not a "missing object" — check object-storage connectivity, the
+      credentials preflight resolved from platform/object-storage, and bucket
+      existence.
     quiet: true
   loop: "{{ object_storage_tag_query.results }}"
   loop_control:
@@ -124,8 +125,8 @@
     method: POST
     body_format: form-urlencoded
     body:
-      username: "{{ lookup('env', 'SPLUNKBASE_USERNAME') }}"
-      password: "{{ lookup('env', 'SPLUNKBASE_PASSWORD') }}"
+      username: "{{ splunkbase_secrets.SPLUNKBASE_USERNAME }}"
+      password: "{{ splunkbase_secrets.SPLUNKBASE_PASSWORD }}"
     return_content: true
     status_code: 200
   register: splunkbase_login
@@ -148,8 +149,10 @@
       - splunkbase_token is defined
       - splunkbase_token | length > 0
     fail_msg: >-
-      Splunkbase login returned no session token. Check
-      SPLUNKBASE_USERNAME / SPLUNKBASE_PASSWORD in Doppler.
+      Splunkbase login returned no session token. The credentials were read
+      successfully from platform/splunk/main (a failed read would have stopped
+      the run in preflight), so this is a rejected login rather than a missing
+      secret — check the account itself.
   when: splunkbase_to_sync | length > 0
 
 - name: Download drifted entries from Splunkbase

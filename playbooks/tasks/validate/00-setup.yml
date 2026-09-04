@@ -16,9 +16,22 @@
   ansible.builtin.set_fact:
     splunk_docker_etc_dir: "{{ splunk_docker_etc_dir | default(_splunk_docker_defaults.splunk_docker_etc_dir) }}"
 
-- name: Set HEC namespace from environment
+# Same source as the converge (playbooks/site.yml). A validation run reading
+# only the environment would find an empty namespace under the unattended
+# execution plane, silently fall through to the legacy-token-only branch below,
+# and report the per-index tokens as absent — describing its own missing
+# credential as a Splunk misconfiguration.
+- name: Read the Splunk platform credentials from OpenBao
   ansible.builtin.set_fact:
-    splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') | default('', true) }}"
+    splunk_platform_secrets: >-
+      {{ lookup('community.hashi_vault.vault_kv2_get',
+                'platform/splunk/main').secret }}
+  no_log: true
+
+- name: Set HEC namespace and legacy token
+  ansible.builtin.set_fact:
+    splunk_docker_hec_namespace: "{{ splunk_platform_secrets.HEC_NAMESPACE }}"
+    splunk_docker_hec_legacy_token: "{{ splunk_platform_secrets.SPLUNK_HEC_TOKEN }}"
   no_log: true
 
 - name: Derive per-index HEC token values from namespace
@@ -31,7 +44,7 @@
       {{
         dict(index_names | zip(
           index_names | map('regex_replace', '^', 'splunk-hec-') | map('to_uuid', splunk_docker_hec_namespace)
-        )) | combine({'legacy': lookup('env', 'SPLUNK_HEC_TOKEN') | default('', true)})
+        )) | combine({'legacy': splunk_docker_hec_legacy_token})
       }}
   when: splunk_docker_hec_namespace | length > 0
   no_log: true
@@ -39,6 +52,6 @@
 - name: Fallback to SPLUNK_HEC_TOKEN if no namespace
   ansible.builtin.set_fact:
     splunk_docker_hec_token_values: >-
-      {{ {'legacy': lookup('env', 'SPLUNK_HEC_TOKEN') | default('', true)} }}
+      {{ {'legacy': splunk_docker_hec_legacy_token} }}
   when: splunk_docker_hec_namespace | length == 0
   no_log: true

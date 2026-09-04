@@ -1,15 +1,35 @@
 ---
-- name: Assert required environment variables are set
-  ansible.builtin.assert:
-    that:
-      - lookup('env', 'SPLUNKBASE_USERNAME') | length > 0
-      - lookup('env', 'SPLUNKBASE_PASSWORD') | length > 0
-      - lookup('env', 'OBJECT_STORAGE_ROOT_USER') | length > 0
-      - lookup('env', 'OBJECT_STORAGE_ROOT_PASSWORD') | length > 0
-    fail_msg: >-
-      Missing one of SPLUNKBASE_USERNAME, SPLUNKBASE_PASSWORD,
-      OBJECT_STORAGE_ROOT_USER, OBJECT_STORAGE_ROOT_PASSWORD. Run via
-      `doppler run -- ansible-playbook …` so Doppler injects secrets.
+# Credential resolution + object-storage client checks for the Splunkbase mirror.
+#
+# WHY THIS READS OPENBAO RATHER THAN THE ENVIRONMENT.
+# This file used to assert four environment variables and tell the reader to
+# re-run under a laptop secrets manager. That instruction is unfollowable from
+# the unattended execution plane, which has no such wrapper — so `splunk-site`
+# failed here on every run, and the failure read as "a secret is missing" when
+# the secrets existed in OpenBao all along and the run simply had no way to
+# reach them.
+#
+# The read is community.hashi_vault (already pinned in requirements.yml, and
+# already how roles/openbao_secrets reads in the sibling repo). It takes its
+# address and token from VAULT_ADDR / VAULT_TOKEN, which scripts/run-ansible.sh
+# exports from the AppRole login it already performs to mint the run's SSH
+# certificate. Nothing here logs in, and nothing here holds a credential of its
+# own.
+#
+# A failed read raises. That is the wanted behaviour: a 403 from a missing
+# policy grant must stop the run rather than fall through to an empty value
+# that surfaces later as a Splunkbase rejection or a SigV4 error.
+
+- name: Resolve the mirror's credentials from OpenBao
+  ansible.builtin.set_fact:
+    splunkbase_secrets: >-
+      {{ lookup('community.hashi_vault.vault_kv2_get', 'platform/splunk/main').secret }}
+    # S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY here are the same credential the
+    # shared inventory resolver already uses, read from the path the
+    # ansible-converge policy already grants.
+    object_storage_secrets: >-
+      {{ lookup('community.hashi_vault.vault_kv2_get', 'platform/object-storage').secret }}
+  no_log: true
 
 # Without this, an absent `aws` surfaces as rc=2 from every object-storage
 # command, which the tag-query validation below reports as an object-storage

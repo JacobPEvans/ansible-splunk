@@ -82,27 +82,36 @@
             dir: ../roles/splunk_docker/defaults/main
             name: _splunk_docker_defaults
 
-        - name: Validate required environment variables
-          ansible.builtin.assert:
-            that:
-              - lookup('env', 'SPLUNK_PASSWORD') | length > 0
-              - lookup('env', 'SPLUNK_HEC_TOKEN') | length > 0
-              - lookup('env', 'HEC_NAMESPACE') | length > 0
-            fail_msg: >-
-              SPLUNK_PASSWORD, SPLUNK_HEC_TOKEN, and HEC_NAMESPACE must be set
-              (use: doppler run -- ansible-playbook ...). HEC_NAMESPACE is no
-              longer optional: every per-index HEC token is derived from it, so
-              a run without it silently re-templates inputs.conf down to only
-              the legacy token and drops every per-index sender's token —
-              causing a live multi-index ingest outage on the next restart.
+        # These three used to be asserted as environment variables with the
+        # advice "use doppler run". An unattended run has no such wrapper, so
+        # that advice was unfollowable and the assert simply stopped the run.
+        # community.hashi_vault (pinned in requirements.yml) reads them from
+        # OpenBao using VAULT_ADDR / VAULT_TOKEN, which scripts/run-ansible.sh
+        # exports from the AppRole login it already performs. A failed read
+        # raises, so a missing policy grant stops the run instead of silently
+        # yielding an empty credential.
+        - name: Read the Splunk platform credentials from OpenBao
+          ansible.builtin.set_fact:
+            splunk_platform_secrets: >-
+              {{ lookup('community.hashi_vault.vault_kv2_get',
+                        'platform/splunk/main').secret }}
+          no_log: true
           run_once: true
           delegate_to: localhost
 
-        - name: Set Splunk credentials from environment
+        - name: Set Splunk credentials
           ansible.builtin.set_fact:
-            splunk_docker_password: "{{ lookup('env', 'SPLUNK_PASSWORD') }}"
-            splunk_docker_hec_namespace: "{{ lookup('env', 'HEC_NAMESPACE') }}"
+            splunk_docker_password: "{{ splunk_platform_secrets.SPLUNK_PASSWORD }}"
+            # HEC_NAMESPACE is not optional and its absence is silent: every
+            # per-index HEC token derives from it, so a run without it
+            # re-templates inputs.conf down to the legacy token alone and drops
+            # every per-index sender — a live multi-index ingest outage on the
+            # next restart.
+            splunk_docker_hec_namespace: "{{ splunk_platform_secrets.HEC_NAMESPACE }}"
+            splunk_docker_hec_token: "{{ splunk_platform_secrets.SPLUNK_HEC_TOKEN }}"
           no_log: true
+          run_once: true
+          delegate_to: localhost
 
         - name: Validate HEC_NAMESPACE is a valid UUID
           ansible.builtin.assert:
@@ -127,7 +136,7 @@
               {{
                 dict(index_names | zip(
                   index_names | map('regex_replace', '^', 'splunk-hec-') | map('to_uuid', splunk_docker_hec_namespace)
-                )) | combine({'legacy': lookup('env', 'SPLUNK_HEC_TOKEN')})
+                )) | combine({'legacy': splunk_docker_hec_token})
               }}
           no_log: true
 
