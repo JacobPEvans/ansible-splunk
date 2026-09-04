@@ -51,7 +51,7 @@
   block:
     - name: Look up object-storage A record on the controller
       ansible.builtin.shell: |
-        set -e
+        set -euo pipefail
         host="{{ splunk_docker_artifact_base_url | urlsplit('hostname') }}"
         ip="$(getent hosts "$host" 2>/dev/null | awk '{print $1; exit}' || true)"
         if [ -z "$ip" ]; then
