@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.69.0](https://github.com/dryvist/ansible-splunk/compare/v0.68.7...v0.69.0) (2026-09-04)
+
+
+### Features
+
+* **splunk_docker:** register Splunkbase Add-on Builder app 2962 ([6114ebd](https://github.com/dryvist/ansible-splunk/commit/6114ebd33387e2f214b5a545ce3f654e4b49248b))
+* **splunk_docker:** track Splunk Add-on Builder (2962) ([76634a7](https://github.com/dryvist/ansible-splunk/commit/76634a74924ef3067c298a17e6295000b14ca012))
+* **splunk_docker:** track Splunk Add-on Builder (2962) and ignore .worktrees ([c5927eb](https://github.com/dryvist/ansible-splunk/commit/c5927eb81426ab6714e8e072a2c593bd45a950a5))
+
 ## [0.68.7](https://github.com/dryvist/ansible-splunk/compare/v0.68.6...v0.68.7) (2026-09-04)
 
 
