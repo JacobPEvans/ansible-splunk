@@ -50,21 +50,26 @@
     - (splunk_docker_artifact_base_url | urlsplit('hostname') | default('', true)) is match('^[A-Za-z]')
   block:
     - name: Look up object-storage A record on the controller
-      ansible.builtin.command:
-        argv:
-          - getent
-          - hosts
-          - "{{ splunk_docker_artifact_base_url | urlsplit('hostname') }}"
+      ansible.builtin.shell: |
+        set -e
+        host="{{ splunk_docker_artifact_base_url | urlsplit('hostname') }}"
+        ip="$(getent hosts "$host" 2>/dev/null | awk '{print $1; exit}' || true)"
+        if [ -z "$ip" ]; then
+          ip="$(dig +short "$host" A 2>/dev/null | awk 'NF && $1 !~ /\.$/ {print; exit}')"
+        fi
+        test -n "$ip"
+        printf '%s\n' "$ip"
+      args:
+        executable: /bin/bash
       delegate_to: localhost
       become: false
       register: splunk_docker_artifact_dns
       changed_when: false
-      failed_when: splunk_docker_artifact_dns.rc != 0
 
     - name: Rewrite artifact base URL to the resolved IP
       ansible.builtin.set_fact:
         splunk_docker_artifact_base_url: >-
-          http://{{ splunk_docker_artifact_dns.stdout.split()[0] }}:{{
+          http://{{ splunk_docker_artifact_dns.stdout | trim }}:{{
           splunk_docker_artifact_base_url | urlsplit('port') }}{{
           splunk_docker_artifact_base_url | urlsplit('path') }}
 
