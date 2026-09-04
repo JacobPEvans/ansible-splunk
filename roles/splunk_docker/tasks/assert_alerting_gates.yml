@@ -1,0 +1,62 @@
+---
+# Alerting is deployed unconditionally (every splunk_docker_silence_detectors
+# entry ships enabled by default), but delivery is gated per-action in
+# savedsearches.conf.j2 on splunk_docker_alert_slack_webhook /
+# splunk_docker_alert_zammad_token being non-empty. A missing gate variable
+# used to render an empty [default] stanza with no error -- alerts fired,
+# nobody was told, and the converge still exited 0. Fail loudly instead.
+- name: Assert at least one alert delivery action is configured
+  ansible.builtin.assert:
+    that:
+      - (splunk_docker_alert_slack_webhook | default('') | length > 0) or
+        (splunk_docker_alert_zammad_token | default('') | length > 0)
+    fail_msg: >-
+      Alerting is enabled (savedsearches deploy unconditionally) but neither
+      splunk_docker_alert_slack_webhook nor splunk_docker_alert_zammad_token
+      is set. Every fired alert would deliver nowhere. Set
+      RUNSON_ALERT_SLACK_WEBHOOK_URL and/or SPLUNK_ZAMMAD_TOKEN in the
+      converge environment, or explicitly override the gate variable if
+      alerting is intentionally being deployed with no delivery action.
+  tags: [alerting]
+
+# Zammad delivery has no installed alert action anywhere in this repo or any
+# shipped app (Vikunja 2150: needs a Zammad service user, an API token, an
+# OpenBao secret path, and a real action -- none of which exist yet). Slack
+# hit exactly this failure mode: a gate var was accepted, a custom action
+# was declared, and nothing was ever installed to run it -- every alert
+# silently failed delivery for as long as it shipped. Rather than repeat
+# that for Zammad, the channel stays unconfigured until those operator
+# decisions land. Setting the token before then declares a channel with
+# nothing behind it, so fail loudly instead of silently.
+- name: Assert Zammad delivery is not declared before a real action exists
+  ansible.builtin.assert:
+    that:
+      - (splunk_docker_alert_zammad_token | default('') | length == 0)
+    fail_msg: >-
+      splunk_docker_alert_zammad_token is set, but no Zammad alert action is
+      installed anywhere in this role or app (see Vikunja 2150) -- setting
+      it declares a delivery channel that silently fails, the exact defect
+      this file exists to catch for Slack. Do not set this variable until a
+      real Zammad alert action ships.
+  tags: [alerting]
+
+# A silence detector that watches an index Splunk never created cannot ever
+# fire -- tstats over a nonexistent index returns zero rows forever, which is
+# indistinguishable from "silent" and indistinguishable from "the index name
+# was mistyped". The two known instances of this (proxy shipped disabled,
+# openbao_voter_health watching a dropped index) were only found by manually
+# diffing the detector list against the live index list. Make the divergence
+# fail the converge instead of waiting for the next manual audit.
+- name: Assert every silence detector names an index this role actually creates
+  ansible.builtin.assert:
+    that:
+      - item.index in (splunk_docker_indexes | map(attribute='name') | list)
+    fail_msg: >-
+      splunk_docker_silence_detectors entry '{{ item.name }}' watches index
+      '{{ item.index }}', which is not in splunk_docker_indexes. A detector
+      on a nonexistent index returns zero rows forever and can never fire.
+      Either add the index to splunk_docker_indexes_extra or fix the typo.
+  loop: "{{ splunk_docker_silence_detectors }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [alerting]

@@ -8,11 +8,11 @@
           - name: concurrent-id
             content:
               status: enabled
-              claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+              claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
           - name: minted-id
             content:
               status: enabled
-              claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+              claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
 
 - name: Exercise post-publication inventory planning
   ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/plan_token_reconciliation.yml
@@ -33,11 +33,11 @@
           - name: concurrent-id
             content:
               status: disabled
-              claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+              claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
           - name: minted-id
             content:
               status: enabled
-              claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+              claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
 
 - name: Exercise final exact-one inventory planning
   ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/plan_token_reconciliation.yml

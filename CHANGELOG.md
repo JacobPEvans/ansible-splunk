@@ -5,6 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.6](https://github.com/dryvist/ansible-splunk/compare/v0.68.5...v0.68.6) (2026-09-03)
+
+
+### Bug Fixes
+
+* **validate:** use playbook_dir in defaults include_vars path ([#526](https://github.com/dryvist/ansible-splunk/issues/526)) ([ee2ec67](https://github.com/dryvist/ansible-splunk/commit/ee2ec6709c6111ab02bde1195fb81ab8dbf12b65))
+
+## [0.68.5](https://github.com/dryvist/ansible-splunk/compare/v0.68.4...v0.68.5) (2026-09-03)
+
+
+### Bug Fixes
+
+* **splunk_docker:** install the official Slack Notification Alert app ([0e83ae8](https://github.com/dryvist/ansible-splunk/commit/0e83ae8c874d6fc0474c77764ab08b82c759e01f))
+* **splunk_docker:** install the official Slack Notification Alert app ([9443270](https://github.com/dryvist/ansible-splunk/commit/94432705025dc9b6281e8ea0535da5d095231530))
+
+## [0.68.4](https://github.com/dryvist/ansible-splunk/compare/v0.68.3...v0.68.4) (2026-09-03)
+
+
+### Bug Fixes
+
+* **splunk_docker:** deliver Slack alerts via the built-in webhook action ([b497bce](https://github.com/dryvist/ansible-splunk/commit/b497bcefb05c1b9eb675db2365d7feed9660f14d))
+* **splunk_docker:** deliver Slack alerts via the built-in webhook action ([6b1367c](https://github.com/dryvist/ansible-splunk/commit/6b1367cd09bb190f6d82acb583c1e47e8ae7d2c6))
+* **splunk_docker:** make the Zammad delivery gate loud, not aspirational ([f5788a9](https://github.com/dryvist/ansible-splunk/commit/f5788a9da44a3d4b5e8542403e9e3efadaa501b2))
+
+## [0.68.3](https://github.com/dryvist/ansible-splunk/compare/v0.68.2...v0.68.3) (2026-09-03)
+
+
+### Bug Fixes
+
+* **splunk_docker:** use live time, not a stale gathered fact, for token eligibility ([e14688c](https://github.com/dryvist/ansible-splunk/commit/e14688c51e37d8af31c72faa3c6526557d086e48))
+* **splunk_docker:** use live time, not a stale gathered fact, for token eligibility ([966641f](https://github.com/dryvist/ansible-splunk/commit/966641f6337469fc1d094092b2c8b01f0e9fe43a))
+
+## [0.68.2](https://github.com/dryvist/ansible-splunk/compare/v0.68.1...v0.68.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* **splunk_docker:** fail the converge on an unset alert gate or a missing detector index ([62b3a43](https://github.com/dryvist/ansible-splunk/commit/62b3a43a68ddb2174a88d58e6a909975c8681e85))
+
+## [0.68.1](https://github.com/dryvist/ansible-splunk/compare/v0.68.0...v0.68.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **splunk_docker:** dedupe voter-health silence detection, fix total-silence blind spot ([9680553](https://github.com/dryvist/ansible-splunk/commit/9680553b93dc1b2f864f73c922e0d0e06c8581ac))
+* **splunk_docker:** dedupe voter-health silence detection, fix total-silence blind spot ([9357680](https://github.com/dryvist/ansible-splunk/commit/93576805a9f98064b1e2cfdea3d219fe2d34035b))
+
+## [0.68.0](https://github.com/dryvist/ansible-splunk/compare/v0.67.1...v0.68.0) (2026-09-02)
+
+
+### Features
+
+* **alerts:** OpenBao privileged-use, audit/snapshot/voter silence, and raft quorum alerts ([93e0201](https://github.com/dryvist/ansible-splunk/commit/93e02013a76eb680dcc41bbca26e9d5196a69c4f))
+* **alerts:** OpenBao privileged-use, snapshot silence, and raft quorum alerts ([520e74e](https://github.com/dryvist/ansible-splunk/commit/520e74eee67346256e78c380c8046b08e237a33d))
+
+## [0.67.1](https://github.com/dryvist/ansible-splunk/compare/v0.67.0...v0.67.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **splunk:** let the audit-trail silence detector see a real outage ([#510](https://github.com/dryvist/ansible-splunk/issues/510)) ([aed1eaf](https://github.com/dryvist/ansible-splunk/commit/aed1eaf8e1ae9457fa49dfd21eb35381967018a8))
+
+## [0.67.0](https://github.com/dryvist/ansible-splunk/compare/v0.66.0...v0.67.0) (2026-09-02)
+
+
+### Features
+
+* **indexes:** add the ai_usage index for agent OTLP log records ([#508](https://github.com/dryvist/ansible-splunk/issues/508)) ([84c248a](https://github.com/dryvist/ansible-splunk/commit/84c248a2d18419c650f7f36883c336040cb792b1))
+
+## [0.66.0](https://github.com/dryvist/ansible-splunk/compare/v0.65.0...v0.66.0) (2026-09-01)
+
+
+### Features
+
+* **cluster:** apply the Splunk Enterprise license on every converge ([#506](https://github.com/dryvist/ansible-splunk/issues/506)) ([6d373cb](https://github.com/dryvist/ansible-splunk/commit/6d373cb46a15515288ac78ed49c20bc11a75a03c))
+
 ## [0.65.0](https://github.com/dryvist/ansible-splunk/compare/v0.64.2...v0.65.0) (2026-09-01)
 
 

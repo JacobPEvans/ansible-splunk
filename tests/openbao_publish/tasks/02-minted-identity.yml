@@ -63,7 +63,7 @@
       - name: concurrent-id
         content:
           status: enabled
-          claims: { sub: hermes, aud: mcp, nbr: 2000, exp: 3000 }
+          claims: { sub: hermes, aud: mcp, nbr: "{{ (now(utc=true, fmt='%s') | int) - 500 }}", exp: "{{ (now(utc=true, fmt='%s') | int) + 100000 }}" }
   block:
     - name: Reject cleanup without eligible published token
       ansible.builtin.include_tasks: ../../../roles/splunk_docker/tasks/plan_token_cleanup.yml

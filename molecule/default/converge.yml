@@ -11,6 +11,10 @@
     # Test values - override role defaults for testing
     splunk_docker_password: "molecule-test-password"
     splunk_docker_hec_namespace: "12345678-1234-1234-1234-123456789abc"
+    # Satisfies the "at least one alert delivery action configured" assert
+    # added in assert_alerting_gates.yml -- molecule has no real Slack
+    # webhook, but the assert only checks non-empty, not reachable.
+    splunk_docker_alert_slack_webhook: "https://hooks.slack.example/molecule-test"
     # Token values will be derived in site.yml from namespace.
     # For direct role testing, provide pre-computed values:
     splunk_docker_hec_token_values:
@@ -24,6 +28,7 @@
       network: "molecule-test-token-network"
       openai: "molecule-test-token-openai"
       otel_traces: "molecule-test-token-otel-traces"
+      ai_usage: "molecule-test-token-ai-usage"
       os: "molecule-test-token-os"
       unifi: "molecule-test-token-unifi"
       vscode: "molecule-test-token-vscode"

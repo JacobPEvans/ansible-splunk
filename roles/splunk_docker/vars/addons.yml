@@ -35,6 +35,11 @@ splunk_docker_addons:
   - {filename: Splunk_TA_H3_Unifi.tar, app_dir: Splunk_TA_H3_Unifi, splunkbase_id: 7935}
   - {filename: ubiquiti-add-on-for-splunk.tar, app_dir: TA-ubiquiti, splunkbase_id: 4107}
   - {filename: splunk-mcp-server.tar, app_dir: Splunk_MCP_Server, splunkbase_id: 7931, role: mcp_server}
+  # Slack Notification Alert (splunk/slack-alerts). Official, Splunk-authored --
+  # provides the [slack] alert action savedsearches.conf.j2 declares. Distinct
+  # from TA-slack-add-on-for-splunk above, which is a data-input add-on with no
+  # alert script (the app that never delivered anything, see Vikunja 1866).
+  - {filename: slack-notification-alert.tar, app_dir: slack_alerts, splunkbase_id: 2878, role: slack_alert}
   - {filename: agent-management-versioned-app-retrieval.tar, app_dir: agent_management_versioned_app_retrieval, splunkbase_id: 8278}
   - {filename: add-on-for-traefik-proxy.tar, app_dir: splunk_traefik_addon, splunkbase_id: 6733}
   - {filename: python-for-scientific-computing-for-linux-64-bit.tar, app_dir: Splunk_SA_Scientific_Python_linux_x86_64, splunkbase_id: 2882, official_ai: true}

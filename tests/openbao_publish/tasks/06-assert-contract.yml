@@ -2,8 +2,9 @@
 - name: Assert identity, recovery, and sibling-preservation contracts
   ansible.builtin.assert:
     that:
-      - matching_ids == ['live-future-expiry', 'live-no-expiry', 'future-not-before', 'expired', 'disabled', 'missing-not-before', 'invalid-not-before']
-      - eligible_ids == ['live-future-expiry', 'live-no-expiry']
+      - matching_ids == ['live-future-expiry', 'live-no-expiry', 'live-now', 'future-not-before',
+        'expired', 'disabled', 'missing-not-before', 'invalid-not-before']
+      - eligible_ids == ['live-future-expiry', 'live-no-expiry', 'live-now']
       - valid_canonical_token
       - not dead_probe_token
       - not empty_published_token

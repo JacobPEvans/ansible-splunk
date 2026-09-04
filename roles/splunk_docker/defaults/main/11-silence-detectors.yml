@@ -52,6 +52,7 @@ splunk_docker_silence_lookback_multiplier: 2000
 # infrastructure indexes that are not LLM surfaces at all.
 splunk_docker_llm_freshness_indexes:
   - otel_traces
+  - ai_usage
   - claude
   - codex
   - gemini
@@ -141,24 +142,31 @@ splunk_docker_silence_detectors:
     cron: "*/5 * * * *"
     suppress_minutes: 60
     disabled: 0
-  # Audit trail is low-volume; a full day of silence is the signal.
+  # Low-volume, but a DAY of silence was the wrong bar and hid a real outage.
+  # The shipping path stalls in multi-hour bursts and then recovers by itself,
+  # so a 1440-minute threshold never fired once across 32 zero-hours in 30
+  # days — including a four-hour blackout of the security audit trail on
+  # 2026-09-02 that had to be found by hand. The observed floor is ~96
+  # records/hour (timer traffic alone), so 90 minutes of true silence is
+  # unambiguous and cannot be mistaken for an idle period.
+  # Detection is bounded by threshold + cron, so the hourly schedule is kept
+  # deliberately: worst case ~2.5h to alert, against ~24h+ before.
   - name: openbao_audit
     index: openbao_audit
-    threshold_minutes: 1440
+    threshold_minutes: 90
     cron: "0 * * * *"
-    suppress_minutes: 1440
+    suppress_minutes: 180
     disabled: 0
-  # Voter-health sampler ships every openbao_voter_health_interval (5min
-  # default) from whichever node is Raft leader; the script itself never exits
-  # non-zero on a probe failure, so this silence detector is the only signal
-  # if the timer stops or the leader stops shipping. Same cadence as os/unifi.
-  - name: openbao_voter_health
-    index: openbao
-    sourcetype: "openbao:voter:health"
-    threshold_minutes: 15
-    cron: "*/5 * * * *"
-    suppress_minutes: 60
-    disabled: 0
+  # Voter-health has exactly one implementation: [openbao_raft_quorum] in
+  # savedsearches/14-openbao.j2, which reads the real emit location
+  # (index=os sourcetype=syslog "openbao-voter-health") and asserts a
+  # sustained quorum deficit rather than plain silence. This generic entry
+  # used to watch index=openbao/sourcetype=openbao:voter:health, an index
+  # that role never created -- a detector that could never fire, and a
+  # second voter-health implementation duplicating the one above (Vikunja
+  # 2107). Removed rather than repointed: 14-openbao.j2 already covers both
+  # "stopped shipping" (samples == 0) and "shipping but degraded" in one
+  # search.
   # No honeypot emitter is wired up yet.
   # ponytail: enabled by the 2026-08-23 gate-lift anyway — this index is
   # structurally empty until the deception fabric starts sending, so expect
@@ -186,6 +194,16 @@ splunk_docker_silence_detectors:
     threshold_minutes: 30
     cron: "*/10 * * * *"
     suppress_minutes: 120
+    disabled: 0
+  # ai_usage: per-request OTLP log records from the agent CLIs. Sessions are
+  # bursty and human-paced, so the threshold is a working day rather than the
+  # trace spine's half hour: a day without a single request means the log
+  # exporter or the Cribl leg is broken, not that nobody was working.
+  - name: ai_usage
+    index: ai_usage
+    threshold_minutes: 1440
+    cron: "17 * * * *"
+    suppress_minutes: 720
     disabled: 0
   # hermes: agent card/goal execution. Scheduled cards run hourly, so two
   # hours of silence means the agent tier is not running, not merely idle.

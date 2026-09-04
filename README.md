@@ -38,6 +38,9 @@ with `direnv allow` — the committed `.envrc` wires up the shell automatically.
 
 ## Usage
 
+> **Primary Execution Plane: Semaphore**
+> Routine execution (`site.yml` and `validate.yml`) is handled centrally by **Semaphore**. The CLI commands below are for local development, testing, or break-glass execution only. To deploy in production, trigger the appropriate Semaphore job.
+
 ```bash
 # 1. Deploy Splunk
 doppler run -- ansible-playbook playbooks/site.yml
