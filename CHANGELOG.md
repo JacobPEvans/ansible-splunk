@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.69.1](https://github.com/dryvist/ansible-splunk/compare/v0.69.0...v0.69.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **splunk_docker:** fall back to dig for object-storage DNS on macOS ([1d50f96](https://github.com/dryvist/ansible-splunk/commit/1d50f96702960208ff963f62b735b6746831e72f))
+* **splunk_docker:** MCP 2.0 ACCEPTED assert and guest S3 DNS ([f0082df](https://github.com/dryvist/ansible-splunk/commit/f0082dfa8ba00ea68ae7060d317610fca9fac6f4))
+* **splunk_docker:** MCP 2.0 ACCEPTED assert, resolve S3 DNS for guests ([a3c6d8f](https://github.com/dryvist/ansible-splunk/commit/a3c6d8fb883f06bc64a4601ad1e7a774a5c55df8))
+* **splunk_docker:** set pipefail in object-storage DNS lookup ([291c3d2](https://github.com/dryvist/ansible-splunk/commit/291c3d28662dba40e0efafe77d22e9375099d6bb))
+
 ## [0.69.0](https://github.com/dryvist/ansible-splunk/compare/v0.68.7...v0.69.0) (2026-09-04)
 
 
