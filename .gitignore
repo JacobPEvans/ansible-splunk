@@ -129,6 +129,7 @@ crash.log
 .claude/todos/
 .claude/local/
 .claude/worktrees/
+.worktrees/
 .claude-wt/
 GEMINI.local.md
 AGENTS.local.md
