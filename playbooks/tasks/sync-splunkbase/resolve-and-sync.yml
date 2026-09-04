@@ -180,6 +180,8 @@
     label: "{{ item.filename }}"
   changed_when: true
 
+# Tag every desired entry (not only re-uploads). Pre-native-versioning objects
+# often lack channel=latest; verify-manifest requires it on every key.
 - name: Tag object-storage objects as the current latest release
   ansible.builtin.command:
     argv:
@@ -196,7 +198,7 @@
              {'Key': 'version', 'Value': item.desired_version | string | trim},
              {'Key': 'splunkbase_id', 'Value': item.splunkbase_id | string}]} | to_json }}"
   environment: "{{ s3_env }}"
-  loop: "{{ splunkbase_to_sync }}"
+  loop: "{{ splunkbase_desired }}"
   loop_control:
     label: "{{ item.filename }}"
   changed_when: true
