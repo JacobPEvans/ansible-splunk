@@ -40,6 +40,39 @@
              | selectattr('install', 'equalto', true) | list))
          | rejectattr('github_repo', 'defined') | list }}
 
+# Inventory often publishes the object-storage "ip" as a DNS name
+# (e.g. s3.example.com). Splunk guests on the SIEM VLAN may not resolve that
+# name; rewrite to an A-record IP resolved on the controller before any guest
+# HTTP fetch.
+- name: Resolve object-storage hostname to a guest-reachable IP
+  when:
+    - splunk_docker_object_storage_addons | length > 0
+    - (splunk_docker_artifact_base_url | urlsplit('hostname') | default('', true)) is match('^[A-Za-z]')
+  block:
+    - name: Look up object-storage A record on the controller
+      ansible.builtin.shell: |
+        set -euo pipefail
+        host="{{ splunk_docker_artifact_base_url | urlsplit('hostname') }}"
+        ip="$(getent hosts "$host" 2>/dev/null | awk '{print $1; exit}' || true)"
+        if [ -z "$ip" ]; then
+          ip="$(dig +short "$host" A 2>/dev/null | awk 'NF && $1 !~ /\.$/ {print; exit}')"
+        fi
+        test -n "$ip"
+        printf '%s\n' "$ip"
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      become: false
+      register: splunk_docker_artifact_dns
+      changed_when: false
+
+    - name: Rewrite artifact base URL to the resolved IP
+      ansible.builtin.set_fact:
+        splunk_docker_artifact_base_url: >-
+          http://{{ splunk_docker_artifact_dns.stdout | trim }}:{{
+          splunk_docker_artifact_base_url | urlsplit('port') }}{{
+          splunk_docker_artifact_base_url | urlsplit('path') }}
+
 # Gated on a non-empty list so Molecule (which sets splunk_docker_addons: []) never
 # templates splunk_docker_artifact_base_url / tofu_data, which it does not provide.
 - name: Fetch the object-storage add-on version manifest

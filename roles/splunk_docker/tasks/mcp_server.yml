@@ -41,8 +41,13 @@
         splunk_docker_mcp_message_py: >-
           {{ splunk_docker_etc_dir }}/apps/{{
           splunk_docker_mcp_app_entry.app_dir }}/bin/mcp_message.py
+        # Pre-2.0 apps assigned a bare `status_code = 200` after this log line.
+        # 2.0.0+ already returns http.HTTPStatus.ACCEPTED (202); keep the legacy
+        # replace for older extracts and accept either form in the assert.
         splunk_docker_mcp_202_anchor: >-
           Processing notifications/initialized request.\)\s*\n\s*status_code =
+        splunk_docker_mcp_202_ok: >-
+          Processing notifications/initialized request["']?\)\s*\n\s*status_code\s*=\s*(?:202|http\.HTTPStatus\.ACCEPTED)
       block:
         - name: Ensure MCP Server local directory exists
           ansible.builtin.file:
@@ -70,6 +75,7 @@
         # is re-applied each converge to self-heal. Anchored on the handler's log
         # line so no unrelated status_code assignment is touched, and idempotent
         # (the pattern's trailing 200 no longer matches once flipped to 202).
+        # No-op when upstream already ships ACCEPTED/202 (MCP Server 2.0.0+).
         - name: Patch MCP Server notifications/initialized to return 202 (proxy compat)
           ansible.builtin.replace:
             path: "{{ splunk_docker_mcp_message_py }}"
@@ -86,26 +92,26 @@
         # Assert the POST state, not the absence of the pre state: absence is
         # equally true when the shape changed and nothing was patched.
         #
-        # Reuses the same anchor as the patch above rather than restating it, so
-        # the check cannot drift from what is actually applied.
+        # Accept either the legacy patched `status_code = 202` or upstream
+        # `http.HTTPStatus.ACCEPTED` (2.0.0+).
         - name: Read the patched MCP Server message handler
           ansible.builtin.slurp:
             src: "{{ splunk_docker_mcp_message_py }}"
           register: splunk_docker_mcp_message_source
           changed_when: false
 
-        - name: Assert the MCP Server 202 patch is installed
+        - name: Assert the MCP Server 202 response is present
           ansible.builtin.assert:
             quiet: true
             that:
               - >-
                 (splunk_docker_mcp_message_source.content | b64decode)
-                is search(splunk_docker_mcp_202_anchor ~ ' 202')
+                is search(splunk_docker_mcp_202_ok)
             fail_msg: >-
               The MCP Server app's notifications/initialized handler no longer
-              matches the pinned patch anchor, so the 202 patch was not applied.
-              A strict MCP proxy will 500 on every session until the anchor is
-              updated to the app's current source.
+              returns HTTP 202 (neither a patched status_code = 202 nor
+              http.HTTPStatus.ACCEPTED). A strict MCP proxy will 500 on every
+              session until the handler is updated.
 
     - name: Skip MCP configuration (app not installed)
       ansible.builtin.debug:
