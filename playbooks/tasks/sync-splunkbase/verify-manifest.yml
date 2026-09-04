@@ -39,6 +39,43 @@
     label: "{{ item.item.filename }}"
   when: splunkbase_manifest is defined
 
+- name: Query final object-storage latest tags
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3api
+      - get-object-tagging
+      - --bucket
+      - "{{ object_storage_bucket }}"
+      - --key
+      - "{{ item.filename }}"
+      - --query
+      - TagSet[?Key=='channel'].Value
+      - --output
+      - text
+  environment: "{{ s3_env }}"
+  loop: "{{ splunkbase_desired | default([]) }}"
+  loop_control:
+    label: "{{ item.filename }}"
+  register: object_storage_final_latest_tag_query
+  changed_when: false
+  failed_when: false
+  when: splunkbase_manifest is defined
+  no_log: true
+
+- name: Verify object-storage objects are tagged latest
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - (item.stdout | default('') | trim) == 'latest'
+    fail_msg: >-
+      object-storage latest tag missing for {{ item.item.filename }}.
+    quiet: true
+  loop: "{{ object_storage_final_latest_tag_query.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.filename }}"
+  when: splunkbase_manifest is defined
+
 - name: Read published object-storage manifest
   ansible.builtin.command:
     argv:

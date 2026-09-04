@@ -9,43 +9,37 @@
       - item.filename is defined
       - item.app_dir is defined
       - not (item.splunkbase_id is defined and item.github_repo is defined)
+      - item.official_ai is not defined or item.official_ai is boolean
       - item.install is not defined or item.install is boolean
     fail_msg: >-
       Invalid registry entry {{ item }}: each entry must have filename + app_dir
-      and may have at most one of (splunkbase_id, github_repo).
+      and may have at most one of (splunkbase_id, github_repo). Optional
+      official_ai and install flags must be booleans when set.
   loop: "{{ splunk_docker_addons }}"
   loop_control:
     label: "{{ item.filename | default('(no filename)') }}"
 
-- name: Validate non-installable reference archive schema
-  ansible.builtin.assert:
-    that:
-      - item.source == 'github_tarball'
-      - item.owner is match('^[A-Za-z0-9][A-Za-z0-9-]*$')
-      - item.repository is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
-      - item.ref | length > 0
-      - item.commit is match('^[a-f0-9]{40}$')
-      - item.filename is match('^[A-Za-z0-9][A-Za-z0-9._+-]*$')
-      - item.license_status == 'undeclared'
-    fail_msg: >-
-      Invalid non-installable reference archive {{ item | default({}) }}.
-      References must be pinned GitHub tarballs and must declare their
-      observed license status without inferring a license.
-  loop: "{{ splunk_docker_reference_archives | default([]) }}"
-  loop_control:
-    label: "{{ item.owner | default('?') }}/{{ item.repository | default('?') }}"
-
-- name: Build list of Splunkbase-syncable entries
+- name: Build list of registered Splunkbase entries
   ansible.builtin.set_fact:
-    splunkbase_entries: >-
+    splunkbase_registry_entries: >-
       {{ splunk_docker_addons | selectattr('splunkbase_id', 'defined') | list }}
 
-- name: Build list of deployable Splunkbase entries
+- name: Validate requested Splunkbase update scope
+  ansible.builtin.assert:
+    that:
+      - splunkbase_update_scope | default('all') in ['all', 'official_ai']
+    fail_msg: >-
+      splunkbase_update_scope must be either `all` or `official_ai`.
+    quiet: true
+
+- name: Select Splunkbase entries for this sync
   ansible.builtin.set_fact:
-    splunkbase_install_entries: >-
-      {{ (splunkbase_entries | selectattr('install', 'undefined') | list)
-         + (splunkbase_entries | selectattr('install', 'defined')
-            | selectattr('install', 'equalto', true) | list) }}
+    splunkbase_entries: >-
+      {{ splunkbase_registry_entries
+         if splunkbase_update_scope | default('all') == 'all'
+         else (splunkbase_registry_entries | selectattr('official_ai', 'defined')
+               | selectattr('official_ai', 'equalto', true) | list) }}
+    splunkbase_manifest_is_partial: "{{ splunkbase_update_scope | default('all') != 'all' }}"
 
 - name: Ensure temporary download directory exists
   ansible.builtin.file:

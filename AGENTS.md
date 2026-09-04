@@ -197,9 +197,9 @@ multiple endpoints, keep these speed options in mind:
 
 ## Artifact store (object-storage / RustFS)
 
-Custom add-ons and resolved Splunkbase archives that the air-gapped Splunk
-VM pulls over the LAN are served from a self-hosted S3-compatible
-object-storage instance (RustFS LXC). Endpoint and port come from the
+Custom add-ons and current Splunkbase packages that the air-gapped Splunk VM
+pulls over the LAN are served from a self-hosted S3-compatible object-storage
+instance (RustFS LXC). Endpoint and port come from the
 OpenTofu inventory (`tofu_data.constants.service_ports.object_storage_s3`);
 bucket-write auth is `OBJECT_STORAGE_ROOT_USER` / `OBJECT_STORAGE_ROOT_PASSWORD`
 from Doppler.
@@ -209,13 +209,13 @@ from Doppler.
   auto-download.
 - Upload new versions via `aws s3 cp` — filenames are version-free,
   versions tracked via object tags (`aws s3api put-object-tagging`).
-- A direct `sync-splunkbase.yml` run also archives each exposed Splunkbase
-  release under `archive/splunkbase/<id>/<version>/<filename>` and verifies its
-  SHA-256 before publishing `archive/catalog.json`. This integrity-sensitive
-  archival is excluded from the fail-soft `site.yml` pre-play.
-- Registry entries with `install: false` are archive-only and must never enter
-  `manifest.json` or be installed on the Splunk VM. Pinned non-Splunkbase source
-  references stay under `archive/references/` with their observed license status.
+- S3 bucket versioning is required. Prior uploads are native object versions;
+  no application-managed archive path is used.
+- Current Splunkbase objects carry `channel=latest`, `version`, and
+  `splunkbase_id` tags.
+- Run `doppler run -- ansible-playbook playbooks/sync-splunkbase.yml -e
+  splunkbase_update_scope=official_ai` to update the priority official AI scope
+  without removing unrelated manifest entries.
 - See `roles/splunk_docker/files/README.md` for upload instructions.
 
 ## MCP Server tools

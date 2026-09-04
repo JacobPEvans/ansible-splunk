@@ -41,13 +41,10 @@
   loop_control:
     label: "{{ item.filename }}"
 
-- name: Keep only deployable resolvable entries
+- name: Keep only resolvable entries
   ansible.builtin.set_fact:
     splunkbase_desired: >-
-      {{ ((splunkbase_desired_all | selectattr('install', 'undefined') | list)
-          + (splunkbase_desired_all | selectattr('install', 'defined')
-             | selectattr('install', 'equalto', true) | list))
-         | rejectattr('desired_version', 'equalto', '') | list }}
+      {{ splunkbase_desired_all | rejectattr('desired_version', 'equalto', '') | list }}
 
 # `aws s3api get-object-tagging` returns nonzero for a missing object
 # ("NoSuchKey" in stderr) — expected, drives a sync. Any other nonzero
@@ -183,10 +180,7 @@
     label: "{{ item.filename }}"
   changed_when: true
 
-# put-object-tagging replaces the whole tag set, matching the previous
-# client's semantics. The tagging document is built as JSON so a version
-# string can never be mistaken for shorthand syntax.
-- name: Tag object-storage objects with version + splunkbase_id
+- name: Tag object-storage objects as the current latest release
   ansible.builtin.command:
     argv:
       - aws
@@ -198,6 +192,7 @@
       - "{{ item.filename }}"
       - --tagging
       - "{{ {'TagSet': [
+             {'Key': 'channel', 'Value': 'latest'},
              {'Key': 'version', 'Value': item.desired_version | string | trim},
              {'Key': 'splunkbase_id', 'Value': item.splunkbase_id | string}]} | to_json }}"
   environment: "{{ s3_env }}"
@@ -214,9 +209,38 @@
   loop_control:
     label: "{{ item.filename }}"
 
-# Manifest = the version bridge the air-gapped Splunk VM reads over HTTP.
-# Written from the FULL resolved set (not just synced) so it always
-# reflects what the bucket currently holds.
+- name: Read existing manifest for a scoped update
+  ansible.builtin.command:
+    argv:
+      - aws
+      - s3
+      - cp
+      - "s3://{{ object_storage_bucket }}/manifest.json"
+      - "-"
+  environment: "{{ s3_env }}"
+  register: existing_splunkbase_manifest
+  changed_when: false
+  failed_when: false
+  when: splunkbase_manifest_is_partial | bool
+  no_log: true
+
+- name: Verify scoped update can preserve the existing manifest
+  ansible.builtin.assert:
+    that:
+      - existing_splunkbase_manifest.rc == 0
+      - existing_splunkbase_manifest.stdout | default('{}', true) | from_json is mapping
+    fail_msg: >-
+      A scoped update must read the existing manifest.json before publishing.
+      Run the complete update scope to rebuild a missing or invalid manifest.
+    quiet: true
+  when: splunkbase_manifest_is_partial | bool
+
+- name: Initialize manifest for this update scope
+  ansible.builtin.set_fact:
+    splunkbase_manifest: >-
+      {{ (existing_splunkbase_manifest.stdout | default('{}', true) | from_json)
+         if splunkbase_manifest_is_partial | bool else {} }}
+
 - name: Build manifest (app_dir → {version, filename})
   ansible.builtin.set_fact:
     splunkbase_manifest: >-
