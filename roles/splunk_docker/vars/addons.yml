@@ -19,6 +19,11 @@
 #                    look up by purpose rather than filename (e.g. role: mcp_server
 #                    is used by validate.yml + tasks/mcp_server.yml so the filename
 #                    can change without breaking either lookup).
+#   install        — optional boolean, default true. When false, skip deploy/validate
+#                    (apps.yml and validate still honor this filter).
+#   official_ai    — optional boolean. Marks vendor AI apps included when sync runs
+#                    with `-e splunkbase_update_scope=official_ai` (partial manifest
+#                    merge). Omit or set false for the default `all` scope only.
 #
 # Flow: sync-splunkbase.yml (control node, has internet) resolves the latest version
 # per splunkbase_id, downloads it, mirrors it to the object-storage `splunk-addons` bucket, and
@@ -42,6 +47,7 @@ splunk_docker_addons:
   - {filename: slack-notification-alert.tar, app_dir: slack_alerts, splunkbase_id: 2878, role: slack_alert}
   - {filename: agent-management-versioned-app-retrieval.tar, app_dir: agent_management_versioned_app_retrieval, splunkbase_id: 8278}
   - {filename: add-on-for-traefik-proxy.tar, app_dir: splunk_traefik_addon, splunkbase_id: 6733}
+  # official_ai: true — refreshed by `splunkbase_update_scope=official_ai`
   - {filename: python-for-scientific-computing-for-linux-64-bit.tar, app_dir: Splunk_SA_Scientific_Python_linux_x86_64, splunkbase_id: 2882, official_ai: true}
   - {filename: splunk-ai-toolkit.tar, app_dir: Splunk_ML_Toolkit, splunkbase_id: 2890, official_ai: true}
   - {filename: mltk-container.tar, app_dir: mltk-container, splunkbase_id: 4607, official_ai: true}

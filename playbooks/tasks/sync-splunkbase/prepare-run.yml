@@ -10,9 +10,11 @@
       - item.app_dir is defined
       - not (item.splunkbase_id is defined and item.github_repo is defined)
       - item.official_ai is not defined or item.official_ai is boolean
+      - item.install is not defined or item.install is boolean
     fail_msg: >-
       Invalid registry entry {{ item }}: each entry must have filename + app_dir
-      and may have at most one of (splunkbase_id, github_repo).
+      and may have at most one of (splunkbase_id, github_repo). Optional
+      official_ai and install flags must be booleans when set.
   loop: "{{ splunk_docker_addons }}"
   loop_control:
     label: "{{ item.filename | default('(no filename)') }}"

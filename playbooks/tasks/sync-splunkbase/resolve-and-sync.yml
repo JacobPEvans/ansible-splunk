@@ -238,7 +238,7 @@
 - name: Initialize manifest for this update scope
   ansible.builtin.set_fact:
     splunkbase_manifest: >-
-      {{ (existing_splunkbase_manifest.stdout | from_json)
+      {{ (existing_splunkbase_manifest.stdout | default('{}', true) | from_json)
          if splunkbase_manifest_is_partial | bool else {} }}
 
 - name: Build manifest (app_dir → {version, filename})
