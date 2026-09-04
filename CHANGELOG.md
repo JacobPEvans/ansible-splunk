@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.7](https://github.com/dryvist/ansible-splunk/compare/v0.68.6...v0.68.7) (2026-09-04)
+
+
+### Bug Fixes
+
+* **sync-splunkbase:** harden review feedback on empty S3 JSON and schema ([fc9f1e4](https://github.com/dryvist/ansible-splunk/commit/fc9f1e4de9f74a441ee68bc2c8a4498ddbd30891))
+
 ## [0.68.6](https://github.com/dryvist/ansible-splunk/compare/v0.68.5...v0.68.6) (2026-09-03)
 
 
