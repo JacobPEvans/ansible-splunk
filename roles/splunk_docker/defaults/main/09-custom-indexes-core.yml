@@ -27,6 +27,19 @@ splunk_docker_indexes_core:
   - name: claude
     max_size_mb: 20480
     frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
+  # clickhouse: one index per AI Docker service/vendor — see the
+  # agentgateway entry above for why this is not a shared catch-all.
+  # ClickHouse OLAP store (Docker-in-LXC), container stdout/stderr only; the
+  # analytical data lives in ClickHouse itself, not Splunk. The per-index
+  # HEC routing that derives one output per index already targets this
+  # name, so those events have nowhere to land until this index exists.
+  # Sized like a server process plus its logs, comparable to langflow/
+  # langgraph. Pre-deployment estimate (nothing has shipped yet; re-measure
+  # and adjust after 30 days live): ~8 MB/day -> ~4.5 GB/year at the
+  # measured ~1.55x on-disk/raw ratio.
+  - name: clickhouse
+    max_size_mb: 4500
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # codex: Codex CLI agent telemetry — completes the per-agent index family
   # alongside claude/gemini/openai.
   - name: codex
