@@ -38,8 +38,15 @@ with `direnv allow` — the committed `.envrc` wires up the shell automatically.
 
 ## Usage
 
-> **Primary Execution Plane: Semaphore**
-> Routine execution (`site.yml` and `validate.yml`) is handled centrally by **Semaphore**. The CLI commands below are for local development, testing, or break-glass execution only. To deploy in production, trigger the appropriate Semaphore job.
+Converges run through Semaphore, the execution plane. Its template wrapper
+loads the run environment from OpenBao before the playbook starts. Playbooks
+read plain environment variables and are independent of the secrets manager:
+`.env`, Doppler, OpenBao or any other injector behaves identically.
+`scripts/run-ansible.sh` remains the runner the wrapper calls and the
+break-glass path from a workstation.
+
+The commands below are that break-glass path, plus local development and
+testing.
 
 ```bash
 # 1. Deploy Splunk
@@ -148,9 +155,10 @@ Key defaults in `roles/splunk_docker/defaults/main/`:
 
 ## Secrets
 
-All secrets via your Doppler config:
+The playbooks read these as plain environment variables. Semaphore loads them
+from OpenBao; from a workstation any injector supplies them.
 
-| Doppler Secret | Ansible Variable | Purpose |
+| Environment variable | Ansible Variable | Purpose |
 | --- | --- | --- |
 | `SPLUNK_PASSWORD` | `splunk_docker_password` | Splunk admin password |
 | `HEC_NAMESPACE` | `splunk_docker_hec_namespace` | UUID namespace for per-index HEC token derivation (required) |
