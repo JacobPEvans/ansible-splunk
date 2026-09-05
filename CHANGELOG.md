@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.70.1](https://github.com/dryvist/ansible-splunk/compare/v0.70.0...v0.70.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **agents:** restore the trailing newline on AGENTS.md ([#538](https://github.com/dryvist/ansible-splunk/issues/538)) ([941b912](https://github.com/dryvist/ansible-splunk/commit/941b91264d0ccae6f8e6c23aa110129bfdcc6dbb))
+
 ## [0.70.0](https://github.com/dryvist/ansible-splunk/compare/v0.69.1...v0.70.0) (2026-09-05)
 
 
