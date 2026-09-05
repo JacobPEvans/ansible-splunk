@@ -299,17 +299,16 @@
   notify: Restart Splunk container
   tags: [alerting]
 
-- name: Check if Splunk Docker image exists
-  community.docker.docker_image_info:
-    name: "{{ splunk_docker_image }}"
-  register: splunk_docker_image_info
-
+# No absence guard. The previous "pull only when no image by this name is
+# present" condition meant a version bump was never fetched: the name matched
+# the image already on disk, the pull was skipped, and the converge went green
+# on the old build. state: present is already idempotent against a pinned tag --
+# it pulls that exact tag when missing and does nothing when it is there.
 - name: Pull Splunk Docker image
   community.docker.docker_image:
     name: "{{ splunk_docker_image }}"
     source: pull
     state: present
-  when: splunk_docker_image_info.images | length == 0
 
 - name: Start Splunk container with docker-compose
   community.docker.docker_compose_v2:

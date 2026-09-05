@@ -10,9 +10,18 @@ splunk_docker_package_name: docker.io
 splunk_docker_compose_package: docker-compose-plugin
 
 # Splunk container configuration
-# Splunk image - use :latest or pin a specific version like 9.1.2 when upgrading.
-# Note: If specifying a version not yet pulled, ensure the VM has network access to Docker Hub.
-splunk_docker_image: splunk/splunk:latest
+# Splunk image. PINNED AND QUOTED, both deliberately.
+#
+# Pinned: a floating tag is only ever pulled once. The image is fetched when it
+# is absent and never again, so the deployed version freezes at whatever the tag
+# resolved to on the day the host was first built while every later converge
+# reports changed=0 -- a drift with no signal attached to it.
+#
+# Quoted: the org Renovate preset finds images with
+# `_image:\s*["'](?<depName>...):(?<currentValue>...)["']` -- an UNQUOTED value
+# does not match, so an unquoted pin is an untracked pin and never gets a PR.
+# The quotes are what turn this line into something Renovate maintains.
+splunk_docker_image: "splunk/splunk:10.4.3"
 splunk_docker_hostname: splunk
 splunk_docker_container_name: splunk
 

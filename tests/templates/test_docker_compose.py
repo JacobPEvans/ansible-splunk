@@ -113,6 +113,55 @@ elif "https://localhost:8000" in result_no_ssl:
 else:
     print("PASS: SSL disabled → healthcheck URL uses http")
 
+# Test 7: the SHIPPED default carries a quoted, pinned tag.
+#
+# Read the role defaults as text rather than trusting BASE_VARS above: the
+# fixture restates the value, so it can never see a bad default. Two failures
+# are guarded here and they are different failures.
+#
+#   A floating tag freezes the deployment. The image is only fetched when it is
+#   absent, so `:latest` resolves once, on build day, and every converge after
+#   that reports changed=0 against a version nobody chose.
+#
+#   An unquoted value is invisible to Renovate. The org preset matches
+#   `_image: "<name>:<version>"` WITH quotes, so an unquoted pin is an untracked
+#   pin -- correct today, silently stale forever, and no PR will ever say so.
+DEFAULTS = (
+    Path(__file__).parent.parent.parent
+    / "roles/splunk_docker/defaults/main/00-docker-container.yml"
+)
+image_lines = [
+    ln.strip()
+    for ln in DEFAULTS.read_text().splitlines()
+    if ln.startswith("splunk_docker_image:")
+]
+if len(image_lines) != 1:
+    errors.append(f"FAIL: expected one splunk_docker_image default, got {image_lines}")
+else:
+    value = image_lines[0].split(":", 1)[1].strip()
+    if not (value.startswith('"') and value.endswith('"')):
+        errors.append(
+            f"FAIL: splunk_docker_image must be QUOTED or Renovate cannot track it: {value}"
+        )
+    tag = value.strip('"').rsplit(":", 1)[-1]
+    if not tag[:1].isdigit():
+        errors.append(
+            f"FAIL: splunk_docker_image must pin an explicit version, not a floating tag: {tag}"
+        )
+    if not errors:
+        print(f"PASS: splunk_docker_image is quoted and pinned ({tag})")
+
+# Test 8: nothing may gate the image pull on the image already being absent.
+TASKS = Path(__file__).parent.parent.parent / "roles/splunk_docker/tasks/main.yml"
+if "splunk_docker_image_info" in TASKS.read_text():
+    errors.append(
+        "FAIL: the image pull is gated on absence again. That guard skips the "
+        "pull whenever any image by that name exists, so a version bump is "
+        "never fetched and the converge goes green on the old build."
+    )
+else:
+    print("PASS: image pull is unconditional (state: present handles idempotence)")
+
 if errors:
     print()
     for err in errors:

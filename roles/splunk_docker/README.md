@@ -34,7 +34,7 @@ See `defaults/main/` for all variables (one topic per file). Key variables:
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
-| `splunk_docker_image` | `splunk/splunk:latest` | Splunk Docker image |
+| `splunk_docker_image` | `splunk/splunk:10.4.3` | Splunk Docker image (pinned; Renovate-tracked) |
 | `splunk_docker_web_port` | `8000` | Web UI port |
 | `splunk_docker_hec_port` | `8088` | HEC port |
 | `splunk_docker_user` | `41812` | Splunk container user UID |
