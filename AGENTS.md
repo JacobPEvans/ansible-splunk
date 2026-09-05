@@ -1,3 +1,6 @@
+---
+skill-groups: [core, review]
+---
 # ansible-splunk - AI Agent Documentation
 
 Ansible automation for Splunk Enterprise deployment on a Proxmox VM.
