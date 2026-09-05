@@ -110,6 +110,16 @@ splunk_docker_indexes_extra:
     datatype: metric
     max_size_mb: 25600
     frozen_time_secs: 7776000
+  # phoenix: one index per AI Docker service/vendor — see the agentgateway
+  # entry above for why this is not a shared catch-all. Arize Phoenix
+  # LLM-observability stack (app + its Postgres), container stdout/stderr
+  # only; traces live in Phoenix's Postgres, not Splunk. Pre-deployment
+  # estimate (nothing has shipped yet; re-measure and adjust after 30 days
+  # live): ~5 MB/day -> ~2.7 GB/year at the measured ~1.55x on-disk/raw
+  # ratio.
+  - name: phoenix
+    max_size_mb: 2750
+    frozen_time_secs: "{{ splunk_docker_index_default_frozen_time_secs }}"
   # proxy: forward-proxy access logs shipped via Cribl.
   - name: proxy
     max_size_mb: "{{ splunk_docker_index_default_max_size_mb }}"
