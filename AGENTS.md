@@ -145,6 +145,13 @@ This is a *read* credential. It is unrelated to the elevated token that writing
 the desired-state object needs — that path is `flow-lock`, and no converge
 should ever take that lease.
 
+Converges run through Semaphore, the execution plane. Its template wrapper
+loads the run environment from OpenBao before the playbook starts. Playbooks
+read plain environment variables and are independent of the secrets manager:
+`.env`, Doppler, OpenBao or any other injector behaves identically.
+`scripts/run-ansible.sh` remains the runner the wrapper calls and the
+break-glass path from a workstation.
+
 ```bash
 # Full deployment (object storage → Splunk VM, direct target-side pull)
 doppler run -- ansible-playbook playbooks/site.yml
