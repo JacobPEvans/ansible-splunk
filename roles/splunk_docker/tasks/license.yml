@@ -1,0 +1,87 @@
+---
+# Reconcile the Enterprise license, and refuse to converge with an expired one.
+#
+# Two defects caused a full search-tier outage on 2026-09-06 and this file
+# closes both:
+#
+#   1. This role never managed the license at all. The only writer was the
+#      cluster-deploy playbook, which targets a topology this estate does not
+#      run -- so a renewed license had no path to the running instance.
+#   2. Nothing anywhere checked the expiry. The stored license had been stale
+#      for two months and the first symptom was every search failing at once.
+#
+# The two hid each other: because nothing applied the stored license, nobody
+# discovered it was stale; because it was believed current, nobody looked for
+# the missing apply. Either alone surfaces in one converge cycle. Together they
+# were silent until the expiry date.
+#
+# `copy` with `content` checksums against the remote file, so this is the whole
+# auto-apply mechanism: unchanged is a no-op, a changed license rewrites and
+# restarts. The filename is fixed because Splunk STACKS every file in this
+# directory -- a dated name would accumulate licenses rather than replace one.
+
+- name: Parse the supplied license
+  ansible.builtin.set_fact:
+    # Splunk licenses are XML carrying a unix expiration_time. Reading it is
+    # what makes a stale license loud instead of a surprise on its expiry date.
+    splunk_docker_license_expiry: >-
+      {{ (splunk_docker_license_xml
+          | regex_search('<expiration_time>(\d+)</expiration_time>', '\1')
+          | first | default('')) | int }}
+    splunk_docker_license_label: >-
+      {{ splunk_docker_license_xml
+         | regex_search('<label>([^<]*)</label>', '\1')
+         | first | default('unlabelled') }}
+  no_log: true
+
+- name: Assert the license is well-formed and not expired
+  ansible.builtin.assert:
+    that:
+      - splunk_docker_license_expiry | int > 0
+      - (splunk_docker_license_expiry | int) > (ansible_date_time.epoch | int)
+    fail_msg: >-
+      The supplied Splunk license is unusable. Parsed expiry
+      '{{ splunk_docker_license_expiry }}' against now
+      '{{ ansible_date_time.epoch }}'. An expiry of 0 means no
+      expiration_time field was found, so the value is not a license; an
+      expiry in the past means it is expired and installing it would leave
+      every search failing exactly as it does now. Supply a current license
+      in the environment -- and check its expiry against the one already
+      installed, because a renewal downloaded to a similarly-named file is
+      easy to confuse with an older one.
+    success_msg: >-
+      License '{{ splunk_docker_license_label }}' is valid until
+      {{ '%Y-%m-%d' | strftime(splunk_docker_license_expiry | int) }}.
+    quiet: true
+
+- name: Warn when the license expires soon
+  ansible.builtin.debug:
+    msg: >-
+      SPLUNK LICENSE EXPIRES IN
+      {{ (((splunk_docker_license_expiry | int) - (ansible_date_time.epoch | int))
+          / 86400) | round(0, 'floor') | int }} DAYS
+      ({{ '%Y-%m-%d' | strftime(splunk_docker_license_expiry | int) }}).
+      Renew it and update the environment before that date -- once it lapses,
+      every search fails at once with a litsearch error that reads like a
+      broken query rather than a licensing problem.
+  when: >-
+    (splunk_docker_license_expiry | int)
+    < ((ansible_date_time.epoch | int) + (splunk_docker_license_warn_days | int * 86400))
+
+- name: Ensure the enterprise license directory exists
+  ansible.builtin.file:
+    path: "{{ splunk_docker_license_dir }}"
+    state: directory
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: "0750"
+
+- name: Install the Enterprise license
+  ansible.builtin.copy:
+    content: "{{ splunk_docker_license_xml }}"
+    dest: "{{ splunk_docker_license_dir }}/enterprise.lic"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: "0600"
+  no_log: true
+  notify: Restart Splunk container
