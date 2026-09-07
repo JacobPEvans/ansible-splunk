@@ -304,11 +304,8 @@
     name: "{{ splunk_docker_image }}"
   register: splunk_docker_image_info
 
-# License BEFORE the container starts, so a first converge comes up licensed
-# rather than on Free and needing a second pass. Skipping when unset is
-# deliberate (Free is valid for a test host), but it is announced rather than
-# silent -- an unmanaged license is the state that hid a stale one until every
-# search failed at once.
+# Runs before the container starts so a first converge comes up licensed
+# rather than on Free and needing a second pass.
 - name: Reconcile the Enterprise license
   ansible.builtin.include_tasks: license.yml
   when: splunk_docker_license_xml | length > 0
@@ -316,10 +313,9 @@
 - name: Report that no license is being managed
   ansible.builtin.debug:
     msg: >-
-      SPLUNK_LICENSE is not set, so this converge manages no Enterprise
-      license and Splunk runs on its Free license. That is correct for a test
-      host. On a production indexer it means a renewal can never reach this
-      instance -- set it in the environment.
+      SPLUNK_LICENSE is not set: no Enterprise license is managed and Splunk
+      runs on its Free license. Set it in the environment on a production
+      indexer, or a renewal can never reach this instance.
   when: splunk_docker_license_xml | length == 0
 
 - name: Pull Splunk Docker image

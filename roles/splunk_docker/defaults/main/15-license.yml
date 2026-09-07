@@ -1,20 +1,13 @@
 ---
-# Enterprise license. Read from the environment like every other secret in this
-# role -- whichever wrapper fills that environment is a deployment-time concern,
-# not this role's.
-#
-# Empty is legitimate and skips license management entirely: Splunk runs on its
-# Free license, which is the correct behaviour for a test converge or a fresh
-# host that has not been licensed yet. It is NOT a silent skip, though -- see
-# the reminder task, because "no license managed" is exactly the state that hid
-# a two-month-stale license until every search failed at once.
+# Enterprise license, read from the environment like every other secret this
+# role consumes. Empty skips license management and leaves Splunk on its Free
+# license, which is valid for a test host.
 splunk_docker_license_xml: >-
   {{ lookup('env', 'SPLUNK_LICENSE') | default('', true) }}
 
-# Splunk stacks every file in this directory, so the license lands here under a
+# Splunk stacks every file in this directory, so the license lands under a
 # fixed name to replace rather than accumulate.
 splunk_docker_license_dir: "{{ splunk_docker_etc_dir }}/licenses/enterprise"
 
-# How far ahead a converge starts warning. 30 days is one monthly maintenance
-# cycle, so a renewal always has a scheduled window to land in.
+# How many days before expiry a converge starts warning.
 splunk_docker_license_warn_days: 30
