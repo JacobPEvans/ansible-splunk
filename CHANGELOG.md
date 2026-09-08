@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.70.2](https://github.com/dryvist/ansible-splunk/compare/v0.70.1...v0.70.2) (2026-09-08)
+
+
+### Bug Fixes
+
+* **splunk_docker:** reconcile the Enterprise license, and refuse an expired one ([#541](https://github.com/dryvist/ansible-splunk/issues/541)) ([685716f](https://github.com/dryvist/ansible-splunk/commit/685716f1288ce0c96c2f0ca0b8a2ac5e5b0d2651))
+
 ## [0.70.1](https://github.com/dryvist/ansible-splunk/compare/v0.70.0...v0.70.1) (2026-09-05)
 
 
