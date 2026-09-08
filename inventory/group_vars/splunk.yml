@@ -20,15 +20,34 @@ splunk_docker_mssql_driver_enabled: true
 # declaration. Reserved-block tuning is governed by
 # splunk_docker_data_disk_reserved_percent in the role defaults.
 
-# Managed service users. The Hermes AI agent gets its own Splunk identity so it
-# can search/read the environment via the Splunk MCP Server (Bearer token =
-# SPLUNK_MCP_TOKEN, minted per-user). Admin role for now — narrow to a custom
-# read/search role once the access pattern is known.
+# Managed service users. The AI agent gets its own identity so it can
+# search/read the environment through the MCP server, with a bearer token
+# minted per user.
+#
+# The token INHERITS THE USER'S ROLES, so whatever is listed here is what an
+# agent's tool calls run as. This previously said `admin` with a note to narrow
+# it "once the access pattern is known". The access pattern is known: the agent
+# searches. It has never needed to administer anything.
+#
+# `user` is what that requires, and the platform's own defaults say so:
+#
+#   user   srchIndexesAllowed = *          searches every non-internal index
+#   power  imports user, adds scheduling   no administrative capability either
+#   admin  adds _* and the admin caps      creates users, installs apps, restarts
+#
+# So `admin` bought exactly two things over `user`: the internal indexes, and
+# the ability to administer the platform the agent is supposed to be observing.
+# Neither is part of its work, and the second is the one that matters — an
+# identity that can edit users and roles can grant itself anything else.
+#
+# If a specific need for an internal index appears, add a custom role granting
+# that index and nothing more. Do not reach back for `admin`; going through a
+# named role keeps the reason for the grant written down.
 splunk_docker_manage_users: true
 splunk_docker_users:
   - name: hermes
     roles:
-      - admin
+      - user
 
 # Publish the shared Splunk MCP connection (SPLUNK_MCP_URL + minted
 # SPLUNK_MCP_TOKEN) to OpenBao secret/ai/mcp/splunk. Requires a write-capable
