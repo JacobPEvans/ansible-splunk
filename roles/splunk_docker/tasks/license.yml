@@ -1,0 +1,66 @@
+---
+# Installs the Enterprise license and refuses an unusable one.
+#
+# `copy` with `content` checksums against the remote file, so an unchanged
+# license is a no-op and a changed one rewrites and notifies the restart.
+# The filename is fixed because Splunk stacks every file in this directory:
+# a per-license name would accumulate licenses instead of replacing one.
+
+- name: Parse the supplied license
+  ansible.builtin.set_fact:
+    # Splunk licenses are XML carrying a unix expiration_time.
+    splunk_docker_license_expiry: >-
+      {{ (splunk_docker_license_xml
+          | regex_search('<expiration_time>(\d+)</expiration_time>', '\1')
+          | first | default('')) | int }}
+    splunk_docker_license_label: >-
+      {{ splunk_docker_license_xml
+         | regex_search('<label>([^<]*)</label>', '\1')
+         | first | default('unlabelled') }}
+  no_log: true
+
+- name: Assert the license is well-formed and not expired
+  ansible.builtin.assert:
+    that:
+      # 0 means no expiration_time field was found, so the value is not a license.
+      - splunk_docker_license_expiry | int > 0
+      - (splunk_docker_license_expiry | int) > (ansible_date_time.epoch | int)
+    fail_msg: >-
+      SPLUNK_LICENSE is unusable: parsed expiry '{{ splunk_docker_license_expiry }}'
+      against now '{{ ansible_date_time.epoch }}'. An expired license installs
+      cleanly and still leaves every search failing, so it is refused here.
+      Supply a current license and check its expiry against the installed one.
+    success_msg: >-
+      License '{{ splunk_docker_license_label }}' is valid until
+      {{ '%Y-%m-%d' | strftime(splunk_docker_license_expiry | int) }}.
+    quiet: true
+
+- name: Warn when the license expires soon
+  ansible.builtin.debug:
+    msg: >-
+      SPLUNK LICENSE EXPIRES IN
+      {{ (((splunk_docker_license_expiry | int) - (ansible_date_time.epoch | int))
+          / 86400) | round(0, 'floor') | int }} DAYS
+      ({{ '%Y-%m-%d' | strftime(splunk_docker_license_expiry | int) }}).
+      On expiry every search fails with a litsearch error naming the license.
+  when: >-
+    (splunk_docker_license_expiry | int)
+    < ((ansible_date_time.epoch | int) + (splunk_docker_license_warn_days | int * 86400))
+
+- name: Ensure the enterprise license directory exists
+  ansible.builtin.file:
+    path: "{{ splunk_docker_license_dir }}"
+    state: directory
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: "0750"
+
+- name: Install the Enterprise license
+  ansible.builtin.copy:
+    content: "{{ splunk_docker_license_xml }}"
+    dest: "{{ splunk_docker_license_dir }}/enterprise.lic"
+    owner: "{{ splunk_docker_user }}"
+    group: "{{ splunk_docker_group }}"
+    mode: "0600"
+  no_log: true
+  notify: Restart Splunk container

@@ -1,0 +1,13 @@
+---
+# Enterprise license, read from the environment like every other secret this
+# role consumes. Empty skips license management and leaves Splunk on its Free
+# license, which is valid for a test host.
+splunk_docker_license_xml: >-
+  {{ lookup('env', 'SPLUNK_LICENSE') | default('', true) }}
+
+# Splunk stacks every file in this directory, so the license lands under a
+# fixed name to replace rather than accumulate.
+splunk_docker_license_dir: "{{ splunk_docker_etc_dir }}/licenses/enterprise"
+
+# How many days before expiry a converge starts warning.
+splunk_docker_license_warn_days: 30
