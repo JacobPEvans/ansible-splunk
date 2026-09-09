@@ -43,11 +43,51 @@ splunk_docker_mssql_driver_enabled: true
 # If a specific need for an internal index appears, add a custom role granting
 # that index and nothing more. Do not reach back for `admin`; going through a
 # named role keeps the reason for the grant written down.
+# The role the identity actually needs: everything readable, nothing
+# administrable.
+#
+# `admin` was wrong because it grants administration of the deployment the
+# agent exists to observe, and an identity that can edit users and roles can
+# grant itself anything else — which makes every other limit on it advisory.
+#
+# Plain `user` was ALSO wrong, and worse: it does not merely narrow the
+# identity, it breaks it. Two reasons, both from the platform's own
+# configuration rather than inference:
+#
+#   * Index scope. The platform's specification is explicit that "*" does not
+#     match internal indexes, that internal indexes are "_*", and that the
+#     wildcard matches all non-internal OR all internal, never both. So `user`
+#     (allowed "*") silently loses every internal index.
+#   * Tool execution. The MCP application grants the capability that gates
+#     connecting and running tools to `admin` and `sc_admin` only. Under `user`
+#     the agent could not execute a single tool.
+#
+# Hence a declared role: import `user` for the ordinary search grants, allow
+# both index wildcards so nothing is out of reach, default searches to the same
+# so a query that names no index is not silently confined, and add exactly the
+# one capability tool execution needs.
+#
+# Deliberately NOT granted: the MCP administration capability, and every
+# capability that edits users, roles or objects or restarts the service.
+splunk_docker_manage_roles: true
+splunk_docker_roles:
+  - name: hermes_search
+    imported_roles:
+      - user
+    srch_indexes_allowed:
+      - "*"
+      - "_*"
+    srch_indexes_default:
+      - "*"
+      - "_*"
+    capabilities:
+      - mcp_tool_execute
+
 splunk_docker_manage_users: true
 splunk_docker_users:
   - name: hermes
     roles:
-      - user
+      - hermes_search
 
 # Publish the shared Splunk MCP connection (SPLUNK_MCP_URL + minted
 # SPLUNK_MCP_TOKEN) to OpenBao secret/ai/mcp/splunk. Requires a write-capable

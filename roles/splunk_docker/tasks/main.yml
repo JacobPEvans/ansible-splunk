@@ -363,6 +363,12 @@
 - name: Configure MCP Server
   ansible.builtin.include_tasks: mcp_server.yml
 
+# Custom roles for service identities, BEFORE the users that are assigned them.
+# A minted token inherits its user's roles, so the role is the actual grant; it
+# has to exist first or the user creation below assigns a role that is not there.
+- name: Manage custom Splunk roles
+  ansible.builtin.include_tasks: manage_roles.yml
+
 # Create dedicated service users (e.g. the Hermes AI agent) + mint their auth
 # tokens. Runs after the REST API is live (wait_for_splunk, above).
 - name: Manage Splunk service users and tokens

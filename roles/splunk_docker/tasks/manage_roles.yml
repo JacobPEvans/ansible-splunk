@@ -1,0 +1,34 @@
+---
+# Create/reconcile the custom Splunk roles that service identities are assigned.
+#
+# Why this exists at all: a minted authorization token INHERITS ITS USER'S
+# ROLES, so the role a service identity holds is what every one of its calls
+# runs as. Assigning a built-in role means taking whatever that role happens to
+# carry, and the two obvious built-ins are both wrong here:
+#
+#   * `admin` grants administration of the very deployment the identity is
+#     meant to observe — creating users, editing roles, installing apps,
+#     restarting. An identity that can edit roles can grant itself anything
+#     else, which makes every other limit on it advisory.
+#   * `user` cannot reach internal indexes, because Splunk's wildcard does not
+#     match them ("*" is all non-internal OR all internal, never both), and it
+#     is not granted the capability the MCP app requires to execute tools at
+#     all. Assigning it does not narrow the identity; it breaks it.
+#
+# So the correct grant is neither, and it has to be declared: full read across
+# every index, the one capability needed to run tools, and no administration.
+#
+# Runs BEFORE manage_users.yml (see tasks/main.yml) so a role exists before a
+# user is assigned it.
+
+- name: Manage custom Splunk roles
+  when:
+    - splunk_docker_manage_roles | bool
+    - splunk_docker_roles | length > 0
+  block:
+    - name: Reconcile each declared role
+      ansible.builtin.include_tasks: manage_one_role.yml
+      loop: "{{ splunk_docker_roles }}"
+      loop_control:
+        loop_var: splunk_role
+        label: "{{ splunk_role.name }}"
