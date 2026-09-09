@@ -374,6 +374,13 @@
 - name: Manage Splunk service users and tokens
   ansible.builtin.include_tasks: manage_users.yml
 
+- name: Audit for auth tokens outside the managed set
+  # After manage_users.yml, so the declared set has been reconciled and any
+  # token this run legitimately minted is already accounted for. Running it
+  # before would report a token the same run is about to create.
+  ansible.builtin.include_tasks: audit_undeclared_tokens.yml
+  when: splunk_docker_manage_users | default(false) | bool
+
 # Configure DB Connect post-install (Java path for Task/Query servers)
 - name: Configure DB Connect
   ansible.builtin.include_tasks: dbconnect.yml

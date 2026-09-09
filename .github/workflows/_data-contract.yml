@@ -80,6 +80,12 @@ jobs:
         run: |
           ansible-playbook tests/openbao_publish/verify.yml
 
+      # Reads the selection expression out of the role and evaluates it, so a
+      # drifted role fails here rather than passing against a stale copy.
+      - name: Verify the undeclared auth-token gate
+        run: |
+          ansible-playbook tests/undeclared_tokens/verify.yml
+
   verify-inventory:
     name: Verify Inventory Load
     runs-on: ubuntu-latest
