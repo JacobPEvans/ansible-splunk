@@ -1,0 +1,102 @@
+---
+# Create/reconcile ONE custom Splunk role. Included per-item from
+# manage_roles.yml with loop_var: splunk_role
+# ({ name, imported_roles: [..], srch_indexes_allowed: [..],
+#    srch_indexes_default: [..], capabilities: [..] }).
+#
+# Shape follows manage_one_role's sibling, manage_one_user.yml: look up, create
+# when absent, reconcile when present. The reconcile POST is unconditional on an
+# existing role rather than diffed, because the endpoint is idempotent and a
+# diff here would have to reimplement Splunk's own list normalisation — which is
+# how a "no change needed" bug gets written.
+
+- name: "Look up Splunk role {{ splunk_role.name }}"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/roles/{{ splunk_role.name }}?output_mode=json"
+    method: GET
+    user: "{{ splunk_admin_user | default('admin') }}"
+    password: "{{ splunk_docker_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: [200, 404]
+  register: splunk_docker_role_lookup
+  no_log: true
+  # Read-only existence check that must also run under --check, for the same
+  # reason as the user lookup: skipping it leaves the tasks below evaluating an
+  # undefined status, and a dry run dies here instead of reaching the rest.
+  check_mode: false
+
+- name: "Create Splunk role {{ splunk_role.name }}"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/roles"
+    method: POST
+    user: "{{ splunk_admin_user | default('admin') }}"
+    password: "{{ splunk_docker_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: form-urlencoded
+    body:
+      name: "{{ splunk_role.name }}"
+      imported_roles: "{{ splunk_role.imported_roles | default([]) }}"
+      srchIndexesAllowed: "{{ splunk_role.srch_indexes_allowed | default([]) }}"
+      srchIndexesDefault: "{{ splunk_role.srch_indexes_default | default([]) }}"
+      capabilities: "{{ splunk_role.capabilities | default([]) }}"
+    status_code: [200, 201]
+  when: splunk_docker_role_lookup.status == 404
+  no_log: true
+
+- name: "Reconcile Splunk role {{ splunk_role.name }}"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/roles/{{ splunk_role.name }}"
+    method: POST
+    user: "{{ splunk_admin_user | default('admin') }}"
+    password: "{{ splunk_docker_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: form-urlencoded
+    body:
+      imported_roles: "{{ splunk_role.imported_roles | default([]) }}"
+      srchIndexesAllowed: "{{ splunk_role.srch_indexes_allowed | default([]) }}"
+      srchIndexesDefault: "{{ splunk_role.srch_indexes_default | default([]) }}"
+      capabilities: "{{ splunk_role.capabilities | default([]) }}"
+    status_code: [200]
+  when: splunk_docker_role_lookup.status == 200
+  no_log: true
+
+# Assert the result rather than trusting the write. A role that exists but does
+# not carry the index scope or the capability produces an identity that
+# authenticates and then cannot do its work — which reads as a credential
+# problem and is not one. That misreading has already cost this estate days.
+- name: "Verify Splunk role {{ splunk_role.name }} carries what was declared"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/roles/{{ splunk_role.name }}?output_mode=json"
+    method: GET
+    user: "{{ splunk_admin_user | default('admin') }}"
+    password: "{{ splunk_docker_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: [200]
+  register: splunk_docker_role_verify
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: "Assert Splunk role {{ splunk_role.name }} grants its declared index scope and capabilities"
+  vars:
+    _live: "{{ splunk_docker_role_verify.json.entry[0].content }}"
+  ansible.builtin.assert:
+    that:
+      - (splunk_role.srch_indexes_allowed | default([]))
+        | difference(_live.srchIndexesAllowed | default([])) | length == 0
+      - (splunk_role.capabilities | default([]))
+        | difference(_live.capabilities | default([])) | length == 0
+    fail_msg: >-
+      Role {{ splunk_role.name }} does not carry what was declared.
+      Declared index scope {{ splunk_role.srch_indexes_allowed | default([]) }},
+      live {{ _live.srchIndexesAllowed | default([]) }}.
+      Declared capabilities {{ splunk_role.capabilities | default([]) }},
+      live capabilities are missing
+      {{ (splunk_role.capabilities | default([]))
+         | difference(_live.capabilities | default([])) }}.
+      An identity holding this role would authenticate and then be unable to do
+      its work, which reads as a credential fault and is not one.
