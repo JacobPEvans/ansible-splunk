@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.71.0](https://github.com/dryvist/ansible-splunk/compare/v0.70.4...v0.71.0) (2026-09-09)
+
+
+### Features
+
+* **splunk:** fail the converge on an auth token with an unmanaged owner ([#547](https://github.com/dryvist/ansible-splunk/issues/547)) ([f1395fe](https://github.com/dryvist/ansible-splunk/commit/f1395fed61410674331361abad35d9f7094502d6))
+
 ## [0.70.4](https://github.com/dryvist/ansible-splunk/compare/v0.70.3...v0.70.4) (2026-09-09)
 
 
