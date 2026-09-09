@@ -37,6 +37,12 @@ splunk_docker_roles: []
 # (its auth only accepts mcp), not a free-form label.
 splunk_docker_token_audience: "mcp"
 
+# Token owners that are deliberately NOT managed users. Anything listed here is
+# exempt from the undeclared-token gate, so each entry needs a reason: the gate
+# exists because reconciliation only visits declared users, and an exemption
+# puts an owner permanently outside every rotation and cleanup path.
+splunk_docker_token_owner_exceptions: []
+
 # Relative expiry for minted tokens (Splunk relative-time syntax, e.g. +90d).
 # Empty string omits expires_on so Splunk applies its default token lifetime.
 splunk_docker_token_expires_on: "+90d"

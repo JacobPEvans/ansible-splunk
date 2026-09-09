@@ -1,0 +1,79 @@
+---
+# Catch auth tokens that belong to nobody this role manages.
+#
+# Token reconciliation selects by `claims.sub == splunk_user.name` and iterates
+# `splunk_docker_users`. A token owned by anyone NOT in that list is therefore
+# in neither the eligible set nor the cleanup set: it is never evaluated, never
+# rotated and never removed. Nothing else in this role looks at it.
+#
+# That is not hypothetical. Two tokens belonging to the built-in administrator
+# survived two months past the identity that superseded them, still valid,
+# while every reconciliation run reported success — because the administrator
+# is not a declared user and so was never in scope.
+#
+# An administrator-owned token is the sharp case: that account can edit users
+# and roles, so anything holding one can grant itself everything else and every
+# other limit on it is advisory.
+#
+# This mirrors the undeclared-identity gate in the secrets-store role, which
+# exists for exactly the same reason: reconciliation that iterates a declared
+# list cannot see what is not on it.
+
+- name: List every auth token on the platform
+  ansible.builtin.uri:
+    url: >-
+      https://127.0.0.1:{{ splunk_docker_mgmt_port }}/services/authorization/tokens?output_mode=json&count=0
+    method: GET
+    user: "{{ splunk_admin_user | default('admin') }}"
+    password: "{{ splunk_docker_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: [200]
+  register: splunk_docker_all_tokens
+  # Read-only, and it gates the assertion below, so it must run under --check
+  # too or the dry run fails on an undefined result instead of reporting.
+  check_mode: false
+  changed_when: false
+  no_log: true
+
+# Expired tokens cannot authenticate, so they are not a finding — only clutter.
+# `now()` renders at evaluation time; the ansible_date_time fact freezes at
+# gather time, which on a long converge is the wrong "now" — same reasoning
+# as plan_token_reconciliation.yml.
+# Judging on the expiry CLAIM rather than the `status` field is deliberate: the
+# platform reports an expired token as "enabled", so a check reading status
+# counts credentials that cannot be used and misses none that can.
+- name: Select live tokens whose owner is not a declared user
+  ansible.builtin.set_fact:
+    splunk_docker_undeclared_tokens: >-
+      {{ (splunk_docker_all_tokens.json.entry | default([]))
+         | selectattr('content.claims', 'defined')
+         | selectattr('content.claims.sub', 'defined')
+         | selectattr('content.claims.exp', 'defined')
+         | selectattr('content.claims.exp', 'gt', now(utc=true, fmt='%s') | int)
+         | rejectattr('content.claims.sub', 'in',
+                      (splunk_docker_users | map(attribute='name') | list)
+                      + splunk_docker_token_owner_exceptions)
+         | list }}
+  no_log: true
+
+# Owners only. The token id is not printed: it is not usable on its own, but
+# there is no reason to put credential-adjacent identifiers in a converge log
+# when the owner is what a reader needs in order to act.
+- name: Assert no live token belongs to an owner this role does not manage
+  ansible.builtin.assert:
+    that:
+      - splunk_docker_undeclared_tokens | length == 0
+    fail_msg: >-
+      {{ splunk_docker_undeclared_tokens | length }} live auth token(s) belong
+      to owners this role does not manage:
+      {{ splunk_docker_undeclared_tokens
+         | map(attribute='content.claims.sub') | unique | sort | join(', ') }}.
+      Reconciliation only ever visits declared users, so these are never
+      rotated and never removed — they simply persist. Either revoke them, or
+      add the owner to splunk_docker_token_owner_exceptions with a comment
+      saying why it is deliberate. Do not silence this by declaring the
+      administrator as a managed user: that would put its tokens into the
+      rotation path rather than out of existence.
+    success_msg: >-
+      Every live auth token belongs to a declared user or a named exception.

@@ -1,0 +1,165 @@
+---
+# Prove the undeclared auth-token gate flags what it must and stays quiet
+# otherwise.
+#
+# The expression under test is READ OUT OF THE ROLE and evaluated, never
+# retyped here. A copied expression passes forever while the role's own copy
+# drifts — the same shape of blind spot the gate itself exists to close.
+#
+# The role's first task is a live HTTP call, so what runs here is the selection
+# and the assertion around it, with the token listing supplied as a fixture.
+- name: Verify the undeclared auth-token gate
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    repo_root: "{{ playbook_dir }}/../.."
+    audit_tasks_file: "{{ repo_root }}/roles/splunk_docker/tasks/audit_undeclared_tokens.yml"
+    select_task_name: Select live tokens whose owner is not a declared user
+
+    # One owner the role manages, one it deliberately excuses. Everything else
+    # is undeclared by construction.
+    splunk_docker_users:
+      - name: hermes
+    splunk_docker_token_owner_exceptions:
+      - deliberate_exception
+
+    live_epoch: "{{ (now(utc=true, fmt='%s') | int) + 86400 }}"
+    dead_epoch: "{{ (now(utc=true, fmt='%s') | int) - 86400 }}"
+
+    # Shaped as /services/authorization/tokens returns entries. The two admin
+    # ids are the real ones this gate was built for: valid, unused for weeks,
+    # owned by an account that can edit users and roles.
+    scenarios:
+      - name: two live administrator tokens are flagged
+        entries:
+          - name: "0a251db5d9"
+            content: {claims: {sub: admin, exp: "{{ live_epoch }}"}}
+          - name: "43be52db0e"
+            content: {claims: {sub: admin, exp: "{{ live_epoch }}"}}
+        expect: ["0a251db5d9", "43be52db0e"]
+
+      - name: a declared user's live token is not flagged
+        entries:
+          - name: "hermes01"
+            content: {claims: {sub: hermes, exp: "{{ live_epoch }}"}}
+        expect: []
+
+      # Judged on the expiry CLAIM, not the status field: the platform reports
+      # an expired token as "enabled".
+      - name: an expired token cannot authenticate, so it is not a finding
+        entries:
+          - name: "expired01"
+            content: {claims: {sub: admin, exp: "{{ dead_epoch }}"}}
+        expect: []
+
+      - name: a named exception is not flagged
+        entries:
+          - name: "except01"
+            content: {claims: {sub: deliberate_exception, exp: "{{ live_epoch }}"}}
+        expect: []
+
+      - name: an entry carrying no claims is skipped, not an error
+        entries:
+          - name: "noclaims"
+            content: {}
+        expect: []
+
+      # The real listing is mostly healthy. A gate that only finds the bad
+      # token when nothing else is present proves nothing about production.
+      - name: the live administrator tokens are still found among healthy ones
+        entries:
+          - name: "hermes01"
+            content: {claims: {sub: hermes, exp: "{{ live_epoch }}"}}
+          - name: "0a251db5d9"
+            content: {claims: {sub: admin, exp: "{{ live_epoch }}"}}
+          - name: "expired01"
+            content: {claims: {sub: admin, exp: "{{ dead_epoch }}"}}
+          - name: "43be52db0e"
+            content: {claims: {sub: admin, exp: "{{ live_epoch }}"}}
+        expect: ["0a251db5d9", "43be52db0e"]
+
+      - name: an empty listing is not a finding
+        entries: []
+        expect: []
+
+  tasks:
+    # Indexed rather than `map(attribute=...)`: the key literally contains
+    # dots, which `attribute` would split into a lookup path.
+    - name: Read the selection expression out of the role itself
+      ansible.builtin.set_fact:
+        select_expression: >-
+          {{ ((((lookup('ansible.builtin.file', audit_tasks_file) | from_yaml)
+                | selectattr('name', 'equalto', select_task_name) | list)
+             | first | default({}, true))['ansible.builtin.set_fact']
+             | default({}, true))['splunk_docker_undeclared_tokens']
+             | default('', true) }}
+
+    - name: Fail loudly if the role no longer contains that task
+      ansible.builtin.assert:
+        that:
+          - select_expression | length > 0
+        fail_msg: >-
+          '{{ select_task_name }}' is not in the role's audit tasks. Either it
+          was renamed and this test must follow it, or the gate was removed.
+          Do not delete this test to make the suite pass.
+
+    # A template lookup is what actually evaluates the extracted expression:
+    # a fact holding an expression string is stored verbatim, never rendered.
+    - name: Materialise the expression so it can be evaluated per scenario
+      ansible.builtin.tempfile:
+        suffix: .j2
+      register: select_template
+      changed_when: false
+
+    - name: Write the role's expression to it
+      ansible.builtin.copy:
+        content: "{{ select_expression }}"
+        dest: "{{ select_template.path }}"
+        mode: "0600"
+      changed_when: false
+
+    - name: Evaluate the role's expression against each scenario
+      ansible.builtin.assert:
+        that:
+          - selected == scenario.expect
+        fail_msg: >-
+          '{{ scenario.name }}' selected {{ selected }},
+          expected {{ scenario.expect }}.
+        success_msg: "{{ scenario.name }}"
+      vars:
+        selected: >-
+          {{ lookup('ansible.builtin.template', select_template.path,
+                    template_vars={'splunk_docker_all_tokens':
+                                   {'json': {'entry': scenario.entries}}})
+             | map(attribute='name') | list }}
+      loop: "{{ scenarios }}"
+      loop_control:
+        loop_var: scenario
+        label: "{{ scenario.name }}"
+
+    - name: Remove the materialised expression
+      ansible.builtin.file:
+        path: "{{ select_template.path }}"
+        state: absent
+      changed_when: false
+
+    # A check that cannot fail looks exactly like a check that passed, so the
+    # failing direction is asserted too.
+    - name: The gate must fail closed when a token is flagged
+      block:
+        - name: Run the role's own assertion against a flagged set
+          ansible.builtin.assert:
+            that:
+              - splunk_docker_undeclared_tokens | length == 0
+          vars:
+            splunk_docker_undeclared_tokens:
+              - content: {claims: {sub: admin}}
+
+        - name: Reaching here means the gate does not fail closed
+          ansible.builtin.fail:
+            msg: The assertion passed with an undeclared token present.
+      rescue:
+        - name: The gate failed closed, as it must
+          ansible.builtin.debug:
+            msg: gate fails closed on an undeclared token
