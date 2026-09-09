@@ -83,6 +83,17 @@
         entries: []
         expect: []
 
+      # The platform returns `exp` as a JSON number on some versions and a
+      # quoted string on others. A comparison that does not cast raises on the
+      # string form, which fails the whole gate rather than judging the token.
+      - name: a string-typed expiry is compared, not fatal
+        entries:
+          - name: "strexp_live"
+            content: {claims: {sub: admin, exp: "4102444800"}}
+          - name: "strexp_dead"
+            content: {claims: {sub: admin, exp: "1000000000"}}
+        expect: ["strexp_live"]
+
   tasks:
     # Indexed rather than `map(attribute=...)`: the key literally contains
     # dots, which `attribute` would split into a lookup path.
@@ -128,10 +139,14 @@
           expected {{ scenario.expect }}.
         success_msg: "{{ scenario.name }}"
       vars:
-        selected: >-
+        # A template lookup returns a rendered string once the expression
+        # contains statement blocks, so parse it back before comparing.
+        rendered: >-
           {{ lookup('ansible.builtin.template', select_template.path,
                     template_vars={'splunk_docker_all_tokens':
-                                   {'json': {'entry': scenario.entries}}})
+                                   {'json': {'entry': scenario.entries}}}) }}
+        selected: >-
+          {{ ((rendered | from_yaml) if (rendered is string) else rendered)
              | map(attribute='name') | list }}
       loop: "{{ scenarios }}"
       loop_control:

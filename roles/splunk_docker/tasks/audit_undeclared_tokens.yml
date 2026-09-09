@@ -43,18 +43,28 @@
 # Judging on the expiry CLAIM rather than the `status` field is deliberate: the
 # platform reports an expired token as "enabled", so a check reading status
 # counts credentials that cannot be used and misses none that can.
+#
+# Written as a loop rather than a selectattr chain because `exp` comes back as
+# a JSON number on some platform versions and a quoted string on others, and
+# `selectattr(..., 'gt', ...)` compares the raw value -- a string against an
+# int raises, so the whole gate errors out instead of judging the token. The
+# cast has to happen per entry, which selectattr cannot express.
 - name: Select live tokens whose owner is not a declared user
   ansible.builtin.set_fact:
     splunk_docker_undeclared_tokens: >-
-      {{ (splunk_docker_all_tokens.json.entry | default([]))
-         | selectattr('content.claims', 'defined')
-         | selectattr('content.claims.sub', 'defined')
-         | selectattr('content.claims.exp', 'defined')
-         | selectattr('content.claims.exp', 'gt', now(utc=true, fmt='%s') | int)
-         | rejectattr('content.claims.sub', 'in',
-                      (splunk_docker_users | map(attribute='name') | list)
-                      + splunk_docker_token_owner_exceptions)
-         | list }}
+      {%- set current_epoch = now(utc=true, fmt='%s') | int -%}
+      {%- set managed = (splunk_docker_users | map(attribute='name') | list)
+                        + splunk_docker_token_owner_exceptions -%}
+      {%- set undeclared = [] -%}
+      {%- for entry in (splunk_docker_all_tokens.json.entry | default([])) -%}
+      {%-   set claims = (entry.content | default({})).claims | default({}) -%}
+      {%-   if claims.sub is defined and claims.exp is defined
+               and (claims.exp | int) > current_epoch
+               and claims.sub not in managed -%}
+      {%-     set _ = undeclared.append(entry) -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ undeclared }}
   no_log: true
 
 # Owners only. The token id is not printed: it is not usable on its own, but
